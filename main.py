@@ -1,23 +1,21 @@
-from utils import Utils
-from transport import Transport
-from hci import HCI
-from ui import UI
+# -*- coding: utf-8 -*-
 import sys
 
+import subprocess
+import os
 
+from ui.main.app import start_app
+
+def main():
+    # Set the environment variable
+    # os.environ["QT_QPA_PLATFORM_PLUGIN_PATH"] = os.path.join(os.path.dirname(__file__), "platforms")
+    start_app()
 
 if __name__ == "__main__":
-
-    # initialize core components
-    utils = Utils()
-    transport = Transport()
-    hci = HCI()
-    ui_app = UI(hci, transport, utils)
-    # initialize the UI
-    ui_app.initUI()
-    # use a system‐wide executor to launch the UI renderer
-    # bind ui_app.run to sys.exec
-    sys.exec = ui_app.run
-
-    # invoke the UI via sys.exec()
-    sys.exec()
+    # Check if the script is being run directly
+    try:
+        main()
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        # Optionally, you can log the error or handle it as needed
+        # For example, you could write to a log file or display a message box

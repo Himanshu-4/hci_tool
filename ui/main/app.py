@@ -9,23 +9,16 @@ from PyQt5.QtWidgets import (
     QCheckBox, QListWidget, QSizePolicy, QListWidgetItem
 )
 
+import os
 # from ..exts import (a2dp_test, diagnostic, hci_control, hid_test,
 #                           le_iso_test, sco_test, throughput_test, firmware_download,
 #                           config_chip, log_window, util_screen)
 
-from ..exts.a2dp_test import *
-# from ..exts.diagnostic import Diagnostic
-# from ..exts.hci_control import HCIControl
-# from ..exts.hid_test import HIDTest
-# from ..exts.le_iso_test import LEISOTEST
-# from ..exts.sco_test import SCOTest
-# from ..exts.throughput_test import ThroughputTest
-# from ..exts.firmware_download import FirmwareDownload
-# from ..exts.config_chip import ConfigChip
-# from ..exts.log_window import LogWindow
-# from ..exts.util_screen import UtilScreen
+# from ..exts import (a2dp_test, diagnostic, hci_control, hid_test)
 
-from utils import ( logger, version, )
+from ui.exts import (a2dp_test, diagnostic, hci_control, hid_test)
+
+from ui.exts import (a2dp_test, diagnostic, hci_control, hid_test)
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -122,9 +115,18 @@ class StartChildWindow(QWidget):
             self.label_area.setText(f"Details for {current.text()} displayed below.")
 
 
-
-if __name__ == "__main__":
+def start_app():
     app = QApplication(sys.argv)
     window = MainWindow()
     window.show()
     sys.exit(app.exec_())
+
+
+if __name__ == "__main__":
+    # Check if the script is being run directly
+    try:
+        start_app()
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        # Optionally, you can log the error or handle it as needed
+        # For example, you could write to a log file or display a message box
