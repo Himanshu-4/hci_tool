@@ -13,7 +13,7 @@ Each function and class includes detailed docstrings describing parameters,
 return values, exceptions raised, and usage examples.
 """
 
-from logger import logger.terminal as log
+from logger import logger as log
 
 
 class CustomException(Exception):
