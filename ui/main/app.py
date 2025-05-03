@@ -10,15 +10,10 @@ from PyQt5.QtWidgets import (
 )
 
 import os
-# from ..exts import (a2dp_test, diagnostic, hci_control, hid_test,
-#                           le_iso_test, sco_test, throughput_test, firmware_download,
-#                           config_chip, log_window, util_screen)
 
-# from ..exts import (a2dp_test, diagnostic, hci_control, hid_test)
-
-from ui.exts import (a2dp_test, diagnostic, hci_control, hid_test)
-
-from ui.exts import (a2dp_test, diagnostic, hci_control, hid_test)
+from ui.exts import (a2dp_test, diagnostic, hci_control, hid_test,
+                          le_iso_test, sco_test, throughput_test, firmware_download,
+                          config_chip, log_window, util_screen)
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -39,9 +34,15 @@ class MainWindow(QMainWindow):
         self.create_menu("File", ["New", "Open log", "Save log"])
         self.create_menu("Edit", [ "Copy", "Find", "Find Next", "Find Previous", "save app log" ])
         self.create_menu("View", ["Zoom In", "Zoom Out", "Log Window", "clear log"])
-        self.create_menu("Tools", ["HCI", "Diagnostics", "Throughput Test", "SCO Test", "LE ISO Test", "HID Test", "A2DP Test", "Firmware Download", "config chip"])
-        self.create_menu("Window", ["Close All", "exit"])
-        self.create_menu("Help", ["About","Paths" ,"Documentation"])
+        self.create_menu("Tools", ["HCI", "Diagnostics", "Throughput Test", "SCO Test", "LE ISO Test", "HID Test", "A2DP Test", "Firmware Download", "config", "util screen"])
+        self.create_menu("Window", ["Close All", "Setting" "quit"])
+        self.create_menu("Help", ["about","Paths" ,"Documentation"])
+        
+        # bind the quit action to the close event
+        quit_action = QAction("Quit", self)
+        quit_action.triggered.connect(self.close)
+        self.menu_bar.addAction(quit_action)
+        # Add actions to the menu bar
 
     def create_menu(self, menu_name, actions):
         menu = self.menu_bar.addMenu(menu_name)
