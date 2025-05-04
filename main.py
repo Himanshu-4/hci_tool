@@ -6,10 +6,14 @@ import os
 
 from ui.main.app import start_app
 
+
+from utils.logger import LoggerManager, test_logger
+
 def main():
     # Set the environment variable
     # os.environ["QT_QPA_PLATFORM_PLUGIN_PATH"] = os.path.join(os.path.dirname(__file__), "platforms")
-    start_app()
+    # start_app()
+    test_logger()
 
 if __name__ == "__main__":
     # Check if the script is being run directly

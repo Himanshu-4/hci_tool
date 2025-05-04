@@ -34,8 +34,8 @@ class MainWindow(QMainWindow):
         self.create_menu("File", ["New", "Open log", "Save log"])
         self.create_menu("Edit", [ "Copy", "Find", "Find Next", "Find Previous", "save app log" ])
         self.create_menu("View", ["Zoom In", "Zoom Out", "Log Window", "clear log"])
-        self.create_menu("Tools", ["HCI", "Diagnostics", "Throughput Test", "SCO Test", "LE ISO Test", "HID Test", "A2DP Test", "Firmware Download", "config", "util screen"])
-        self.create_menu("Window", ["Close All", "Setting" "quit"])
+        self.create_menu("Tools", ["HCI", "Diagnostics", "Throughput Test", "SCO Test", "LE ISO Test", "HID Test", "A2DP Test", "Firmware Download", "util screen"])
+        self.create_menu("setting", ["Close All", "app setting", "config chip"])
         self.create_menu("Help", ["about","Paths" ,"Documentation"])
         
         # bind the quit action to the close event

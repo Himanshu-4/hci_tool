@@ -1,7 +1,3 @@
-
-import time, os, logging, traceback, threading
-import logging.handlers as logHandlers
-
 #################################################################
 # This file contains the logger. To log a line, simply write    #
 # 'logging.[level]("whatever you want to log")'                 #
@@ -11,6 +7,11 @@ import logging.handlers as logHandlers
 # As long as Logger.initLogger has been called beforehand, this #
 # will result in the line being appended to the log file        #
 #################################################################
+
+import time, os, logging, sys
+from datetime import datetime
+import traceback, threading
+import logging.handlers as logHandlers
 
 appdata = os.getenv('appdata')
 if appdata:
@@ -164,8 +165,149 @@ class LogFlusher(threading.Thread):
         self.exit.set()
 
 
-if __name__ == '__main__':
-    initLogger()
-    for i in range(50):
-        logging.info("test log no. " + str(i))
-        print("test log no. ", i)
+
+
+class CustomLogFilter(logging.Filter):
+    def __init__(self, module_name, enabled=True):
+        super().__init__(name=module_name)
+        self.module_name = module_name
+        self.enabled = enabled
+
+    def filter(self, record):
+        return self.enabled
+
+class LoggerManager:
+    _loggers = {}
+    _lock = threading.Lock()
+    APP_LOG_FILE = "app.log"
+
+    @classmethod
+    def get_logger(cls, module_name, level=logging.DEBUG, *,
+                   to_console=True, to_file=True, to_log_window=False,
+                   description=True, prepend="", append="",
+                   log_file=None, enable=True):
+
+        with cls._lock:
+            if module_name in cls._loggers:
+                return cls._loggers[module_name]["logger"]
+
+            logger = logging.getLogger(module_name)
+            logger.setLevel(level)
+            logger.propagate = False  # avoid double logging
+
+            formatter = cls._get_formatter(description, prepend, append)
+            module_log_file = log_file or cls.APP_LOG_FILE
+
+            if to_console:
+                ch = logging.StreamHandler(sys.stdout)
+                ch.setFormatter(formatter)
+                logger.addHandler(ch)
+
+            if to_file:
+                os.makedirs(os.path.dirname(module_log_file), exist_ok=True) if os.path.dirname(module_log_file) else None
+                fh = logging.FileHandler(module_log_file, mode='a')
+                fh.setFormatter(formatter)
+                logger.addHandler(fh)
+
+            # Optional: Hook for GUI log window
+            if to_log_window:
+                from ui.exts.log_window import GuiLogHandler
+                gh = GuiLogHandler(module_name)
+                gh.setFormatter(formatter)
+                logger.addHandler(gh)
+
+            # Add filter for enabling/disabling
+            log_filter = CustomLogFilter(module_name, enable)
+            logger.addFilter(log_filter)
+
+            cls._loggers[module_name] = {
+                "logger": logger,
+                "filter": log_filter
+            }
+            return logger
+
+    @classmethod
+    def enable_module(cls, module_name):
+        if module_name in cls._loggers:
+            cls._loggers[module_name]["filter"].enabled = True
+
+    @classmethod
+    def disable_module(cls, module_name):
+        if module_name in cls._loggers:
+            cls._loggers[module_name]["filter"].enabled = False
+
+    @staticmethod
+    def _get_formatter(include_desc, prepend, append):
+        parts = []
+        if prepend:
+            parts.append(prepend)
+        if include_desc:
+            parts.append("[%(asctime)s] [%(threadName)s] [%(module)s:%(lineno)d]")
+        parts.append("%(message)s")
+        if append:
+            parts.append(append)
+        fmt = ' '.join(parts)
+        return logging.Formatter(fmt, datefmt="%Y-%m-%d %H:%M:%S")
+    
+    
+    
+    
+
+
+from logging import Handler
+
+class GuiLogHandler(Handler):
+    def __init__(self, module_name):
+        super().__init__()
+        self.module_name = module_name
+
+    def emit(self, record):
+        msg = self.format(record)
+        # Here, send to log_window (like signal or queue)
+        from ui.exts.log_window import log_to_window
+        log_to_window(self.module_name, msg)
+        
+        
+    
+    
+
+def test_logger():
+        # Example usage
+    
+    log = LoggerManager.get_logger(
+        "A2DP",
+        level=logging.DEBUG,
+        to_console=True,
+        to_file=True,
+        to_log_window=False,
+        description=True,
+        prepend="[A2DP]",
+        append="",
+        log_file="logs/a2dp.log"
+    )
+
+    log.info("A2DP initialized")
+    log.error("A2DP error")
+
+
+    LoggerManager.disable_module("A2DP")
+    LoggerManager.enable_module("A2DP")
+
+    logger = LoggerManager.get_logger("example_module", level=logging.DEBUG)
+    logger.info("This is an info message.")
+    logger.debug("This is a debug message.")
+    logger.warning("This is a warning message.")
+    logger.error("This is an error message.")
+    logger.critical("This is a critical message.")
+    logger.exception("This is an exception message.")
+    logger.info("This is an info message with a timestamp.")
+    logger.info("This is an info message with a timestamp.", extra={"timestamp": datetime.now()})
+    
+    try:
+        1 / 0
+    except Exception as e:
+        log.error("Exception occurred", exc_info=True)
+        
+    
+if __name__ == "__main__":
+    test_logger()
