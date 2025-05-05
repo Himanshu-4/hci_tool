@@ -49,7 +49,7 @@ from dataclasses import dataclass
 from typing import Union, Literal
 
 _FILE_IO_MAX_SIZE = 10 * 1024 * 1024  # 10 MB
-_FILE_IO_MAX_ROTATIONS = 5  # Number of rotated files to keep
+_FILE_IO_MAX_FILES = 5  # Number of files to keep if size exceeds limit
 
 __BASE_DIR = None
 _BASE_PATH = None   
@@ -75,8 +75,8 @@ def __init_base_module():
     print("[FileHandler] Initializing base module...")
     # Set the base directory and log path & also create the log directory if it doesn't exist
     _BASE_PATH =  __BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__))) ## 2 times is used to remove the utils directory also
-    _BASE_PATH = os.path.abspath(_BASE_PATH)
-    _LOG_PATH = os.path.join(_BASE_PATH, "app_data/logs")
+    _BASE_PATH = os.path.join(os.path.abspath(_BASE_PATH), "app_data")
+    _LOG_PATH = os.path.join(_BASE_PATH, "logs")
     
     # Create the log directory & file if it doesn't exist
     if not os.path.exists(_LOG_PATH):
@@ -99,7 +99,7 @@ def __init_base_module():
     
 @dataclass
 class FileInfo:
-    name: str
+    file_name: str
     size: int
     full_path: str
     rel_path: str
@@ -117,7 +117,7 @@ class FileInfo:
         self.rel_path = os.path.relpath(self.file_path)
         self.full_path = os.path.abspath(self.file_path)
         self.file_path = os.path.abspath(self.file_path)
-        self.name = os.path.basename(self.file_path)
+        self.file_name = os.path.basename(self.file_path)
         self.size = os.path.getsize(self.file_path)
         self.file_type = os.path.splitext(self.file_path)[1]
         self.last_modified = datetime.fromtimestamp(os.path.getmtime(self.file_path))
@@ -176,21 +176,21 @@ class FileInfo:
         Hash function for the FileInfo object.
         :return: Hash value of the object.
         """
-        return hash((self.name, self.size, self.file_path, self.file_type, self.last_modified))
+        return hash((self.file_name, self.size, self.file_path, self.file_type, self.last_modified))
     
     def __str__(self):
         """
         String representation of the FileInfo object.
         :return: String representation of the object.
         """
-        return f"FileInfo(name={self.name}, size={self.size}, last_modified={self.last_modified})"
+        return f"FileInfo({self.file_name}, size={self.size}, last_modified={self.last_modified})"
     
     def __repr__(self):
         """
         String representation of the FileInfo object.
         :return: String representation of the object.
         """
-        return f"FileInfo(name={self.name}, size={self.size}, last_modified={self.last_modified})"
+        return f"FileInfo({self.file_name}, size={self.size}, last_modified={self.last_modified})"
     
     def __eq__(self, other):
         """
@@ -200,7 +200,7 @@ class FileInfo:
         """
         if not isinstance(other, FileInfo):
             return NotImplemented
-        return self.name == other.name and self.size == other.size and self.last_modified == other.last_modified
+        return self.file_name == other.file_name and self.size == other.size and self.last_modified == other.last_modified
     
     def __ne__(self, other):
         """
@@ -228,7 +228,7 @@ class FileInfo:
         if not isinstance(other, FileInfo):
             return NotImplemented
         return self.size >= other.size
-        
+
         
 
 class AsyncFileHandler(FileInfo):
@@ -241,25 +241,26 @@ class AsyncFileHandler(FileInfo):
         file_path (str): Path to the log file.
         max_size_bytes (int): Maximum size of the log file before rotation.
         max_rotations (int): Number of rotated files to keep.
-        _write_queue (asyncio.Queue): Queue for writing data to the file.
-        _shutdown_event (asyncio.Event): Event for shutting down the handler.
-        _loop (asyncio.AbstractEventLoop): Event loop for asynchronous operations.
-        _writer_task (asyncio.Task): Task for the write worker.
-        _lock (asyncio.Lock): Lock for synchronizing access to the file.
+        
+    _write_queue (asyncio.Queue): Queue for writing data to the file.
+    _shutdown_event (asyncio.Event): Event for shutting down the handler.
+    _loop (asyncio.AbstractEventLoop): Event loop for asynchronous operations.
+    _writer_task (asyncio.Task): Task for the write worker.
+    _lock (asyncio.Lock): Lock for synchronizing access to the file.
     """
     
     CallbackType = Union[Literal["error"], Literal["done"], Literal["ready"], Literal["data"], Literal["close"]]
 
     CALLBACK_TYPE: CallbackType = "ready"
     
-    def __init__(self, file_path: str, max_size_bytes: int = _FILE_IO_MAX_SIZE, max_rotations: int = _FILE_IO_MAX_ROTATIONS):
+    def __init__(self, file_path: str, *,max_size_bytes: int = _FILE_IO_MAX_SIZE, max_files_limit: int = _FILE_IO_MAX_FILES):
         """
         Initialize the AsyncFileHandler.
         :param file_path: Path to the log file.
         :param max_size_bytes: Maximum size of the log file before rotation.
         :param max_rotations: Number of rotated files to keep.
         """
-        self.file_path = os.path.abspath(file_path)
+        self.file_path = os.path.relpath(_LOG_PATH,file_path)
         if not os.path.exists(os.path.dirname(self.file_path)):
             os.makedirs(os.path.dirname(self.file_path), exist_ok=True)
         if not os.path.isfile(self.file_path):
@@ -268,13 +269,20 @@ class AsyncFileHandler(FileInfo):
         if not os.access(self.file_path, os.W_OK, os.R_OK):
             raise cstm_exceptions.CustomFileNotFoundError(self.file_path)
         
-        self.file_path = file_path
+        # Initialize the base class
+        super().__init__(self, self.file_path)
+        
         self.max_size_bytes = max_size_bytes
-        self.max_rotations = max_rotations
+        self.max_files_limit = max_files_limit
+        #create reader and writer queues
         self._write_queue = asyncio.Queue()
+        self._read_queue = asyncio.Queue()
+        
         self._shutdown_event = asyncio.Event()
-        self._loop = asyncio.get_event_loop()
-        self._writer_task = self._loop.create_task(self._write_worker())
+        # module loop will be created in the main thread
+        # self._loop = asyncio.get_event_loop()
+        # self._writer_task = self._loop.create_task(self._write_worker())
+        self._enable = True
         self._lock = asyncio.Lock()
         self._callback : dict[AsyncFileHandler.CallbackType, callable[[str], None]] = {}
         self._callback_enabled = False
@@ -284,17 +292,20 @@ class AsyncFileHandler(FileInfo):
         """Destructor to ensure proper cleanup."""
         if self._writer_task and not self._writer_task.done():
             self._shutdown_event.set()
-            self._loop.run_until_complete(self._writer_task)
+            # self._loop.run_until_complete(self._writer_task)
         if self._write_queue:
-            self._write_queue = None
-        if self._lock:
-            self._lock = None
+            del self._write_queue
+        if self._read_queue:
+            del self._read_queue
         if self._shutdown_event:
             self._shutdown_event = None
+        if self._callback:
+            self._callback = None
+            
+        if self._lock:
+            self._lock = None
         if self._loop:
             self._loop = None
-        if self._writer_task:
-            self._writer_task = None
         print(f"[AsyncFileHandler] Closed file handler for {self.file_path}")
         # Ensure the event loop is closed
         if self._loop and self._loop.is_running():
@@ -333,7 +344,6 @@ class AsyncFileHandler(FileInfo):
         """Get file information."""
         return FileInfo(self.file_path)
 
-    
     def enable_callback(self):
         """Enable a callback function to be called on write."""
         self._callback_enabled = True
@@ -365,10 +375,20 @@ class AsyncFileHandler(FileInfo):
         """Get the maximum size of the log file."""
         return self.max_size_bytes
     
+    @property
+    def enabled(self) -> bool:
+        """Check if the file handler is enabled."""
+        return self._enabled
+    
+    @enabled.setter
+    def enabled(self, value: bool):
+        """Set the file handler enabled state."""
+        self._enabled = value
+        
     def write(self, data: str):
         """Public method to enqueue data for writing (non-blocking)."""
-        if not self._loop.is_running():
-            raise RuntimeError("Event loop is not running. Cannot write.")
+        if not self._enabled:
+            return
         self._write_queue.put_nowait(data)
 
     async def _write_worker(self):
@@ -382,13 +402,12 @@ class AsyncFileHandler(FileInfo):
             except Exception as e:
                 print(f"[AsyncFileHandler] Write error: {e}")
 
-    async def _rotate_if_needed(self):
+    async def _create_new_file_if_exceeds(self):
         try:
             if not os.path.exists(self.file_path):
                 return
             if os.path.getsize(self.file_path) < self.max_size_bytes:
                 return
-
             # Rotate files
             for i in reversed(range(1, self.max_rotations)):
                 src = f"{self.file_path}.{i}"
