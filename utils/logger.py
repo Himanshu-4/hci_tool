@@ -1,12 +1,16 @@
-#################################################################
-# This file contains the logger. To log a line, simply write    #
-# 'logging.[level]("whatever you want to log")'                 #
-# [level] is one of {info, debug, warning, error, critical,     #
-#     exception}                                                #
-# See python logging documentation                              #
-# As long as Logger.initLogger has been called beforehand, this #
-# will result in the line being appended to the log file        #
-#################################################################
+""""
+Logger module for Nordic Semiconductor Sniffer
+This module provides functionality for logging messages to a file and console.
+It includes:
+- Custom loggers for different modules
+- Log rotation and file handling
+- Custom log filters to enable/disable logging for specific modules
+- GUI log handler for displaying logs in a GUI window
+- Example usage of the logger
+- Test function to demonstrate logger functionality
+- Custom exceptions for file handling
+"""
+
 
 import time, os, logging, sys
 from datetime import datetime
@@ -164,6 +168,10 @@ class LogFlusher(threading.Thread):
     def stop(self):
         self.exit.set()
 
+
+##########################################################################################
+# Custom logging filter to enable/disable logging for specific modules
+##########################################################################################
 
 
 

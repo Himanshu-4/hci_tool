@@ -13,15 +13,16 @@ Each function and class includes detailed docstrings describing parameters,
 return values, exceptions raised, and usage examples.
 """
 
-from logger import logger
-
-
+import sys
+import traceback
 
 class CustomException(Exception):
     """
     Base class for all custom exceptions in the application.
     """
-    pass
+    def __init__(self, message):
+        super().__init__(f"Exception: {message}")
+        # sys.exit(1)
 
 
 ####################################################################################################
@@ -41,7 +42,7 @@ class FileError(CustomException):
         self.message = message
         super().__init__(f"{message} File: {filename}")
 
-class FileNotFoundError(FileError):
+class CustomFileNotFoundError(FileError):
     """
     Exception raised when a file is not found.
 
@@ -169,3 +170,22 @@ class InvalidInputError(CustomException):
         self.input_value = input_value
         self.message = message
         super().__init__(f"{message} Input: {input_value}")
+        
+class InputOutOfRangeError(InvalidInputError):
+    """
+    Exception raised when input is out of the expected range.
+
+    Attributes:
+        input_value -- the out-of-range input value
+        min_value -- minimum acceptable value
+        max_value -- maximum acceptable value
+        message -- explanation of the error
+    """
+
+    def __init__(self, input_value, min_value, max_value):
+        self.input_value = input_value
+        self.min_value = min_value
+        self.max_value = max_value
+        self.message = f"Input {input_value} is out of range ({min_value}, {max_value})."
+        super().__init__(input_value, self.message)
+        
