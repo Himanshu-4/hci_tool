@@ -10,6 +10,7 @@ from PyQt5.QtWidgets import (
 )
 
 import os
+from collections import namedtuple
 
 from ui.exts import (a2dp_test, diagnostic, hci_control, hid_test,
                           le_iso_test, sco_test, throughput_test, firmware_download,
@@ -21,8 +22,12 @@ class MainWindow(QMainWindow):
 
         self.setWindowTitle("Blue Tool")
         self.setWindowIconText("Blue Tool")
-        self.setGeometry(100, 100, 800, 600)
+        self.setGeometry(100, 100, 1000, 800)
 
+        # Set the minimum size
+        self.setMinimumSize(800, 600)
+        # Set the maximum size
+        # self.setMaximumSize(1600, 1200)
         # MDI Area
         self.mdi_area = QMdiArea()
         self.setCentralWidget(self.mdi_area)
@@ -44,24 +49,67 @@ class MainWindow(QMainWindow):
         self.menu_bar.addAction(quit_action)
         # Add actions to the menu bar
 
-    def create_menu(self, menu_name, actions):
+    def create_menu(self, menu_name, actions : list[str]):
         menu = self.menu_bar.addMenu(menu_name)
         for action_name in actions:
             action = QAction(action_name, self)
             action.triggered.connect(lambda checked, name=action_name: self.open_child_window(name))
             menu.addAction(action)
 
-    def open_child_window(self, title):
-        sub = QMdiSubWindow()
-        sub.setAttribute(Qt.WA_DeleteOnClose)  # Enable deletion on close
-        sub.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        if title == "HCI":
-            sub.setWidget(StartChildWindow(title))
+    def open_child_window(self, title : str)->None:
+        """
+        Open a child window based on the title.
+        If the title is not found in the mapping, a default child window is opened.
+        """
+        # Define a simple struct‐like mapping
+        ChildFactory = namedtuple('ChildFactory', ['module', 'cls_name'])
+        # Define a mapping of titles to child window classes
+        WINDOW_MAP = {
+            "HCI":           ChildFactory(module=hci_control,    cls_name="HciControlWindow"),
+            "Diagnostics":  ChildFactory(module=diagnostic,     cls_name="DiagnosticWindow"),
+            "Throughput Test": ChildFactory(module=throughput_test, cls_name="ThroughputWindow"),
+            "SCO Test":     ChildFactory(module=sco_test,        cls_name="ScoTestWindow"),
+            "LE ISO Test":  ChildFactory(module=le_iso_test,     cls_name="LeIsoTestWindow"),
+            "HID Test":     ChildFactory(module=hid_test,        cls_name="HidTestWindow"),
+            "A2DP Test":    ChildFactory(module=a2dp_test,       cls_name="A2dpTestWindow"),
+            "Firmware Download": ChildFactory(module=firmware_download, cls_name="FirmwareDownloadWindow"),
+            "config chip":  ChildFactory(module=config_chip,     cls_name="ConfigChipWindow"),
+            "Log Window":   ChildFactory(module=log_window,      cls_name="LogWindow"),
+            "util screen":  ChildFactory(module=util_screen,     cls_name="UtilScreenWindow"),
+        }
+        # Define a mapping of titles to utility functions
+        methodFactory = namedtuple('ChildFactory', ['module', 'func_name'])
+        # also create a utility function map that maps the action name to the function
+        UTILITY_MAP = {
+            "app setting": methodFactory(module=util_screen, func_name="AppSettingWindow"),
+            "Paths":       methodFactory(module=util_screen, func_name="PathsWindow"),
+            "Documentation": methodFactory(module=util_screen, func_name="DocumentationWindow"),
+            "about":       methodFactory(module=util_screen, func_name="AboutWindow"),
+            "clear log":   methodFactory(module=log_window, func_name="ClearLogWindow"),
+        }
+        
+        # --- inside MainWindow.open_child_window ---
+        if title in WINDOW_MAP:
+            info = WINDOW_MAP[title]
+            # dynamically fetch the class from the module
+            try:
+                cls = getattr(info.module, info.cls_name) ## info.module.__dict__[info.cls_name]
+                #invoke the create_instance method of the class
+                instance_method = getattr(cls, "create_instance")
+                instance_method(self)
+            except Exception as e:
+                print(f"Error loading {title}: {e}")
+                # Optionally, you can log the error or handle it as needed
+                # For example, you could write to a log file or display a message box
+        elif title in UTILITY_MAP:
+            info = UTILITY_MAP[title]
+            # dynamically fetch the class from the module
+            func = getattr(info.module, info.func_name) ## info.module.__dict__[info.cls_name]   
+            func()
         else:
-            sub.setWidget(ChildWindow(title))
-        sub.setWindowTitle(title)
-        self.mdi_area.addSubWindow(sub)
-        sub.show()
+            # Fallback to a default child window if the title is not found
+            pass
+         
 
 
 class ChildWindow(QWidget):
@@ -77,43 +125,6 @@ class ChildWindow(QWidget):
         self.setAttribute(Qt.WA_DeleteOnClose)  # Enable deletion on close
 
 
-
-class StartChildWindow(QWidget):
-    def __init__(self, title):
-        super().__init__()
-        self.setMinimumSize(200, 600)
-        layout = QVBoxLayout()
-
-        # Toggle boxes
-        self.toggle1 = QCheckBox("Enable Feature A")
-        self.toggle2 = QCheckBox("Enable Feature B")
-        layout.addWidget(self.toggle1)
-        layout.addWidget(self.toggle2)
-
-        # List with 8 items
-        self.combo_box = QComboBox()
-        for i in range(1, 9):
-            self.combo_box.addItem(f"Option {i}")
-        layout.addWidget(self.combo_box)
-
-        # Label display area
-        self.label_area = QLabel("Select an item to display its info here.")
-        self.label_area.setWordWrap(True)
-        layout.addWidget(self.label_area)
-
-        # Connect signal
-        self.combo_box.currentTextChanged.connect(lambda text: self.label_area.setText(f"Details for {text} displayed below."))
-
-        self.setLayout(layout)
-        # self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        # self.setStyleSheet("background-color: lightblue;")  # Set background color
-        self.setWindowIconText(title)  # Set window icon text
-        self.setAttribute(Qt.WA_DeleteOnClose)  # Enable deletion on close
-
-
-    def on_item_selected(self, current, previous):
-        if current:
-            self.label_area.setText(f"Details for {current.text()} displayed below.")
 
 
 def start_app():
