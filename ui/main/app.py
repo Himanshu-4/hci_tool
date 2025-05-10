@@ -65,7 +65,7 @@ class MainWindow(QMainWindow):
         ChildFactory = namedtuple('ChildFactory', ['module', 'cls_name'])
         # Define a mapping of titles to child window classes
         WINDOW_MAP = {
-            "HCI":           ChildFactory(module=hci_control,    cls_name="HciControlWindow"),
+            "HCI":           ChildFactory(module=hci_control,    cls_name="ConnectWindow"),
             "Diagnostics":  ChildFactory(module=diagnostic,     cls_name="DiagnosticWindow"),
             "Throughput Test": ChildFactory(module=throughput_test, cls_name="ThroughputWindow"),
             "SCO Test":     ChildFactory(module=sco_test,        cls_name="ScoTestWindow"),

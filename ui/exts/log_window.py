@@ -57,23 +57,23 @@ class LogWindow(QWidget):
         self.log_text.setStyleSheet("font-family: Consolas; font-size: 12px;")
         self.log_text.setLineWrapMode(QTextEdit.NoWrap)  # Disable line wrapping
         self.log_text.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        self.log_text.setMaximumSize(800, 400)  # Set maximum size
-        layout = QHBoxLayout()
-        layout.addWidget(self.log_text)
+        # self.log_text.setMaximumSize(800, 400)  # Set maximum size
+        
+        # layout = QHBoxLayout()
+        # layout.addWidget(self.log_text)
+        # # # enable layout expanding in all directions
+        # # # layout.setStretch(2, 1)
 
-        # bottom_layout.addWidget(self.clear_btn)
-
-        # layout.addLayout(bottom_layout)
+        # # # bottom_layout.addWidget(self.clear_btn)
+        # self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         # self.setLayout(layout)
-        self.setLayout(layout)
-        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
         # create a new subwindow
         self.sub_window = QMdiSubWindow()
         self.sub_window.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.sub_window.setWindowTitle("Log Window")
         self.sub_window.setWindowIconText("Log Window")  # Set window icon text
-        self.sub_window.setWidget(self)  # Set the widget to be the log window
+        self.sub_window.setWidget(self.log_text)  # Set the widget to be the log window
         self.sub_window.setWindowIconText("Log Window")  # Set window icon text
         self.sub_window.setWindowFlags(Qt.Window)  # Set window flags to make it a top-level window
         self.sub_window.setWindowModality(Qt.ApplicationModal)  # Set window modality to application modal
@@ -84,19 +84,21 @@ class LogWindow(QWidget):
         self.sub_window.destroyed.connect(lambda subwindow: (setattr(self, 'sub_window', None), self._on_subwindow_closed()))
 
         # show the subwindow in the main window's MDI area
+        self.sub_window.raise_()  # Bring the subwindow to the front
+        self.sub_window.activateWindow()  # Activate the subwindow
+        self.sub_window.setFocus()  # Set focus to the subwindow
+        
         self.main_wind.mdi_area.addSubWindow(self.sub_window)
         self.sub_window.show()
         
-        self.info("Log window created and shown.")
-        self.info("Log window instance created.")
-        self.error("Log window instance created.")
-        self.debug("Log window instance created.")
-        self.warning("Log window instance created.")
-        self.critical("Log window instance created.")
-        self.exception("Log window instance created.")
-        self.log_text.append("Log window instance created.\r\n"*10)
-        #log a big message
-        self.text("Log window instance created.   " * 100)
+        self.info("Log window created.")
+        self.error("Log window created.")
+        self.debug("Log window created.")
+        self.warning("Log window created.")
+        self.critical("Log window created.")
+        self.exception("Log window created.")
+        self.text("Log window created.")
+
 
     def _on_subwindow_closed(self):
         """
@@ -149,13 +151,13 @@ class LogWindow(QWidget):
         elif level == "exception":
             color = "red"
 
-        if len(message) > 100:
-            # Wrap the message to fit within 100 characters per line
-            words = message.split()
-            chunks = [" ".join(words[i:i+100]) for i in range(0, len(words), 100)]
-            wrapped = "\n".join(chunks)
-            print(wrapped)
-            message = wrapped
+        # if len(message) > 100:
+        #     # Wrap the message to fit within 100 characters per line
+        #     words = message.split()
+        #     chunks = [" ".join(words[i:i+100]) for i in range(0, len(words), 100)]
+        #     wrapped = "\n".join(chunks)
+        #     print(wrapped)
+        #     message = wrapped
             
         timestamp = time.strftime("%H:%M:%S")
         formatted_msg = f"[{timestamp}] <span style=\"color:{color};\">[{level.upper()}] {message}</span><br>"
@@ -167,7 +169,8 @@ class LogWindow(QWidget):
         if len(current_text.encode('utf-8')) > MAX_LOG_SIZE_LOG_WINDOW:
             # Keep only the last 25% of the text
             trimmed = current_text[-MAX_LOG_SIZE_LOG_WINDOW // 4:]
-            self.log_text.setPlainText(trimmed)
+            self.log_text.clear()
+            self.log_text.append(trimmed)
             self.log_text.moveCursor(QTextCursor.End)
 
     def clear_log(self):
@@ -221,13 +224,15 @@ class LogWindow(QWidget):
             return
         cls.get_instance().append_log(message, "EXCEPTION")
         
-    @classmethod
-    def ClearLogWindow():
-        log_window = LogWindow.get_instance()
-        if log_window is not None:
-            log_window.clear_log()
 
 
+@staticmethod
+def ClearLogWindow():
+    log_window = LogWindow.get_instance()
+    if log_window is not None:
+        log_window.clear_log()
+    
+@staticmethod
 def logToWindow(module_name: str, message: str):
     log_window = LogWindow.get_instance()
     if log_window is not None:

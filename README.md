@@ -2,7 +2,7 @@
 # HCI Tool README
 
 ## Overview
-This HCI tool provides command line and UI interface  for Bluetooth Host commands and events interfce . One common use case is creating an LE connection and obtaining detailed packet information, testing throughput, testing controller functionality, etc.
+This HCI tool provides command line and UI interface  for Bluetooth Host commands and events interfce . One common use case is creating an LE connection and obtaining detailed packet information, testing throughput, testing controller functionality like A2DP, sco, HID, throughput etc.
 
 ## Example Usage
 
@@ -14,8 +14,10 @@ trasnp.send_cmd(pkt.data)
 # Print the complete packet information.
 print(pkt)
 
+rsp = transp.w4_rsp(timeout)
+
 # Access the data contained in the packet.
-pkt.data
+rsp.data
 ```
 
 ## Instructions
