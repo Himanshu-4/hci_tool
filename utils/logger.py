@@ -17,6 +17,33 @@ from datetime import datetime
 import traceback, threading
 import logging.handlers as logHandlers
 
+
+#create a Union to hold the log_levels and mapped that to loggign levels
+from typing import Union
+from enum import Enum
+
+class LogLevel(Enum):
+    DEBUG = logging.DEBUG
+    INFO = logging.INFO
+    WARNING = logging.WARNING
+    ERROR = logging.ERROR
+    CRITICAL = logging.CRITICAL
+    NOTSET = logging.NOTSET
+    # Add more log levels as needed
+
+# Map string log levels to logging module levels
+log_level_map = {
+    "DEBUG": logging.DEBUG,
+    "INFO": logging.INFO,
+    "WARNING": logging.WARNING,
+    "ERROR": logging.ERROR,
+    "CRITICAL": logging.CRITICAL,
+    "NOTSET": logging.NOTSET
+}
+# Map logging module levels to string log levels
+
+
+
 appdata = os.getenv('appdata')
 if appdata:
     DEFAULT_LOG_FILE_DIR = os.path.join(appdata, 'Nordic Semiconductor', 'Sniffer', 'logs')
@@ -190,7 +217,7 @@ class LoggerManager:
     APP_LOG_FILE = "app.log"
 
     @classmethod
-    def get_logger(cls, module_name, level=logging.DEBUG, *,
+    def get_logger(cls, module_name, level : Union[str, LogLevel] =  LogLevel.DEBUG, *,
                    to_console=True, to_file=True, to_log_window=False,
                    description=True, prepend="", append="",
                    log_file=None, enable=True):
@@ -200,6 +227,9 @@ class LoggerManager:
                 return cls._loggers[module_name]["logger"]
 
             logger = logging.getLogger(module_name)
+            # Set the logger level
+            if isinstance(level, str):
+                level = log_level_map.get(level.upper(), logging.DEBUG)
             logger.setLevel(level)
             logger.propagate = False  # avoid double logging
 
