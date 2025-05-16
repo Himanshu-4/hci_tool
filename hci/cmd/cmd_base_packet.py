@@ -2,7 +2,7 @@ from struct import pack, unpack
 from enum import IntEnum
 
 from ..hci_packet import HciPacket
-from .opcode import OpCode
+from .cmd_opcodes import OpCode
 
 
 class CommandPacket(HciPacket):
@@ -66,8 +66,7 @@ class CommandPacket(HciPacket):
             hex(self.parameter_total_length),
             int(self.parameter_total_length),
         )
-        
-        
+    
 """
 Base packet structure for HCI commands
 """

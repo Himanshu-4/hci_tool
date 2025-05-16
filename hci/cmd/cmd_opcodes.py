@@ -185,3 +185,187 @@ class OpCode(IntEnum):
     RESERVED = 0xFF00
 
     USER_PROFILES = 0xFF80
+    
+    
+    
+"""
+Defines opcodes for HCI commands
+"""
+from enum import IntEnum
+
+# OGF (OpCode Group Field) definitions
+class OGF(IntEnum):
+    LINK_CONTROL = 0x01
+    LINK_POLICY = 0x02
+    CONTROLLER_BASEBAND = 0x03
+    INFORMATION_PARAMS = 0x04
+    STATUS_PARAMS = 0x05
+    TESTING = 0x06
+    LE_CONTROLLER = 0x08
+    VENDOR_SPECIFIC = 0x3F
+
+# OCF (OpCode Command Field) definitions for each OGF
+
+# Link Control Commands (OGF = 0x01)
+class LinkControlOCF(IntEnum):
+    INQUIRY = 0x0001
+    INQUIRY_CANCEL = 0x0002
+    CREATE_CONNECTION = 0x0005
+    DISCONNECT = 0x0006
+    CREATE_CONNECTION_CANCEL = 0x0008
+    ACCEPT_CONNECTION_REQUEST = 0x0009
+    REJECT_CONNECTION_REQUEST = 0x000A
+    LINK_KEY_REQUEST_REPLY = 0x000B
+    LINK_KEY_REQUEST_NEGATIVE_REPLY = 0x000C
+    PIN_CODE_REQUEST_REPLY = 0x000D
+    PIN_CODE_REQUEST_NEGATIVE_REPLY = 0x000E
+
+# Link Policy Commands (OGF = 0x02)
+class LinkPolicyOCF(IntEnum):
+    HOLD_MODE = 0x0001
+    SNIFF_MODE = 0x0003
+    EXIT_SNIFF_MODE = 0x0004
+    QOS_SETUP = 0x0007
+    ROLE_DISCOVERY = 0x0009
+    SWITCH_ROLE = 0x000B
+    READ_LINK_POLICY_SETTINGS = 0x000C
+    WRITE_LINK_POLICY_SETTINGS = 0x000D
+    READ_DEFAULT_LINK_POLICY_SETTINGS = 0x000E
+    WRITE_DEFAULT_LINK_POLICY_SETTINGS = 0x000F
+
+# Controller & Baseband Commands (OGF = 0x03)
+class ControllerBasebandOCF(IntEnum):
+    SET_EVENT_MASK = 0x0001
+    RESET = 0x0003
+    SET_EVENT_FILTER = 0x0005
+    WRITE_LOCAL_NAME = 0x0013
+    READ_LOCAL_NAME = 0x0014
+    READ_CONNECTION_ACCEPT_TIMEOUT = 0x0015
+    WRITE_CONNECTION_ACCEPT_TIMEOUT = 0x0016
+    READ_PAGE_TIMEOUT = 0x0017
+    WRITE_PAGE_TIMEOUT = 0x0018
+    READ_SCAN_ENABLE = 0x0019
+    WRITE_SCAN_ENABLE = 0x001A
+    READ_PAGE_SCAN_ACTIVITY = 0x001B
+    WRITE_PAGE_SCAN_ACTIVITY = 0x001C
+    READ_INQUIRY_SCAN_ACTIVITY = 0x001D
+    WRITE_INQUIRY_SCAN_ACTIVITY = 0x001E
+
+# Information Parameters Commands (OGF = 0x04)
+class InformationOCF(IntEnum):
+    READ_LOCAL_VERSION_INFORMATION = 0x0001
+    READ_LOCAL_SUPPORTED_COMMANDS = 0x0002
+    READ_LOCAL_SUPPORTED_FEATURES = 0x0003
+    READ_BUFFER_SIZE = 0x0005
+    READ_BD_ADDR = 0x0009
+
+# Status Parameters Commands (OGF = 0x05)
+class StatusOCF(IntEnum):
+    READ_RSSI = 0x0005
+    READ_LINK_QUALITY = 0x0003
+    READ_AFH_CHANNEL_MAP = 0x0006
+    READ_CLOCK = 0x0007
+
+# Testing Commands (OGF = 0x06)
+class TestingOCF(IntEnum):
+    READ_LOOPBACK_MODE = 0x0001
+    WRITE_LOOPBACK_MODE = 0x0002
+    ENABLE_DEVICE_UNDER_TEST_MODE = 0x0003
+    WRITE_SIMPLE_PAIRING_DEBUG_MODE = 0x0004
+
+# LE Controller Commands (OGF = 0x08)
+class LEControllerOCF(IntEnum):
+    SET_EVENT_MASK = 0x0001
+    READ_BUFFER_SIZE = 0x0002
+    READ_LOCAL_SUPPORTED_FEATURES = 0x0003
+    SET_RANDOM_ADDRESS = 0x0005
+    SET_ADVERTISING_PARAMETERS = 0x0006
+    READ_ADVERTISING_CHANNEL_TX_POWER = 0x0007
+    SET_ADVERTISING_DATA = 0x0008
+    SET_SCAN_RESPONSE_DATA = 0x0009
+    SET_ADVERTISE_ENABLE = 0x000A
+    SET_SCAN_PARAMETERS = 0x000B
+    SET_SCAN_ENABLE = 0x000C
+    CREATE_CONNECTION = 0x000D
+    CREATE_CONNECTION_CANCEL = 0x000E
+    READ_WHITE_LIST_SIZE = 0x000F
+    CLEAR_WHITE_LIST = 0x0010
+    ADD_DEVICE_TO_WHITE_LIST = 0x0011
+    REMOVE_DEVICE_FROM_WHITE_LIST = 0x0012
+    CONNECTION_UPDATE = 0x0013
+    SET_HOST_CHANNEL_CLASSIFICATION = 0x0014
+    READ_CHANNEL_MAP = 0x0015
+    READ_REMOTE_USED_FEATURES = 0x0016
+    ENCRYPT = 0x0017
+    RAND = 0x0018
+    START_ENCRYPTION = 0x0019
+    LONG_TERM_KEY_REQUEST_REPLY = 0x001A
+    LONG_TERM_KEY_REQUEST_NEGATIVE_REPLY = 0x001B
+
+# Function to create complete opcode
+def create_opcode(ogf, ocf):
+    """Create HCI command opcode from OGF and OCF"""
+    return ((ogf & 0x3F) << 10) | (ocf & 0x03FF)
+
+# Dictionary of opcode to command name mappings
+OPCODE_TO_NAME = {}
+
+# Generate opcodes for all commands
+def initialize_opcodes():
+    # Link Control Commands
+    for ocf in LinkControlOCF:
+        opcode = create_opcode(OGF.LINK_CONTROL, ocf)
+        OPCODE_TO_NAME[opcode] = f"LINK_CONTROL_{ocf.name}"
+    
+    # Link Policy Commands
+    for ocf in LinkPolicyOCF:
+        opcode = create_opcode(OGF.LINK_POLICY, ocf)
+        OPCODE_TO_NAME[opcode] = f"LINK_POLICY_{ocf.name}"
+    
+    # Controller & Baseband Commands
+    for ocf in ControllerBasebandOCF:
+        opcode = create_opcode(OGF.CONTROLLER_BASEBAND, ocf)
+        OPCODE_TO_NAME[opcode] = f"CONTROLLER_BASEBAND_{ocf.name}"
+    
+    # Information Parameters Commands
+    for ocf in InformationOCF:
+        opcode = create_opcode(OGF.INFORMATION_PARAMS, ocf)
+        OPCODE_TO_NAME[opcode] = f"INFORMATION_{ocf.name}"
+    
+    # Status Parameters Commands
+    for ocf in StatusOCF:
+        opcode = create_opcode(OGF.STATUS_PARAMS, ocf)
+        OPCODE_TO_NAME[opcode] = f"STATUS_{ocf.name}"
+    
+    # Testing Commands
+    for ocf in TestingOCF:
+        opcode = create_opcode(OGF.TESTING, ocf)
+        OPCODE_TO_NAME[opcode] = f"TESTING_{ocf.name}"
+    
+    # LE Controller Commands
+    for ocf in LEControllerOCF:
+        opcode = create_opcode(OGF.LE_CONTROLLER, ocf)
+        OPCODE_TO_NAME[opcode] = f"LE_{ocf.name}"
+
+# Initialize the opcode to name dictionary
+initialize_opcodes()
+
+# Common opcodes for easy reference
+class HciOpcode:
+    # LE Controller opcodes
+    LE_SET_ADVERTISING_PARAMETERS = create_opcode(OGF.LE_CONTROLLER, LEControllerOCF.SET_ADVERTISING_PARAMETERS)
+    LE_SET_ADVERTISING_DATA = create_opcode(OGF.LE_CONTROLLER, LEControllerOCF.SET_ADVERTISING_DATA)
+    LE_SET_SCAN_PARAMETERS = create_opcode(OGF.LE_CONTROLLER, LEControllerOCF.SET_SCAN_PARAMETERS)
+    LE_SET_SCAN_ENABLE = create_opcode(OGF.LE_CONTROLLER, LEControllerOCF.SET_SCAN_ENABLE)
+    
+    # Controller & Baseband opcodes
+    RESET = create_opcode(OGF.CONTROLLER_BASEBAND, ControllerBasebandOCF.RESET)
+    SET_EVENT_MASK = create_opcode(OGF.CONTROLLER_BASEBAND, ControllerBasebandOCF.SET_EVENT_MASK)
+    
+    # Link Control opcodes
+    INQUIRY = create_opcode(OGF.LINK_CONTROL, LinkControlOCF.INQUIRY)
+    DISCONNECT = create_opcode(OGF.LINK_CONTROL, LinkControlOCF.DISCONNECT)
+    
+    # Information Parameters opcodes
+    READ_BD_ADDR = create_opcode(OGF.INFORMATION_PARAMS, InformationOCF.READ_BD_ADDR)
+    READ_LOCAL_VERSION_INFORMATION = create_opcode(OGF.INFORMATION_PARAMS, InformationOCF.READ_LOCAL_VERSION_INFORMATION)
