@@ -1,5 +1,12 @@
 """
-Link policy commands package.
+Link Policy Commands module initialization
 """
 
-__all__ = []
+from .link_policy_cmds import *
+
+__all__ = [
+    'sniff_mode',
+    'exit_sniff_mode',
+    'SniffMode',
+    'ExitSniffMode',
+]

@@ -10,6 +10,7 @@ import pkgutil
 import inspect
 import struct
 import sys
+from pathlib import Path
 
 from .cmd_base_packet import HciCmdBasePacket
 from .cmd_opcodes import OPCODE_TO_NAME, OGF
@@ -71,24 +72,37 @@ def _initialize_modules():
     global link_policy, link_controller, status, le_cmds, controller_baseband, information, testing
     
     try:
-        # Import all command modules
+        # Import all command modules dynamically
         from . import link_policy
         from . import link_controller
         from . import status
-        from . import le_cmds 
+        from . import le_cmds
         from . import controller_baseband
         from . import information
         from . import testing
+        
+        # Make submodule command functions available at the top level
+        # This enables usage like: import hci.cmd as hci_cmd; hci_cmd.le_cmds.le_set_adv_params(...)
+        # instead of: from hci.cmd.le_cmds import le_set_adv_params; le_set_adv_params(...)
     except ImportError as e:
         print(f"Warning: Unable to import some command modules: {e}")
+        
+    # Import cmd_parser for hci_cmd_parse_from_bytes functionality
+    from . import cmd_parser
+    # Make cmd_parser.hci_cmd_parse_from_bytes available at the top level as hci_cmd_parse_from_bytes
+    globals()['hci_cmd_parse_from_bytes'] = cmd_parser.hci_cmd_parse_from_bytes
 
 # Initialize modules when this package is imported
 _initialize_modules()
+
+# Import this last to avoid circular imports
+from .cmd_parser import hci_cmd_parse_from_bytes
 
 __all__ = [
     'register_command',
     'get_command_class',
     'cmd_from_bytes',
+    'hci_cmd_parse_from_bytes',
     'HciCmdBasePacket',
     'link_policy',
     'link_controller',

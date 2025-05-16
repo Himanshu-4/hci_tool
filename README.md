@@ -7,10 +7,19 @@ This HCI tool provides command line and UI interface  for Bluetooth Host command
 ## Example Usage
 
 ```python
+import hci.cmd as hci_cmd
 
-# Create a connection using the HCI command with appropriate parameters.
-pkt = hci.cmd.le_cmds.le_create_connection(params)
-trasnp.send_cmd(pkt.data)
+# Create an LE Set Advertising Parameters command
+cmd = hci_cmd.le_cmds.le_set_adv_params(
+    adv_interval_min=0x0020,
+    adv_interval_max=0x0040,
+    adv_type=hci_cmd.le_cmds.AdvertisingType.ADV_IND
+)
+
+# Convert to bytes for sending to a device
+bytes_data = cmd.to_bytes()
+
+trasnp.send_cmd(bytes_data)
 # Print the complete packet information.
 print(pkt)
 

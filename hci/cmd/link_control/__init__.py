@@ -1,7 +1,14 @@
 """
-Link control commands package.
+Link Controller Commands module initialization
 """
 
-from .link_control import *
+from .link_controller_cmds import *
 
-__all__ = []
+__all__ = [
+    'inquiry',
+    'inquiry_cancel',
+    'disconnect',
+    'Inquiry',
+    'InquiryCancel',
+    'Disconnect',
+]
