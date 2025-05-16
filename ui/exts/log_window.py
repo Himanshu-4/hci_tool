@@ -115,7 +115,8 @@ class LogWindow(QWidget):
             self.sub_window = None
         # Reset the singleton instance
         LogWindow._instance = None
-        self.deleteLater()
+        # if hasattr(self, 'deleteLater'):
+        #     self.deleteLater()
         print("[LogWindow] subwindow closed, instance reset.")
 
     def __del__(self):    

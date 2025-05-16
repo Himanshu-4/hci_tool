@@ -22,9 +22,7 @@ class ConnectWindow(QWidget):
         this window contains information like COM_PORT, Baudrate, and Transport type.
         basis on the transport type, the window will show different options.
     """
-    
-    
-
+    _instance = None
     def __init__(self, main_wind: QMainWindow = None):
         print("[ConnectWindow].__init__")
         if ConnectWindow._instance is not None:
