@@ -5,7 +5,7 @@ from abc import abstractmethod
 from typing import Type, Dict, Any, ClassVar, Optional, Tuple
 import struct
 
-from .. import HciCommandPacket
+from ..hci_packet import HciCommandPacket
 
 class HciCmdBasePacket(HciCommandPacket):
     """Base class for all HCI command packets"""

@@ -7,8 +7,6 @@ This module provides functionality for creating and parsing HCI events.
 from typing import Dict, Type, Optional, Any, Union
 import struct
 
-from ..hci_packet import HciEventPacket
-
 # Import event base packet and codes
 from .evt_base_packet import HciEvtBasePacket
 from .evt_codes import HciEventCode, LeMetaEventSubCode

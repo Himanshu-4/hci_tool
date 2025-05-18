@@ -8,11 +8,10 @@ import struct
 from typing import List, Dict, Any, ClassVar, Optional, Tuple, Union
 from enum import IntEnum
 
-from ..hci_packet import HciEventPacket
-from .evt_base_packet import HciEvtBasePacket
-from .evt_codes import HciEventCode
-from .event_types import LinkControlEventType
-from .error_codes import StatusCode
+from ..evt_base_packet import HciEvtBasePacket
+from ..evt_codes import HciEventCode
+from ..event_types import LinkControlEventType
+from ..error_codes import StatusCode
 from .. import register_event
 
 class InquiryCompleteEvent(HciEvtBasePacket):
