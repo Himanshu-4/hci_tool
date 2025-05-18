@@ -36,3 +36,14 @@ rsp.data
 4. Use the output for debugging or further processing.
 
 For further details, consult the project's documentation.
+
+
+
+@todo
+1. async file handler, run this handler in event loop
+2. event loop library of  creating new event loop and handle async codes 
+3. async transport layer that will handle the serial api or other transport api in async manner to make ui responsive 
+4. async logger library the library will be used to handle the modules logging 
+5. app.conf file for handling the app related configuration and that also we can enable, disable, configure logger objects of other module
+6. creating a throughput_test.py, HID, A2DP, SCO, tests
+7. checking if all the module logging on terminal, files are proper
