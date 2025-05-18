@@ -2,6 +2,6 @@
 Controller events package.
 """
 
-from .controller_evts import *
+from .controller_baseband_events import *
 
 __all__ = []

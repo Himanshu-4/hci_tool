@@ -2,6 +2,6 @@
 LE meta events package.
 """
 
-from .le_meta_evts import *
+from .le_events import *
 
 __all__ = []

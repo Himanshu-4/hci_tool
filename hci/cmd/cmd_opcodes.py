@@ -505,6 +505,7 @@ class VendorSpecificOCF(IntEnum):
     USER_PROFILES = 0xFF80
 
 
+
 # Function to create complete opcode
 def create_opcode(ogf, ocf):
     """Create HCI command opcode from OGF and OCF"""
@@ -549,6 +550,11 @@ def initialize_opcodes():
     for ocf in LEControllerOCF:
         opcode = create_opcode(OGF.LE_CONTROLLER, ocf)
         OPCODE_TO_NAME[opcode] = f"LE_{ocf.name}"
+        
+    # Vendor Specific Commands
+    for ocf in VendorSpecificOCF:
+        opcode = create_opcode(OGF.VENDOR_SPECIFIC, ocf)
+        OPCODE_TO_NAME[opcode] = f"VENDOR_SPECIFIC_{ocf.name}"
 
 # Initialize the opcode to name dictionary
 initialize_opcodes()

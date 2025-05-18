@@ -29,7 +29,11 @@ information = None
 testing = None
 
 def register_command(cmd_class: Type[HciCmdBasePacket]) -> None:
-    """Register a command class with its opcode"""
+    """
+        Register a command class with its opcode
+        Args: cmd_class: Command class to register
+        Raises: ValueError if the command class does not have an OPCODE or if the opcode is already registered
+    """
     if not hasattr(cmd_class, 'OPCODE'):
         raise ValueError(f"Command class {cmd_class.__name__} has no OPCODE defined")
     
