@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 
 # Import the base UI classes
-from hci_ui.hci_base_ui import HciSubWindow, HciBaseUI
+from .hci_base_ui import HciSubWindow, HciBaseUI
 
 class HciCommandSelector(QWidget):
     """Widget for selecting HCI commands from a hierarchical structure"""
@@ -174,13 +174,13 @@ class HciMainUI(QWidget):
     _instance = None
     
     @classmethod
-    def create_instance(cls, main_window):
+    def create_instance(cls, main_window : QMainWindow):
         """Create or get the instance of the HCI Main UI"""
         if cls._instance is None:
             cls._instance = cls(main_window)
         return cls._instance
     
-    def __init__(self, main_window):
+    def __init__(self, main_window : QMainWindow):
         super().__init__()
         self.main_window = main_window
         self.sub_window = None

@@ -8,7 +8,7 @@ It shows how to set up a packet handler and process incoming events from a Bluet
 import hci
 import hci.cmd as hci_cmd
 import hci.evt as hci_evt
-from hci.cmd.le_cmd import AdvertisingType, AddressType
+from hci.cmd.le_cmds import AdvertisingType, AddressType
 from hci.evt.error_codes import StatusCode
 import time
 import queue

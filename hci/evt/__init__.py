@@ -30,8 +30,9 @@ def register_event(evt_class: Type[HciEvtBasePacket]) -> None:
         raise ValueError(f"Event class {evt_class.__name__} has no EVENT_CODE defined")
     
     event_code = evt_class.EVENT_CODE
+    print(f"register event: {evt_class.__name__} with file {__file__}")
     if event_code in _evt_registry:
-        raise ValueError(f"Event with code 0x{event_code:02X} already registered as {_evt_registry[event_code].__name__}")
+        raise ValueError(f"Event with code 0x{event_code:02X} already registered as {_evt_registry[event_code].__name__} with name {__file__}")
     
     _evt_registry[event_code] = evt_class
 
@@ -77,20 +78,30 @@ def hci_evt_parse_from_bytes(data: bytes) -> Optional[HciEvtBasePacket]:
     """
     return evt_from_bytes(data)
 
-# Import specific event modules
-from . import common_events
-from . import link_control_events
-from . import link_policy_events
-from . import controller_baseband_events
-from . import information_events
-from . import testing_events
-from . import le_events
+# Forward imports for easier access
+# These will be populated during initialization
+link_policy = None
+link_control = None
+status = None
+le = None
+controller_baseband = None
+testing = None
+vs_specific = None
 
 # Initialize event modules when this package is imported
 def _initialize_modules():
     """Import all event submodules to register events"""
-    # Already imported above
-    pass
+    global link_policy, link_control,status,le,controller_baseband, testing, vs_specific
+    print(f"Initializing event modules in {__file__}")
+    from . import (
+        link_control,
+        link_policy,
+        controller_baseband,
+        testing,
+        le,
+        status,
+        vs_specific,
+    )
 
 # Initialize modules
 _initialize_modules()
@@ -113,11 +124,12 @@ __all__ = [
     'InformationEventType',
     'TestingEventType',
     'LEEventType',
-    'common_events',
-    'link_control_events',
-    'link_policy_events',
-    'controller_baseband_events',
-    'information_events',
-    'testing_events',
-    'le_events',
+
+    'link_control',
+    'link_policy',
+    'controller_baseband',
+    'testing',
+    'status',
+    'le',
+    'vs_specific',
 ]

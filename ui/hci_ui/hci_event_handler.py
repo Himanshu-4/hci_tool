@@ -1,8 +1,10 @@
 from PyQt5.QtWidgets import QMdiArea
 import struct
+from typing import Optional
+
 
 # Import event UI modules
-from hci_ui.evt.link_control.link_control_evtui import HCIEventManager as LinkControlEventManager
+from .evt.link_control.link_control_evtui import HCIEventManager as LinkControlEventManager
 
 class HCIEventHandler:
     """
@@ -36,7 +38,7 @@ class HCIEventHandler:
             # etc.
         }
     
-    def process_hci_packet(self, packet_data):
+    def process_hci_packet(self, packet_data : Optional[bytearray]):
         """
         Process an HCI event packet and route it to the appropriate event manager.
         

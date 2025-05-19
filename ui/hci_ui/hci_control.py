@@ -6,13 +6,15 @@ from PyQt5.QtWidgets import (
     QGroupBox, QSplitter
 )
 
+from typing import Optional
+
 from PyQt5.QtGui import QTextCursor, QIntValidator
 from PyQt5.QtCore import Qt, pyqtSignal
 
-from hci_ui.hci_main_ui import HciMainUI
-from hci_ui.hci_event_handler import HCIEventHandler
+from .hci_main_ui import HciMainUI
+from .hci_event_handler import HCIEventHandler
 
-class HCIControl:
+class HCIControlUI:
     """
     Main HCI Control class - integrates command UI and event handling.
     """
@@ -29,7 +31,7 @@ class HCIControl:
         return cls._instance is not None and hasattr(cls._instance, 'main_ui') and cls._instance.main_ui.sub_window.isVisible()
     
     @classmethod
-    def create_instance(cls, main_wind):
+    def create_instance(cls, main_wind : QMainWindow):
         """Create a new instance of HCIControl if it doesn't exist"""
         if cls._instance is None:
             cls._instance = cls(main_wind)
@@ -40,7 +42,7 @@ class HCIControl:
         """Return the singleton instance of HCIControl"""
         return cls._instance
     
-    def __init__(self, main_window):
+    def __init__(self, main_window : Optional[QMainWindow]): 
         """Initialize the HCI Control with reference to the main window"""
         self.main_window = main_window
         
@@ -56,7 +58,14 @@ class HCIControl:
     
     def _on_main_ui_closed(self):
         """Handle closing of the main UI"""
-        HCIControl._instance = None
+        if self.call_destroy_window:
+            self.call_destroy_window()
+        HCIControlUI._instance = None
+    
+    @property
+    def call_destroy_window(self):
+        """ create a property function that assigned in different methods
+        and can be called here above """
     
     def process_hci_event(self, event_data):
         """Process an incoming HCI event packet"""
@@ -67,157 +76,6 @@ class HCIControl:
         """Simulate an HCI event for testing purposes"""
         if self.event_handler:
             self.event_handler.simulate_event(event_code, event_data)
-
-
-class ConnectWindow(QWidget):
-    """A window for connecting to a device."""
-    
-    _instance = None
-    
-    def __init__(self, main_wind=None):
-        """Initialize the Connect Window"""
-        print("[ConnectWindow].__init__")
-        if ConnectWindow._instance is not None:
-            raise Exception("Only one instance of ConnectWindow is allowed")
-        
-        # Initialize the base class
-        super().__init__()
-        
-        ConnectWindow._instance = self
-        
-        # Initialize the main window reference
-        self.main_wind = main_wind
-        
-        # Create the sub-window
-        self.sub_window = QMdiSubWindow()
-        self.sub_window.setWindowTitle("Connect")
-        self.sub_window.setWindowIconText("Connect Window")
-        self.sub_window.setWidget(self)
-        self.sub_window.setAttribute(Qt.WA_DeleteOnClose, True)
-        
-        # Set window properties
-        self.sub_window.resize(200, 300)
-        self.sub_window.setMinimumSize(200, 300)
-        self.sub_window.setMaximumSize(200, 300)
-        self.sub_window.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        
-        # Set window flags
-        self.sub_window.setWindowFlags(Qt.Dialog | Qt.WindowTitleHint | Qt.WindowCloseButtonHint)
-        
-        # Connect close signal
-        self.sub_window.destroyed.connect(
-            lambda _: (setattr(self, "sub_window", None), self._on_subwindow_closed())
-        )
-        
-        # Create the UI layout
-        layout = QVBoxLayout()
-        
-        # Transport type selection
-        self.transport_type = QComboBox()
-        self.transport_type.addItem("UART")
-        self.transport_type.addItem("SDIO")
-        self.transport_type.addItem("USB")
-        layout.addWidget(self.transport_type)
-        
-        # COM Port input
-        self.com_port = QLineEdit()
-        self.com_port.setPlaceholderText("COM Port")
-        self.com_port.setValidator(QIntValidator())
-        layout.addWidget(self.com_port)
-        
-        # Baudrate input
-        self.baudrate = QLineEdit()
-        self.baudrate.setPlaceholderText("Baudrate")
-        self.baudrate.setValidator(QIntValidator())
-        layout.addWidget(self.baudrate)
-        
-        # Connect button
-        self.connect_button = QPushButton("Connect")
-        self.connect_button.clicked.connect(self.connect_to_device)
-        layout.addWidget(self.connect_button)
-        
-        # Add a log area
-        self.log_area = QTextEdit()
-        self.log_area.setReadOnly(True)
-        layout.addWidget(self.log_area)
-        
-        # Set the layout
-        self.setLayout(layout)
-        
-        # Set the style
-        self.setStyleSheet("background-color: lightblue;")
-        
-        # Connect signals
-        self.transport_type.currentTextChanged.connect(self.update_transport_options)
-        
-        # Show the window
-        self.main_wind.mdi_area.addSubWindow(self.sub_window)
-        self.sub_window.raise_()
-        self.sub_window.activateWindow()
-        self.sub_window.setFocus()
-        self.sub_window.show()
-    
-    def _on_subwindow_closed(self):
-        """Handle subwindow closed event"""
-        if self.sub_window is not None:
-            self.sub_window.close()
-            self.sub_window.deleteLater()
-            self.sub_window = None
-        ConnectWindow._instance = None
-        self.deleteLater()
-        print("[ConnectWindow] subwindow closed, instance reset.")
-    
-    def __del__(self):
-        """Destructor"""
-        if ConnectWindow._instance is not None:
-            self._on_subwindow_closed()
-        # Call base class destructor if available
-        if hasattr(super(), "__del__"):
-            super().__del__()
-        print("[ConnectWindow] __del__")
-    
-    def update_transport_options(self, transport_name):
-        """Update UI based on selected transport type"""
-        self.log_area.clear()
-        
-        # Enable/disable controls based on transport type
-        if transport_name == "UART":
-            self.com_port.setEnabled(True)
-            self.baudrate.setEnabled(True)
-        elif transport_name == "SDIO":
-            self.com_port.setEnabled(False)
-            self.baudrate.setEnabled(False)
-        elif transport_name == "USB":
-            self.com_port.setEnabled(True)
-            self.baudrate.setEnabled(False)
-        
-        self.connect_button.setEnabled(True)
-    
-    def connect_to_device(self):
-        """Handle connect button click"""
-        transport_type = self.transport_type.currentText()
-        com_port = self.com_port.text() if self.com_port.isEnabled() else ""
-        baudrate = self.baudrate.text() if self.baudrate.isEnabled() else ""
-        
-        # Log connection attempt
-        self.log_area.append(f"Connecting to device using {transport_type}...")
-        if com_port:
-            self.log_area.append(f"COM Port: {com_port}")
-        if baudrate:
-            self.log_area.append(f"Baudrate: {baudrate}")
-        
-        # In a real application, you would connect to the device here
-        # For now, we'll just simulate success
-        self.log_area.append("Connected successfully!")
-        
-        # Move cursor to end of log
-        self.log_area.moveCursor(QTextCursor.End)
-    
-    def log(self, message):
-        """Add a message to the log area"""
-        self.log_area.append(message)
-        self.log_area.moveCursor(QTextCursor.End)
-
 
 # Class for the HCI Control Window interface
 class HCIControlWindow(QWidget):
