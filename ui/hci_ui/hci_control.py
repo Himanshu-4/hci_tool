@@ -20,6 +20,7 @@ class HCIControlUI:
     """
     
     _instance = None
+    _destroy_window_handler = None
     
     @classmethod
     def is_inited(cls):
@@ -58,15 +59,15 @@ class HCIControlUI:
     
     def _on_main_ui_closed(self):
         """Handle closing of the main UI"""
-        if self.call_destroy_window:
-            self.call_destroy_window()
+        if self.__class__._destroy_window_handler:
+            self.__class__._destroy_window_handler()
         HCIControlUI._instance = None
     
-    @property
-    def call_destroy_window(self):
+    def register_destroy(self, handler : Optional[callable]):
         """ create a property function that assigned in different methods
         and can be called here above """
-    
+        self.__class__._destroy_window_handler = handler
+        
     def process_hci_event(self, event_data):
         """Process an incoming HCI event packet"""
         if self.event_handler:

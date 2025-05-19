@@ -481,10 +481,10 @@ class LeReadRemoteFeaturesCompleteEvent(HciEvtBasePacket):
         )
 
 # Register all event classes
-register_event(LeConnectionCompleteEvent)
-register_event(LeAdvertisingReportEvent)
-register_event(LeConnectionUpdateCompleteEvent)
-register_event(LeReadRemoteFeaturesCompleteEvent)
+# register_event(LeConnectionCompleteEvent)
+# register_event(LeAdvertisingReportEvent)
+# register_event(LeConnectionUpdateCompleteEvent)
+# register_event(LeReadRemoteFeaturesCompleteEvent)
 
 # Function wrappers for easier access
 def le_connection_complete(status: Union[int, StatusCode], connection_handle: int,

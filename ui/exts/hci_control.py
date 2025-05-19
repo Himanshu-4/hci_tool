@@ -368,7 +368,7 @@ class HCIControl(QWidget):
         #     cls._instance = ConnectWindow(main_wind)
         # return cls._instance
         hci_window_instance = HCIControlUI.create_instance(main_window)
-        hci_window_instance.call_destroy_window = lambda : cls.remove_instance(hci_window_instance)
+        hci_window_instance.__class__._destroy_window_handler = lambda: cls.remove_instance(hci_window_instance)
         cls.hci_window_instance.append(hci_window_instance)
         
     
@@ -383,6 +383,7 @@ class HCIControl(QWidget):
         """
         remove the singleton instance of ConnectWindow
         """
+        print("[ConnectWindow] remove_instance")
         cls._instance = None
         cls.hci_window_instance.remove(instance)
 

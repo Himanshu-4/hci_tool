@@ -30,7 +30,7 @@ def register_event(evt_class: Type[HciEvtBasePacket]) -> None:
         raise ValueError(f"Event class {evt_class.__name__} has no EVENT_CODE defined")
     
     event_code = evt_class.EVENT_CODE
-    print(f"register event: {evt_class.__name__} with file {__file__}")
+    # print(f"Registering event {evt_class.__name__} with opcode 0x{event_code:04X} in file {evt_class.__module__}\r\n caller {__file__}")
     if event_code in _evt_registry:
         raise ValueError(f"Event with code 0x{event_code:02X} already registered as {_evt_registry[event_code].__name__} with name {__file__}")
     
@@ -78,33 +78,27 @@ def hci_evt_parse_from_bytes(data: bytes) -> Optional[HciEvtBasePacket]:
     """
     return evt_from_bytes(data)
 
-# Forward imports for easier access
-# These will be populated during initialization
-link_policy = None
-link_control = None
-status = None
-le = None
-controller_baseband = None
-testing = None
-vs_specific = None
 
 # Initialize event modules when this package is imported
 def _initialize_modules():
     """Import all event submodules to register events"""
-    global link_policy, link_control,status,le,controller_baseband, testing, vs_specific
-    print(f"Initializing event modules in {__file__}")
-    from . import (
-        link_control,
-        link_policy,
-        controller_baseband,
-        testing,
-        le,
-        status,
-        vs_specific,
-    )
-
+    print(f"Initializing event modules...")
+   
 # Initialize modules
 _initialize_modules()
+
+from . import link_control
+from . import link_policy
+from . import controller_baseband
+from . import testing
+# from . import status
+from . import le
+from . import vs_specific
+
+# Make submodule event functions available at the top level
+# This enables usage like: import hci.evt as hci_evt; hci_evt.le.le_set_adv_params(...)
+# instead of: from hci.evt.le import le_set_adv_params; le_set_adv_params(...)
+
 
 # Export public functions and classes
 __all__ = [
