@@ -12,32 +12,21 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtGui import QIntValidator, QFont
 from PyQt5.QtCore import Qt, pyqtSignal
 
-import hci
-import hci.cmd as hci_cmd
+
+from hci.cmd.cmd_opcodes import ControllerBasebandOCF
 from hci.cmd.controller_baseband import (
     Reset, SetEventMask, WriteLocalName, ReadLocalName
 )
 
 from hci_ui.hci_base_ui import HciCommandUI
 
-class ResetUI(HciCommandUI):
-    """UI for the Reset command"""
-    
-    def __init__(self, command_class=Reset, parent=None):
-        super().__init__("Reset Command", command_class, parent)
-    
-    def add_command_parameters(self):
-        """Reset has no parameters"""
-        label = QLabel("This command has no parameters. It will reset the controller.")
-        self.params_layout.addRow(label)
-    
-    def get_parameter_values(self):
-        """Get parameter values (none for Reset)"""
-        return {}
+from .. import register_command_ui
+
 
 class SetEventMaskUI(HciCommandUI):
     """UI for the Set Event Mask command"""
-    
+    OPCODE = ControllerBasebandOCF.SET_EVENT_MASK
+    NAME = "Set Event Mask"
     def __init__(self, command_class=SetEventMask, parent=None):
         super().__init__("Set Event Mask Command", command_class, parent)
     
@@ -80,7 +69,8 @@ Default value enables all events except reserved bits."""
 
 class WriteLocalNameUI(HciCommandUI):
     """UI for the Write Local Name command"""
-    
+    OPCODE = ControllerBasebandOCF.WRITE_LOCAL_NAME
+    NAME = "Write Local Name"
     def __init__(self, command_class=WriteLocalName, parent=None):
         super().__init__("Write Local Name Command", command_class, parent)
     
@@ -108,22 +98,11 @@ class WriteLocalNameUI(HciCommandUI):
             'local_name': self.local_name_input.text()
         }
 
-class ReadLocalNameUI(HciCommandUI):
-    """UI for the Read Local Name command"""
-    
-    def __init__(self, command_class=ReadLocalName, parent=None):
-        super().__init__("Read Local Name Command", command_class, parent)
-    
-    def add_command_parameters(self):
-        """Read Local Name has no parameters"""
-        label = QLabel("This command has no parameters. It will read the device's local name.")
-        self.params_layout.addRow(label)
-    
-    def get_parameter_values(self):
-        """Get parameter values (none for Read Local Name)"""
-        return {}
+
 
 # Additional UI classes can be added for other Controller & Baseband commands
 
 
 # Add any additional command UI registrations here
+register_command_ui(SetEventMaskUI)
+register_command_ui(WriteLocalNameUI)   

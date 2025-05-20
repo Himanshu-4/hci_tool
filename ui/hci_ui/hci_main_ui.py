@@ -396,6 +396,7 @@ class HciMainUI(QWidget):
         self.transport = transport
         self.name = transport.name if transport else "Unknown"
         self.window_id = str(uuid.uuid4())  # Generate a unique ID for this window
+        self._destroy_window_handler = None
         self.init_ui()
         self.show_window()
         
@@ -470,9 +471,36 @@ class HciMainUI(QWidget):
         if self in HciMainUI.open_instances:
             HciMainUI.open_instances.remove(self)
         
+        if self._destroy_window_handler:
+            self._destroy_window_handler()
         # Clean up
         self.deleteLater()
         
+    def register_destroy(self, handler : callable):
+        """Register a handler to be called when the window is destroyed"""
+        self._destroy_window_handler = handler
+        
+    # def closeEvent(self, event): --- should not implement this otherwise subwindow not call on_subwindow_closed
+    #     """Handle close event for the main window"""
+    #     # Close all command windows opened by this instance
+    #     if hasattr(self, 'command_manager'):
+    #         self.command_manager.close_all_windows()
+        
+    #     # Remove this instance from the list of open instances
+    #     if self in HciMainUI.open_instances:
+    #         HciMainUI.open_instances.remove(self)
+        
+    #     # Clean up
+    #     self.deleteLater()
+        
+    #     # Call the base class close event
+    #     super().closeEvent(event)
+    #     # Close the subwindow
+    #     if self.sub_window:
+    #         self.sub_window.close()
+    ########################################################
+    ##== Class Methods for Instance Management ===##
+    ########################################################
     @classmethod
     def create_instance(cls, main_window):
         """Create a new instance of HciMainUI"""
@@ -484,12 +512,18 @@ class HciMainUI(QWidget):
         return cls.open_instances
     
     @classmethod
-    def delete_instance(cls, window_name_or_transport :  [str | transport]):
+    def delete_instance(cls, window_name_or_transport :  str | transport):
         """Delete an instance of HciMainUI by window name or transport"""
         for instance in cls.open_instances:
-            if (instance.name == window_name_or_transport) or (instance.transport == transport):
-                instance.on_subwindow_closed()
-                break
+            if isinstance(window_name_or_transport, str):
+                if instance.name == window_name_or_transport:
+                    instance.sub_window.close()
+                    break
+            elif isinstance(window_name_or_transport, transport):
+                # Check if the transport matches
+                if instance.transport == window_name_or_transport:
+                    instance.sub_window.close()
+                    break
     @classmethod
     def close_all_instances(cls):
         """Close all open HCI Command Center windows"""

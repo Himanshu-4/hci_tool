@@ -107,6 +107,8 @@ from . import vs_specific
 from .cmd_parser import hci_cmd_parse_from_bytes
 
 __all__ = [
+    'OGF',
+    'OPCODE_TO_NAME',
     'register_command',
     'get_command_class',
     'cmd_from_bytes',
@@ -119,4 +121,5 @@ __all__ = [
     'controller_baseband',
     'information',
     'testing',
+    'vs_specific'
 ]

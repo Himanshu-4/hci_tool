@@ -8,45 +8,14 @@ import struct
 
 from ...hci_base_ui import HciCommandUI
 
-# HCI opcodes for Link Control commands
-HCI_OPCODE_INQUIRY = 0x0401
-HCI_OPCODE_CREATE_CONNECTION = 0x0405
-HCI_OPCODE_DISCONNECT = 0x0406
-HCI_OPCODE_ACCEPT_CONNECTION = 0x0409
-HCI_OPCODE_REJECT_CONNECTION = 0x040A
-HCI_OPCODE_CHANGE_CONNECTION_PACKET_TYPE = 0x040F
-HCI_OPCODE_REMOTE_NAME_REQUEST = 0x0419
-
-# Command structure functions
-def create_hci_command_packet(opcode, data):
-    """Create an HCI command packet with the specified opcode and data"""
-    length = len(data)
-    header = struct.pack("<BHB", 0x01, opcode, length)  # 0x01 is HCI command packet type
-    return bytearray(header + data)
-
-def bd_addr_str_to_bytes(addr_str):
-    """Convert a BD_ADDR string (e.g., '00:11:22:33:44:55') to bytes"""
-    # Remove any colons or other separators
-    clean_addr = addr_str.replace(':', '').replace('-', '')
-    
-    if len(clean_addr) != 12:
-        raise ValueError("Invalid BD_ADDR format. Expected 12 hex characters.")
-    
-    # Convert each byte and reverse the order (Bluetooth addresses are little-endian)
-    addr_bytes = bytearray.fromhex(clean_addr)
-    addr_bytes.reverse()  # Reverse for little-endian format
-    
-    return addr_bytes
-
-# Simple command execution for Reset
-def execute_reset():
-    """Execute HCI Reset command"""
-    return create_hci_command_packet(0x0C03, b'')
+from hci.cmd.cmd_opcodes import LinkControlOCF
+from .. import register_command_ui
 
 
-class InquiryCommandUI(HCICommandUI):
+
+class InquiryCommandUI(HciCommandUI):
     """UI for HCI Inquiry command"""
-    
+    OPCODE = LinkControlOCF.INQUIRY
     def __init__(self):
         super().__init__("HCI Inquiry Command")
         
@@ -91,9 +60,9 @@ class InquiryCommandUI(HCICommandUI):
         return create_hci_command_packet(HCI_OPCODE_INQUIRY, cmd_params)
 
 
-class CreateConnectionCommandUI(HCICommandUI):
+class CreateConnectionCommandUI(HciCommandUI):
     """UI for HCI Create Connection command"""
-    
+    OPCODE = LinkControlOCF.CREATE_CONNECTION
     def __init__(self):
         super().__init__("HCI Create Connection Command")
         
@@ -162,9 +131,47 @@ class CreateConnectionCommandUI(HCICommandUI):
         return create_hci_command_packet(HCI_OPCODE_CREATE_CONNECTION, cmd_params)
 
 
-class DisconnectCommandUI(HCICommandUI):
+class AcceptConnectionCommandUI(HciCommandUI):
+    """UI for HCI Accept Connection Request command"""
+    OPCODE = LinkControlOCF.ACCEPT_CONNECTION_REQUEST
+    def __init__(self):
+        super().__init__("HCI Accept Connection Request Command")
+        
+    def add_command_ui(self):
+        """Add Accept Connection Request command specific UI components"""
+        super().add_command_ui()
+        
+        # BD_ADDR
+        row = 0
+        self.bd_addr = QLineEdit("00:11:22:33:44:55")
+        self.bd_addr.setToolTip("Bluetooth Device Address of the device to accept connection from")
+        self.add_parameter(row, "BD_ADDR:", self.bd_addr)
+        
+        # Role
+        row += 1
+        self.role = QComboBox()
+        self.role.addItem("Master", 0)
+        self.role.addItem("Slave", 1)
+        self.add_parameter(row, "Role:", self.role)
+        
+    def create_bytearray_from_inputs(self):
+        """Create a bytearray from UI inputs for the Accept Connection Request command"""
+        # Get BD_ADDR
+        bd_addr_bytes = bd_addr_str_to_bytes(self.bd_addr.text())
+        
+        # Get role
+        role = self.role.currentData()
+        
+        # Create command parameters
+        cmd_params = bd_addr_bytes + struct.pack("<B", role)
+        
+        # Create and return the complete command packet
+        return create_hci_command_packet(HCI_OPCODE_ACCEPT_CONNECTION, cmd_params)
+
+
+class DisconnectCommandUI(HciCommandUI):
     """UI for HCI Disconnect command"""
-    
+    OPCODE = LinkControlOCF.DISCONNECT
     def __init__(self):
         super().__init__("HCI Disconnect Command")
         
@@ -203,47 +210,10 @@ class DisconnectCommandUI(HCICommandUI):
         return create_hci_command_packet(HCI_OPCODE_DISCONNECT, cmd_params)
 
 
-class AcceptConnectionCommandUI(HCICommandUI):
-    """UI for HCI Accept Connection Request command"""
-    
-    def __init__(self):
-        super().__init__("HCI Accept Connection Request Command")
-        
-    def add_command_ui(self):
-        """Add Accept Connection Request command specific UI components"""
-        super().add_command_ui()
-        
-        # BD_ADDR
-        row = 0
-        self.bd_addr = QLineEdit("00:11:22:33:44:55")
-        self.bd_addr.setToolTip("Bluetooth Device Address of the device to accept connection from")
-        self.add_parameter(row, "BD_ADDR:", self.bd_addr)
-        
-        # Role
-        row += 1
-        self.role = QComboBox()
-        self.role.addItem("Master", 0)
-        self.role.addItem("Slave", 1)
-        self.add_parameter(row, "Role:", self.role)
-        
-    def create_bytearray_from_inputs(self):
-        """Create a bytearray from UI inputs for the Accept Connection Request command"""
-        # Get BD_ADDR
-        bd_addr_bytes = bd_addr_str_to_bytes(self.bd_addr.text())
-        
-        # Get role
-        role = self.role.currentData()
-        
-        # Create command parameters
-        cmd_params = bd_addr_bytes + struct.pack("<B", role)
-        
-        # Create and return the complete command packet
-        return create_hci_command_packet(HCI_OPCODE_ACCEPT_CONNECTION, cmd_params)
 
-
-class RejectConnectionCommandUI(HCICommandUI):
+class RejectConnectionCommandUI(HciCommandUI):
     """UI for HCI Reject Connection Request command"""
-    
+    OPCODE = LinkControlOCF.REJECT_CONNECTION_REQUEST
     def __init__(self):
         super().__init__("HCI Reject Connection Request Command")
         
@@ -280,9 +250,9 @@ class RejectConnectionCommandUI(HCICommandUI):
         return create_hci_command_packet(HCI_OPCODE_REJECT_CONNECTION, cmd_params)
 
 
-class ChangeConnectionPacketTypeCommandUI(HCICommandUI):
+class ChangeConnectionPacketTypeCommandUI(HciCommandUI):
     """UI for HCI Change Connection Packet Type command"""
-    
+    OPCODE = LinkControlOCF.CHANGE_CONNECTION_PACKET_TYPE
     def __init__(self):
         super().__init__("HCI Change Connection Packet Type Command")
         
@@ -317,9 +287,9 @@ class ChangeConnectionPacketTypeCommandUI(HCICommandUI):
         return create_hci_command_packet(HCI_OPCODE_CHANGE_CONNECTION_PACKET_TYPE, cmd_params)
 
 
-class RemoteNameRequestCommandUI(HCICommandUI):
+class RemoteNameRequestCommandUI(HciCommandUI):
     """UI for HCI Remote Name Request command"""
-    
+    OPCODE = LinkControlOCF.REMOTE_NAME_REQUEST
     def __init__(self):
         super().__init__("HCI Remote Name Request Command")
         
@@ -367,3 +337,13 @@ class RemoteNameRequestCommandUI(HCICommandUI):
         
         # Create and return the complete command packet
         return create_hci_command_packet(HCI_OPCODE_REMOTE_NAME_REQUEST, cmd_params)
+    
+    
+# register the UI classes with the command handler
+register_command_ui(InquiryCommandUI)
+register_command_ui(CreateConnectionCommandUI)
+register_command_ui(AcceptConnectionCommandUI)
+register_command_ui(DisconnectCommandUI)
+register_command_ui(RejectConnectionCommandUI)
+register_command_ui(ChangeConnectionPacketTypeCommandUI)
+register_command_ui(RemoteNameRequestCommandUI)

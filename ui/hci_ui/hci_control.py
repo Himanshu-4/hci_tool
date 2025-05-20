@@ -18,43 +18,16 @@ class HCIControlUI:
     """
     Main HCI Control class - integrates command UI and event handling.
     """
-
-    
-    # @classmethod
-    # def is_inited(cls):
-    #     return cls._instance is not None
-    
-    # @classmethod
-    # def is_open(cls):
-    #     """Check if the HCI Control window is open"""
-    #     return cls._instance is not None and hasattr(cls._instance, 'main_ui') and cls._instance.main_ui.sub_window.isVisible()
-    
-    # @classmethod
-    # def create_instance(cls, main_wind : QMainWindow):
-    #     """Create a new instance of HCIControl if it doesn't exist"""
-    #     if cls._instance is None:
-    #         cls._instance = cls(main_wind)
-    #     return cls._instance
-    
-    # @classmethod
-    # def get_instance(cls):
-    #     """Return the singleton instance of HCIControl"""
-    #     return cls._instance
     
     def __init__(self, main_window : Optional[QMainWindow]): 
         """Initialize the HCI Control with reference to the main window"""
         self.main_window = main_window
         
-        # Initialize event handler
-        self.event_handler = HCIEventHandler(main_window.mdi_area)
-        
         # Create the main UI
         self.main_ui = HciMainUI(main_window)
-        
-        # Connect signal for disconnect
-        if hasattr(self.main_ui.sub_window, 'destroyed'):
-            self.main_ui.sub_window.destroyed.connect(self._on_main_ui_closed)
-    
+        # register destroy method        
+        self.main_ui.register_destroy(lambda: self._on_main_ui_closed())
+
     def __del__(self):
         """Destructor to clean up the instance"""
         print("HCIControlUI instance deleted")
@@ -62,6 +35,7 @@ class HCIControlUI:
         
     def _on_main_ui_closed(self):
         """Handle closing of the main UI"""
+        print("HCIControlUI closed")
         if self._destroy_window_handler:
             self._destroy_window_handler()
         self.main_ui = None

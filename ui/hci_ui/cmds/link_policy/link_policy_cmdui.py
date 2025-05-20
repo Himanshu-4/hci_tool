@@ -7,43 +7,15 @@ from PyQt5.QtGui import QIntValidator
 from PyQt5.QtCore import Qt
 import struct
 
-from hci_ui.hci_base_ui import HCICommandUI
+from hci_ui.hci_base_ui import HciCommandUI
+from hci.cmd.cmd_opcodes import LinkPolicyOCF
 
-# HCI opcodes for Link Policy commands
-HCI_OPCODE_HOLD_MODE = 0x0801
-HCI_OPCODE_SNIFF_MODE = 0x0803
-HCI_OPCODE_EXIT_SNIFF_MODE = 0x0804
-HCI_OPCODE_QOS_SETUP = 0x0807
-HCI_OPCODE_ROLE_DISCOVERY = 0x0809
-HCI_OPCODE_SWITCH_ROLE = 0x080B
-HCI_OPCODE_READ_LINK_POLICY_SETTINGS = 0x080C
-HCI_OPCODE_WRITE_LINK_POLICY_SETTINGS = 0x080D
-
-# Command structure functions
-def create_hci_command_packet(opcode, data):
-    """Create an HCI command packet with the specified opcode and data"""
-    length = len(data)
-    header = struct.pack("<BHB", 0x01, opcode, length)  # 0x01 is HCI command packet type
-    return bytearray(header + data)
-
-def bd_addr_str_to_bytes(addr_str):
-    """Convert a BD_ADDR string (e.g., '00:11:22:33:44:55') to bytes"""
-    # Remove any colons or other separators
-    clean_addr = addr_str.replace(':', '').replace('-', '')
-    
-    if len(clean_addr) != 12:
-        raise ValueError("Invalid BD_ADDR format. Expected 12 hex characters.")
-    
-    # Convert each byte and reverse the order (Bluetooth addresses are little-endian)
-    addr_bytes = bytearray.fromhex(clean_addr)
-    addr_bytes.reverse()  # Reverse for little-endian format
-    
-    return addr_bytes
+from .. import register_command_ui
 
 
-class HoldModeCommandUI(HCICommandUI):
+class HoldModeCommandUI(HciCommandUI):
     """UI for HCI Hold Mode command"""
-    
+    OPCODE = LinkPolicyOCF.HOLD_MODE
     def __init__(self):
         super().__init__("HCI Hold Mode Command")
         
@@ -87,9 +59,9 @@ class HoldModeCommandUI(HCICommandUI):
         return create_hci_command_packet(HCI_OPCODE_HOLD_MODE, cmd_params)
 
 
-class SniffModeCommandUI(HCICommandUI):
+class SniffModeCommandUI(HciCommandUI):
     """UI for HCI Sniff Mode command"""
-    
+    OPCODE = LinkPolicyOCF.SNIFF_MODE
     def __init__(self):
         super().__init__("HCI Sniff Mode Command")
         
@@ -156,9 +128,9 @@ class SniffModeCommandUI(HCICommandUI):
         return create_hci_command_packet(HCI_OPCODE_SNIFF_MODE, cmd_params)
 
 
-class ExitSniffModeCommandUI(HCICommandUI):
+class ExitSniffModeCommandUI(HciCommandUI):
     """UI for HCI Exit Sniff Mode command"""
-    
+    OPCODE = LinkPolicyOCF.EXIT_SNIFF_MODE
     def __init__(self):
         super().__init__("HCI Exit Sniff Mode Command")
         
@@ -184,9 +156,9 @@ class ExitSniffModeCommandUI(HCICommandUI):
         return create_hci_command_packet(HCI_OPCODE_EXIT_SNIFF_MODE, cmd_params)
 
 
-class QosSetupCommandUI(HCICommandUI):
+class QosSetupCommandUI(HciCommandUI):
     """UI for HCI QoS Setup command"""
-    
+    OPCODE = LinkPolicyOCF.QOS_SETUP
     def __init__(self):
         super().__init__("HCI QoS Setup Command")
         
@@ -273,9 +245,9 @@ class QosSetupCommandUI(HCICommandUI):
         return create_hci_command_packet(HCI_OPCODE_QOS_SETUP, cmd_params)
 
 
-class RoleDiscoveryCommandUI(HCICommandUI):
+class RoleDiscoveryCommandUI(HciCommandUI):
     """UI for HCI Role Discovery command"""
-    
+    OPCODE = LinkPolicyOCF.ROLE_DISCOVERY
     def __init__(self):
         super().__init__("HCI Role Discovery Command")
         
@@ -301,8 +273,9 @@ class RoleDiscoveryCommandUI(HCICommandUI):
         return create_hci_command_packet(HCI_OPCODE_ROLE_DISCOVERY, cmd_params)
 
 
-class SwitchRoleCommandUI(HCICommandUI):
+class SwitchRoleCommandUI(HciCommandUI):
     """UI for HCI Switch Role command"""
+    OPCODE = LinkPolicyOCF.SWITCH_ROLE
     
     def __init__(self):
         super().__init__("HCI Switch Role Command")
@@ -339,8 +312,9 @@ class SwitchRoleCommandUI(HCICommandUI):
         return create_hci_command_packet(HCI_OPCODE_SWITCH_ROLE, cmd_params)
 
 
-class ReadLinkPolicySettingsCommandUI(HCICommandUI):
+class ReadLinkPolicySettingsCommandUI(HciCommandUI):
     """UI for HCI Read Link Policy Settings command"""
+    OPCODE = LinkPolicyOCF.READ_LINK_POLICY_SETTINGS
     
     def __init__(self):
         super().__init__("HCI Read Link Policy Settings Command")
@@ -367,8 +341,9 @@ class ReadLinkPolicySettingsCommandUI(HCICommandUI):
         return create_hci_command_packet(HCI_OPCODE_READ_LINK_POLICY_SETTINGS, cmd_params)
 
 
-class WriteLinkPolicySettingsCommandUI(HCICommandUI):
+class WriteLinkPolicySettingsCommandUI(HciCommandUI):
     """UI for HCI Write Link Policy Settings command"""
+    OPCODE = LinkPolicyOCF.WRITE_LINK_POLICY_SETTINGS
     
     def __init__(self):
         super().__init__("HCI Write Link Policy Settings Command")
@@ -422,3 +397,15 @@ class WriteLinkPolicySettingsCommandUI(HCICommandUI):
         
         # Create and return the complete command packet
         return create_hci_command_packet(HCI_OPCODE_WRITE_LINK_POLICY_SETTINGS, cmd_params)
+    
+    
+# Register the command UIs
+register_command_ui(HoldModeCommandUI)
+register_command_ui(SniffModeCommandUI)
+register_command_ui(ExitSniffModeCommandUI)
+register_command_ui(QosSetupCommandUI)
+register_command_ui(RoleDiscoveryCommandUI)
+register_command_ui(SwitchRoleCommandUI)
+register_command_ui(ReadLinkPolicySettingsCommandUI)
+register_command_ui(WriteLinkPolicySettingsCommandUI)
+        # Get the event code and data from the input fields
