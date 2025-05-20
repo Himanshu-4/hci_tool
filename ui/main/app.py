@@ -12,7 +12,7 @@ from PyQt5.QtWidgets import (
 import os
 from collections import namedtuple
 
-from ui.exts import (a2dp_test, diagnostic, hci_control, hid_test,
+from ui.exts import (a2dp_test, diagnostic, hci_window, hid_test,
                           le_iso_test, sco_test, throughput_test, firmware_download,
                           config_chip, log_window, util_screen)
 
@@ -65,7 +65,7 @@ class MainWindow(QMainWindow):
         ChildFactory = namedtuple('ChildFactory', ['module', 'cls_name'])
         # Define a mapping of titles to child window classes
         WINDOW_MAP = {
-            "HCI":           ChildFactory(module=hci_control,    cls_name="HCIControl"),
+            "HCI":           ChildFactory(module=hci_window,    cls_name="HCIControl"),
             "Diagnostics":  ChildFactory(module=diagnostic,     cls_name="DiagnosticWindow"),
             "Throughput Test": ChildFactory(module=throughput_test, cls_name="ThroughputWindow"),
             "SCO Test":     ChildFactory(module=sco_test,        cls_name="ScoTestWindow"),
