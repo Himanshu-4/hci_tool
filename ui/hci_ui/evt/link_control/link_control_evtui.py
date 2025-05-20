@@ -6,7 +6,7 @@ from PyQt5.QtGui import QTextCursor
 from PyQt5.QtCore import Qt, pyqtSignal
 
 import struct
-from ...hci_base_ui import HciEventUI, HciSubWindow
+from ...hci_base_ui import HciEventUI
 
 
 def bd_addr_bytes_to_str(addr_bytes):

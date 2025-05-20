@@ -1,7 +1,7 @@
 
-from transport.uart.uart_xfr import uart_transfer
-from transport.SDIO.sdio_xfr import sdio_transfer
-from transport.usb.usb_xfr import usb_transfer
+from transports.uart.uart_xfr import uart_transfer
+from transports.SDIO.sdio_xfr import sdio_transfer
+from transports.usb.usb_xfr import usb_transfer
 
 import threading
 import time

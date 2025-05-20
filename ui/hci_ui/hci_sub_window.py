@@ -38,6 +38,7 @@ class HciSubWindow(QMdiSubWindow):
         self.setWindowTitle(window_title)
         self.setAttribute(Qt.WA_DeleteOnClose)
         self.setWindowFlags(Qt.SubWindow)
+        self.windowIconText(window_title)  # Set window icon text
         
         # Configure the layout if a widget is provided
         if widget:

@@ -4,7 +4,8 @@
 from .hci_control import HCIControlUI, HCIControlWindow
 from .hci_event_handler import HCIEventHandler
 from .hci_main_ui import HciMainUI
-from .hci_base_ui import HciBaseUI, HciCommandUI, HciEventUI, HciSubWindow
+from .hci_base_ui import HciBaseUI, HciCommandUI, HciEventUI
+from .hci_sub_window import HciSubWindow
 
 __all__ = [
     'HCIControlUI',

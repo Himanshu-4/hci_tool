@@ -6,7 +6,7 @@ from PyQt5.QtGui import QIntValidator
 from PyQt5.QtCore import Qt
 import struct
 
-from hci_ui.hci_base_ui import HCICommandUI
+from ...hci_base_ui import HciCommandUI
 
 # HCI opcodes for Link Control commands
 HCI_OPCODE_INQUIRY = 0x0401

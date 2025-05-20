@@ -364,81 +364,6 @@ class HciEventSubWindow(QMdiSubWindow):
             main_window.mdi_area.addSubWindow(self)
             self.show()
 
-class HciSubWindow(QMdiSubWindow):
-    """
-    A customized MDI subwindow for the HCI tool.
-    
-    This class provides a standardized container for HCI UI components, with consistent
-    window behavior, styling, and lifecycle management.
-    """
-    
-    # Signal emitted when the window is closed
-    closed = pyqtSignal(str)  # Emits the window title
-    
-    def __init__(self, widget=None, window_title="", parent=None):
-        """
-        Initialize the HCI SubWindow.
-        
-        Args:
-            widget: The main widget to display in the subwindow
-            window_title: The title for the window
-            parent: The parent widget
-        """
-        super().__init__(parent)
-        
-        # Save the title for reference
-        self.window_title = window_title
-        
-        # Set window properties
-        self.setWindowTitle(window_title)
-        self.setAttribute(Qt.WA_DeleteOnClose)
-        self.setWindowFlags(Qt.SubWindow)
-        
-        # Configure the layout if a widget is provided
-        if widget:
-            self.setWidget(widget)
-        
-        # Default size
-        self.resize(600, 400)
-    
-    def closeEvent(self, event):
-        """
-        Handle the window close event.
-        
-        Args:
-            event: The close event
-        """
-        # Emit the closed signal with the window title
-        self.closed.emit(self.window_title)
-        
-        # Call the parent class closeEvent
-        super().closeEvent(event)
-    
-    def maximize(self):
-        """
-        Maximize the subwindow.
-        """
-        self.setWindowState(Qt.WindowMaximized)
-    
-    def restore(self):
-        """
-        Restore the window to its normal state.
-        """
-        self.setWindowState(Qt.WindowNoState)
-    
-    def center_in_parent(self):
-        """
-        Center the window within its parent MDI area.
-        """
-        if self.parentWidget():
-            parent_rect = self.parentWidget().rect()
-            self_rect = self.rect()
-            
-            x = (parent_rect.width() - self_rect.width()) // 2
-            y = (parent_rect.height() - self_rect.height()) // 2
-            
-            self.move(x, y)
-
 class HciMainWindow(QWidget):
     """Main UI for HCI control"""
     
@@ -723,23 +648,6 @@ class HciBaseUI(QWidget):
         except Exception as e:
             self.log(f"Error sending command: {str(e)}", "red")
 
-
-class HciSubWindow(QMdiSubWindow):
-    """Base class for HCI subwindows"""
-    
-    closed = pyqtSignal(str)  # Signal emitted when window is closed with window title
-    
-    def __init__(self, widget, title="HCI Window"):
-        super().__init__()
-        self.setWidget(widget)
-        self.setWindowTitle(title)
-        self.setAttribute(Qt.WA_DeleteOnClose)
-        self.setWindowIconText(title)
-        
-    def closeEvent(self, event):
-        """Handle the close event"""
-        self.closed.emit(self.windowTitle())
-        super().closeEvent(event)
 
 
 class HciCommandUI(HciBaseUI):
