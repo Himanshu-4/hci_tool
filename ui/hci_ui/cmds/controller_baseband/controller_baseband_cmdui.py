@@ -13,19 +13,19 @@ from PyQt5.QtGui import QIntValidator, QFont
 from PyQt5.QtCore import Qt, pyqtSignal
 
 
-from hci.cmd.cmd_opcodes import ControllerBasebandOCF
+from hci.cmd.cmd_opcodes import create_opcode, OGF, ControllerBasebandOCF
 from hci.cmd.controller_baseband import (
     Reset, SetEventMask, WriteLocalName, ReadLocalName
 )
 
-from hci_ui.hci_base_ui import HciCommandUI
+from ...hci_base_ui import HciCommandUI
 
 from .. import register_command_ui
 
 
 class SetEventMaskUI(HciCommandUI):
     """UI for the Set Event Mask command"""
-    OPCODE = ControllerBasebandOCF.SET_EVENT_MASK
+    OPCODE = create_opcode(OGF.CONTROLLER_BASEBAND, ControllerBasebandOCF.SET_EVENT_MASK)
     NAME = "Set Event Mask"
     def __init__(self, command_class=SetEventMask, parent=None):
         super().__init__("Set Event Mask Command", command_class, parent)
@@ -69,7 +69,7 @@ Default value enables all events except reserved bits."""
 
 class WriteLocalNameUI(HciCommandUI):
     """UI for the Write Local Name command"""
-    OPCODE = ControllerBasebandOCF.WRITE_LOCAL_NAME
+    OPCODE = create_opcode(OGF.CONTROLLER_BASEBAND, ControllerBasebandOCF.WRITE_LOCAL_NAME)
     NAME = "Write Local Name"
     def __init__(self, command_class=WriteLocalName, parent=None):
         super().__init__("Write Local Name Command", command_class, parent)

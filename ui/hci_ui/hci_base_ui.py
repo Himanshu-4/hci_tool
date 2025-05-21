@@ -82,9 +82,14 @@ class HciCommandUI(HciBaseUI):
             self.add_command_parameters()
         
         # Add send button
-        self.send_button = QPushButton("Send Command")
+        self.send_button = QPushButton("Ok")
         self.send_button.clicked.connect(self.send_command)
         self.layout.addWidget(self.send_button)
+        
+        # add cancel button
+        self.cancel_button = QPushButton("Cancel")
+        self.cancel_button.clicked.connect(self.close)
+        self.layout.addWidget(self.cancel_button)
     
     def add_command_parameters(self):
         """Add parameter input fields based on the command class"""

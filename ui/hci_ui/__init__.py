@@ -7,7 +7,12 @@ from .hci_main_ui import HciMainUI
 from .hci_base_ui import HciBaseUI, HciCommandUI, HciEventUI
 from .hci_sub_window import HciSubWindow
 
+from .cmds import *
+from .evt import *
+
 __all__ = [
+    'cmds',
+    'evt',
     'HCIControlUI',
     'HCIControlWindow',
     'HCIEventHandler',

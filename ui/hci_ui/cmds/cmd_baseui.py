@@ -382,3 +382,62 @@ class GenericFunctionUI(QWidget):
         except Exception as e:
             self.log(f"Error calling function: {str(e)}")
             return None
+        
+        
+        
+# hci_ui/cmd/hci_cmds_baseui.py
+from ..base_ui import BaseUI
+from PyQt5.QtWidgets import QLabel, QLineEdit, QFormLayout, QGroupBox
+
+class HCICmdBaseUI(BaseUI):
+    def __init__(self, parent=None, cmd_name="HCI Command", ogf=0, ocf=0):
+        self.cmd_name = cmd_name
+        self.ogf = ogf  # OpCode Group Field
+        self.ocf = ocf  # OpCode Command Field
+        super().__init__(parent)
+        
+    def init_ui(self):
+        """Initialize the command UI"""
+        super().init_ui()
+        
+        # Set window title
+        self.setWindowTitle(self.cmd_name)
+        
+        # Create form layout for parameters
+        self.param_group = QGroupBox("Command Parameters")
+        self.form_layout = QFormLayout()
+        self.param_group.setLayout(self.form_layout)
+        
+        # Add command info
+        info_group = QGroupBox("Command Information")
+        info_layout = QFormLayout()
+        info_layout.addRow("Command:", QLabel(self.cmd_name))
+        info_layout.addRow("OGF:", QLabel(f"0x{self.ogf:02X}"))
+        info_layout.addRow("OCF:", QLabel(f"0x{self.ocf:02X}"))
+        info_layout.addRow("OpCode:", QLabel(f"0x{(self.ogf << 10) | self.ocf:04X}"))
+        info_group.setLayout(info_layout)
+        
+        # Add groups to content layout
+        self.content_layout.addWidget(info_group)
+        self.content_layout.addWidget(self.param_group)
+        
+    def on_ok(self):
+        """Send the command when OK is clicked"""
+        command_data = self.get_command_data()
+        if command_data:
+            self.send_command(command_data)
+            self.close()
+    
+    def get_command_data(self):
+        """Get the command data from the UI fields - to be implemented by subclasses"""
+        return {
+            "ogf": self.ogf,
+            "ocf": self.ocf,
+            "opcode": (self.ogf << 10) | self.ocf
+        }
+    
+    def send_command(self, command_data):
+        """Send the command to the HCI interface"""
+        print(f"Sending command: {command_data}")
+        if self.parent and hasattr(self.parent, 'execute_command'):
+            self.parent.execute_command(self.cmd_name, command_data)

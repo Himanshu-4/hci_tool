@@ -54,7 +54,24 @@ class HciCommandPacket(HciPacket):
     # Additional class variables
     OPCODE: ClassVar[int]  # Command opcode
     NAME: ClassVar[str]    # Command name
+    PARAMS: bytes       # Command parameters
     
+    def __init__(self, **kwargs):
+        """
+        Initialize HCI Command packet
+        
+        Args:
+            opcode: Command opcode (2 bytes)
+            params: Command parameters
+        """
+        super().__init__(**kwargs)
+        if not self.params.get('opcode'):
+            self.OPCODE =  self.params.get('opcode')
+        if not self.params.get('name'):
+            self.NAME =  self.params.get('name')
+        if not self.params.get('params'):
+            self.PARAMS =  self.params.get('params')
+        
     def __str__(self) -> str:
         """String representation of the command packet"""
         return f"{self.NAME} (0x{self.OPCODE:04X}): {self.params}"

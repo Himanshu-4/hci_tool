@@ -14,18 +14,18 @@ from PyQt5.QtCore import Qt, pyqtSignal
 
 from .. import register_command_ui
 
-from hci.cmd.cmd_opcodes import LEControllerOCF
+from hci.cmd.cmd_opcodes import create_opcode, OGF, LEControllerOCF
 
 from hci.cmd.le_cmds import (
     LeSetAdvParams, LeSetAdvData, LeSetScanParameters, LeSetScanEnable,
     AdvertisingType, AddressType
 )
 
-from hci_ui.hci_base_ui import HciCommandUI
+from ...hci_base_ui import HciCommandUI
 
 class LeSetAdvParamsUI(HciCommandUI):
     """UI for the LE Set Advertising Parameters command"""
-    OPCODE = LEControllerOCF.SET_ADVERTISING_PARAMETERS
+    OPCODE = create_opcode(OGF.LE_CONTROLLER, LEControllerOCF.SET_ADVERTISING_PARAMETERS)
     NAME = "LE Set Advertising Parameters"
     def __init__(self, command_class=LeSetAdvParams, parent=None):
         super().__init__("LE Set Advertising Parameters", command_class, parent)
@@ -128,7 +128,7 @@ class LeSetAdvParamsUI(HciCommandUI):
 
 class LeSetAdvDataUI(HciCommandUI):
     """UI for the LE Set Advertising Data command"""
-    OPCODE = LEControllerOCF.SET_ADVERTISING_DATA
+    OPCODE = create_opcode(OGF.LE_CONTROLLER, LEControllerOCF.SET_ADVERTISING_DATA)
     NAME = "LE Set Advertising Data"
     def __init__(self, command_class=LeSetAdvData, parent=None):
         super().__init__("LE Set Advertising Data", command_class, parent)
@@ -204,7 +204,7 @@ class LeSetAdvDataUI(HciCommandUI):
 
 class LeSetScanParametersUI(HciCommandUI):
     """UI for the LE Set Scan Parameters command"""
-    OPCODE = LEControllerOCF.SET_SCAN_PARAMETERS
+    OPCODE = create_opcode(OGF.LE_CONTROLLER, LEControllerOCF.SET_SCAN_PARAMETERS)
     NAME = "LE Set Scan Parameters"
     def __init__(self, command_class=LeSetScanParameters, parent=None):
         super().__init__("LE Set Scan Parameters", command_class, parent)
@@ -258,7 +258,7 @@ class LeSetScanParametersUI(HciCommandUI):
 
 class LeSetScanEnableUI(HciCommandUI):
     """UI for the LE Set Scan Enable command"""
-    OPCODE = LEControllerOCF.SET_SCAN_ENABLE
+    OPCODE = create_opcode(OGF.LE_CONTROLLER, LEControllerOCF.SET_SCAN_ENABLE)
     NAME = "LE Set Scan Enable"
     def __init__(self, command_class=LeSetScanEnable, parent=None):
         super().__init__("LE Set Scan Enable", command_class, parent)

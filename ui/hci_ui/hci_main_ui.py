@@ -26,12 +26,21 @@ from enum import IntEnum
 from hci.cmd.cmd_opcodes import  (
     OGF, InformationOCF, LinkControlOCF, LinkPolicyOCF,
     ControllerBasebandOCF,  StatusOCF, TestingOCF, LEControllerOCF,
-    VendorSpecificOCF)
+    VendorSpecificOCF
+    )
+
+from hci.cmd.cmd_opcodes import OPCODE_TO_NAME
+
+from hci.cmd.cmd_base_packet import HciCmdBasePacket
+from hci.cmd.cmd_opcodes import HciOpcode, create_opcode
 
 
 # Import the base UI classes
-from .hci_base_ui import  HciBaseUI
+from .hci_base_ui import  HciCommandUI
 from .hci_sub_window import HciSubWindow
+
+from .cmds import get_cmd_ui_class
+
 
 # import the transport library
 from transports import Transport as transport
@@ -99,8 +108,6 @@ class commands:
 
 class HciCommandSelector(QWidget):
     """Widget for selecting HCI commands from a hierarchical structure"""
-    
-
     
     command_selected = pyqtSignal(str, str)  # Signal emitted when a command is selected (category, command)
     
@@ -302,55 +309,56 @@ class HciCommandManager:
     def __init__(self, mdi_area, parent_window=None):
         self.mdi_area = mdi_area
         self.parent_window = parent_window
-        self.open_windows = {}  # Keep track of open windows by command
+        # Keep track of open windows by command
+        self.open_windows : dict[int, HciSubWindow] = {}
         
-    def open_command_ui(self, category, command):
+    def open_command_ui(self, category : str, command : str):
         """Open a UI for the specified HCI command"""
-        # Construct the module path
-        module_path = f"hci_ui.cmd.{category}.{category}_cmdui"
         
         try:
-            # Try to import the module
-            module = importlib.import_module(module_path)
-            
-            # Get the command class
-            # Most command classes will follow a naming convention
-            class_name = f"{command.title().replace('_', '')}CommandUI"
+            cmd_opcode = None
+            category = category.replace("&", "").replace(" ", "_").replace("__", "_").upper()
+            cmd = command.replace(" ", "_").upper()
+            opcode_name_to_srch = f"{category}_{cmd}"
+            # Get the class name from the opcode name values 
+            for opcode, name in OPCODE_TO_NAME.items():
+                if name == opcode_name_to_srch:
+                    cmd_opcode = opcode
+                    break
+                
+            # cmd_opcode = create_opcode(getattr(cmd_type, category), getattr(cmd_type, command))
+            print(f"cmd_opcode: {cmd_opcode}, srching for {opcode_name_to_srch}")
             
             # Check if the class exists in the module
-            if hasattr(module, class_name):
-                command_class = getattr(module, class_name)
-                
+            if get_cmd_ui_class(cmd_opcode):
                 # Check if there's already an open window for this command
-                window_key = f"{category}.{command}"
-                if window_key in self.open_windows:
+                if cmd_opcode in self.open_windows:
                     # Activate the existing window
-                    self.open_windows[window_key].raise_()
-                    self.open_windows[window_key].activateWindow()
+                    self.open_windows[cmd_opcode].raise_()
+                    self.open_windows[cmd_opcode].activateWindow()
                 else:
                     # Create a new instance of the command UI
-                    command_ui = command_class()
+                    command_ui_class = get_cmd_ui_class(cmd_opcode)
+                    command_ui = command_ui_class()
                     
                     # Create a subwindow for the command UI
                     sub_window = HciSubWindow(command_ui, f"{category} - {command}")
-                    sub_window.closed.connect(lambda title: self.on_window_closed(window_key))
+                    sub_window.closed.connect(lambda : self.on_window_closed(cmd_opcode))
                     
                     # Add the subwindow to the MDI area
                     self.mdi_area.addSubWindow(sub_window)
                     sub_window.show()
                     
                     # Store the window reference
-                    self.open_windows[window_key] = sub_window
+                    self.open_windows[cmd_opcode] = sub_window
             else:
                 # If the command doesn't need a UI, try to execute it directly
-                self.execute_simple_command(category, command, module)
+                self.execute_simple_command(category, command)
                 
-        except ImportError:
-            print(f"Module {module_path} not found")
         except Exception as e:
             print(f"Error opening command UI: {str(e)}")
     
-    def execute_simple_command(self, category, command, module):
+    def execute_simple_command(self, category : str, command : str):
         """Execute a simple command that doesn't need a UI"""
         # Try to find a function for this command
         func_name = f"execute_{command}"

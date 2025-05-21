@@ -8,14 +8,15 @@ import struct
 
 from ...hci_base_ui import HciCommandUI
 
-from hci.cmd.cmd_opcodes import LinkControlOCF
+from hci.cmd.cmd_opcodes import create_opcode, OGF, LinkControlOCF
 from .. import register_command_ui
 
 
 
 class InquiryCommandUI(HciCommandUI):
     """UI for HCI Inquiry command"""
-    OPCODE = LinkControlOCF.INQUIRY
+    OPCODE = create_opcode(OGF.LINK_CONTROL, LinkControlOCF.INQUIRY)
+    NAME = "Inquiry Command"
     def __init__(self):
         super().__init__("HCI Inquiry Command")
         
@@ -62,7 +63,8 @@ class InquiryCommandUI(HciCommandUI):
 
 class CreateConnectionCommandUI(HciCommandUI):
     """UI for HCI Create Connection command"""
-    OPCODE = LinkControlOCF.CREATE_CONNECTION
+    OPCODE = create_opcode(OGF.LINK_CONTROL, LinkControlOCF.CREATE_CONNECTION)
+    NAME = "Create Connection Command"
     def __init__(self):
         super().__init__("HCI Create Connection Command")
         
@@ -133,7 +135,8 @@ class CreateConnectionCommandUI(HciCommandUI):
 
 class AcceptConnectionCommandUI(HciCommandUI):
     """UI for HCI Accept Connection Request command"""
-    OPCODE = LinkControlOCF.ACCEPT_CONNECTION_REQUEST
+    OPCODE = create_opcode(OGF.LINK_CONTROL, LinkControlOCF.ACCEPT_CONNECTION_REQUEST)
+    NAME = "Accept Connection Command"
     def __init__(self):
         super().__init__("HCI Accept Connection Request Command")
         
@@ -171,7 +174,8 @@ class AcceptConnectionCommandUI(HciCommandUI):
 
 class DisconnectCommandUI(HciCommandUI):
     """UI for HCI Disconnect command"""
-    OPCODE = LinkControlOCF.DISCONNECT
+    OPCODE = create_opcode(OGF.LINK_CONTROL, LinkControlOCF.DISCONNECT)
+    NAME = "Disconnect Command"
     def __init__(self):
         super().__init__("HCI Disconnect Command")
         
@@ -213,7 +217,8 @@ class DisconnectCommandUI(HciCommandUI):
 
 class RejectConnectionCommandUI(HciCommandUI):
     """UI for HCI Reject Connection Request command"""
-    OPCODE = LinkControlOCF.REJECT_CONNECTION_REQUEST
+    OPCODE = create_opcode(OGF.LINK_CONTROL, LinkControlOCF.REJECT_CONNECTION_REQUEST)
+    NAME = "Reject Connection Command"
     def __init__(self):
         super().__init__("HCI Reject Connection Request Command")
         
@@ -252,7 +257,8 @@ class RejectConnectionCommandUI(HciCommandUI):
 
 class ChangeConnectionPacketTypeCommandUI(HciCommandUI):
     """UI for HCI Change Connection Packet Type command"""
-    OPCODE = LinkControlOCF.CHANGE_CONNECTION_PACKET_TYPE
+    OPCODE = create_opcode(OGF.LINK_CONTROL, LinkControlOCF.CHANGE_CONNECTION_PACKET_TYPE)
+    NAME = "Change Connection Packet Type Command"
     def __init__(self):
         super().__init__("HCI Change Connection Packet Type Command")
         
@@ -289,7 +295,8 @@ class ChangeConnectionPacketTypeCommandUI(HciCommandUI):
 
 class RemoteNameRequestCommandUI(HciCommandUI):
     """UI for HCI Remote Name Request command"""
-    OPCODE = LinkControlOCF.REMOTE_NAME_REQUEST
+    OPCODE = create_opcode(OGF.LINK_CONTROL, LinkControlOCF.REMOTE_NAME_REQUEST)
+    NAME = "Remote Name Request Command"
     def __init__(self):
         super().__init__("HCI Remote Name Request Command")
         

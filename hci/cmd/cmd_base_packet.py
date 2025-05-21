@@ -20,15 +20,15 @@ class HciCmdBasePacket(HciCommandPacket):
     
     def to_bytes(self) -> bytes:
         """Convert command to bytes, including header"""
-        param_bytes = self._serialize_params()
+        param_bytes = self.PARAMS +  self._serialize_params()
         length = len(param_bytes)
         
         # HCI Command packet format:
-        # - 1 byte: HCI Packet Type (not included here, added by transport layer)
+        # - 1 byte: HCI Packet Type
         # - 2 bytes: Opcode (OGF:6 bits, OCF:10 bits)
         # - 1 byte: Parameter Total Length
         # - N bytes: Parameters
-        header = struct.pack("<HB", self.OPCODE, length)
+        header = struct.pack("<BHB",self.PACKET_TYPE, self.OPCODE, length)
         return header + param_bytes
     
     @abstractmethod
@@ -42,6 +42,12 @@ class HciCmdBasePacket(HciCommandPacket):
         ogf = (opcode >> 10) & 0x3F  # 6 bits for OGF
         ocf = opcode & 0x03FF        # 10 bits for OCF
         return ogf, ocf
+    
+    @staticmethod
+    def create_cmd_packet(ogf: int, ocf: int, params: bytes, name : Optional[str]) -> 'HciCmdBasePacket':
+        """Create command packet from OGF, OCF, and parameters"""
+        opcode = HciCmdBasePacket.create_opcode(ogf, ocf)
+        return HciCmdBasePacket(opcode=opcode, params=params, name=name)
     
     @staticmethod
     def create_opcode(ogf: int, ocf: int) -> int:

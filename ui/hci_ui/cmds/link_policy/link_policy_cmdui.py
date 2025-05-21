@@ -7,15 +7,16 @@ from PyQt5.QtGui import QIntValidator
 from PyQt5.QtCore import Qt
 import struct
 
-from hci_ui.hci_base_ui import HciCommandUI
-from hci.cmd.cmd_opcodes import LinkPolicyOCF
-
+from hci.cmd.cmd_opcodes import create_opcode, OGF, LinkPolicyOCF
 from .. import register_command_ui
+
+from ...hci_base_ui import HciCommandUI
 
 
 class HoldModeCommandUI(HciCommandUI):
     """UI for HCI Hold Mode command"""
-    OPCODE = LinkPolicyOCF.HOLD_MODE
+    OPCODE = create_opcode(OGF.LINK_POLICY, LinkPolicyOCF.HOLD_MODE)
+    NAME = "HCI Hold Mode Command"
     def __init__(self):
         super().__init__("HCI Hold Mode Command")
         
@@ -61,7 +62,8 @@ class HoldModeCommandUI(HciCommandUI):
 
 class SniffModeCommandUI(HciCommandUI):
     """UI for HCI Sniff Mode command"""
-    OPCODE = LinkPolicyOCF.SNIFF_MODE
+    OPCODE = create_opcode(OGF.LINK_POLICY, LinkPolicyOCF.SNIFF_MODE)
+    NAME = "HCI Sniff Mode Command"
     def __init__(self):
         super().__init__("HCI Sniff Mode Command")
         
@@ -130,7 +132,8 @@ class SniffModeCommandUI(HciCommandUI):
 
 class ExitSniffModeCommandUI(HciCommandUI):
     """UI for HCI Exit Sniff Mode command"""
-    OPCODE = LinkPolicyOCF.EXIT_SNIFF_MODE
+    OPCODE = create_opcode(OGF.LINK_POLICY, LinkPolicyOCF.EXIT_SNIFF_MODE)
+    NAME = "HCI Exit Sniff Mode Command"
     def __init__(self):
         super().__init__("HCI Exit Sniff Mode Command")
         
@@ -158,7 +161,8 @@ class ExitSniffModeCommandUI(HciCommandUI):
 
 class QosSetupCommandUI(HciCommandUI):
     """UI for HCI QoS Setup command"""
-    OPCODE = LinkPolicyOCF.QOS_SETUP
+    OPCODE = create_opcode(OGF.LINK_POLICY, LinkPolicyOCF.QOS_SETUP)
+    NAME = "HCI QoS Setup Command"
     def __init__(self):
         super().__init__("HCI QoS Setup Command")
         
@@ -247,7 +251,8 @@ class QosSetupCommandUI(HciCommandUI):
 
 class RoleDiscoveryCommandUI(HciCommandUI):
     """UI for HCI Role Discovery command"""
-    OPCODE = LinkPolicyOCF.ROLE_DISCOVERY
+    OPCODE = create_opcode(OGF.LINK_POLICY, LinkPolicyOCF.ROLE_DISCOVERY)
+    NAME = "HCI Role Discovery Command"
     def __init__(self):
         super().__init__("HCI Role Discovery Command")
         
@@ -275,7 +280,8 @@ class RoleDiscoveryCommandUI(HciCommandUI):
 
 class SwitchRoleCommandUI(HciCommandUI):
     """UI for HCI Switch Role command"""
-    OPCODE = LinkPolicyOCF.SWITCH_ROLE
+    OPCODE = create_opcode(OGF.LINK_POLICY, LinkPolicyOCF.SWITCH_ROLE)
+    NAME = "HCI Switch Role Command"
     
     def __init__(self):
         super().__init__("HCI Switch Role Command")
@@ -314,7 +320,8 @@ class SwitchRoleCommandUI(HciCommandUI):
 
 class ReadLinkPolicySettingsCommandUI(HciCommandUI):
     """UI for HCI Read Link Policy Settings command"""
-    OPCODE = LinkPolicyOCF.READ_LINK_POLICY_SETTINGS
+    OPCODE = create_opcode(OGF.LINK_POLICY, LinkPolicyOCF.READ_LINK_POLICY_SETTINGS)
+    NAME = "HCI Read Link Policy Settings Command"
     
     def __init__(self):
         super().__init__("HCI Read Link Policy Settings Command")
@@ -343,7 +350,8 @@ class ReadLinkPolicySettingsCommandUI(HciCommandUI):
 
 class WriteLinkPolicySettingsCommandUI(HciCommandUI):
     """UI for HCI Write Link Policy Settings command"""
-    OPCODE = LinkPolicyOCF.WRITE_LINK_POLICY_SETTINGS
+    OPCODE = create_opcode(OGF.LINK_POLICY, LinkPolicyOCF.WRITE_LINK_POLICY_SETTINGS)
+    NAME = "HCI Write Link Policy Settings Command"
     
     def __init__(self):
         super().__init__("HCI Write Link Policy Settings Command")

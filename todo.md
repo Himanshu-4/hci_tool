@@ -21,3 +21,5 @@
 @Exceptions
 
 1. when closing the HCI subwindow the delte instance not getting called so have to check why it's not deleted properly or delete called properly
+
+2. make sure that all the objects that deleted should free the memory or aka memeory while running the app should not increase gracefully or beyond a threshold
