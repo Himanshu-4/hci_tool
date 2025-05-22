@@ -2,6 +2,6 @@
 SDIO transport layer package.
 """
 
-from .sdio_xfr import *
+from .sdio import *
 
 __all__ = []

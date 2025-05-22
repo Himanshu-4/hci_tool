@@ -2,6 +2,6 @@
 USB transport layer package.
 """
 
-from .usb_xfr import *
+from .usb import *
 
 __all__ = []

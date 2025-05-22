@@ -1,6 +1,6 @@
 
 from transports.uart.uart_xfr import uart_transfer
-from transports.SDIO.sdio_xfr import sdio_transfer
+from transports.SDIO.sdio import sdio_transfer
 from transports.usb.usb_xfr import usb_transfer
 
 import threading

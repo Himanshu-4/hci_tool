@@ -2,6 +2,6 @@
 UART transport layer package.
 """
 
-from .uart_xfr import *
+from .uart import *
 
 __all__ = []
