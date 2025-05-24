@@ -12,11 +12,11 @@ import struct
 import sys
 from pathlib import Path
 
-from .cmd_baseui import HciCommandUI
+from .cmd_baseui import HCICmdUI
 
 
 # Command registry - maps opcodes to command classes
-_cmd_ui_registry : Dict[int, Type[HciCommandUI]] = {}
+_cmd_ui_registry : Dict[int, Type[HCICmdUI]] = {}
 
 # Forward imports for easier access
 # These will be populated during initialization
@@ -29,7 +29,7 @@ _cmd_ui_registry : Dict[int, Type[HciCommandUI]] = {}
 # testing = None
 # vs_specific = None
 
-def register_command_ui(cmd_class: Type[HciCommandUI]) -> None:
+def register_command_ui(cmd_class: Type[HCICmdUI]) -> None:
     """
         Register a command class with its opcode
         Args: cmd_class: Command class to register
@@ -45,7 +45,7 @@ def register_command_ui(cmd_class: Type[HciCommandUI]) -> None:
     
     _cmd_ui_registry[opcode] = cmd_class
 
-def get_cmd_ui_class(opcode: int) -> Optional[Type[HciCommandUI]]:
+def get_cmd_ui_class(opcode: int) -> Optional[Type[HCICmdUI]]:
     """Get command class from opcode"""
     return _cmd_ui_registry.get(opcode)
 

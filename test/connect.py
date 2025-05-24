@@ -11,7 +11,8 @@ import time
 from PyQt5.QtWidgets import QApplication, QMainWindow, QPushButton, QVBoxLayout, QWidget, QTextEdit, QLineEdit
 from PyQt5.QtCore import QTimer
 
-from ui.exts.connect_window import ConnectionDialog
+from ..ui.exts.connect_window import ConnectionDialog
+
 from transports import Transport
 
 class ExampleMainWindow(QMainWindow):

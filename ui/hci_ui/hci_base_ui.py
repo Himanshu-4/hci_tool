@@ -68,11 +68,11 @@ class HciBaseUI(QDialog):
         self._title_layout.setSizeConstraint(QLayout.SetFixedSize)
         self._title_layout.setStretch(0, 1)
         
-        self._cmd_name_label = QLabel()
-        self._cmd_name_label.setText(self.NAME)
-        self._title_layout.addWidget(self._cmd_name_label)
-        self._cmd_name_label.setAlignment(Qt.AlignCenter)
-        self._cmd_name_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+        self._name_label = QLabel()
+        self._name_label.setText(self.NAME)
+        self._title_layout.addWidget(self._name_label)
+        self._name_label.setAlignment(Qt.AlignCenter)
+        self._name_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
 
         # create vbox layout to accomodate command or event widgets and params
         self.content_layout = QVBoxLayout()
@@ -86,21 +86,21 @@ class HciBaseUI(QDialog):
         self._cmd_error_layout.setSizeConstraint(QLayout.SetFixedSize)
         self._cmd_error_layout.setStretch(0, 1)
         
-        self.cmd_error_label = QLabel()
-        self.cmd_error_label.setText("dummy error")
-        self._cmd_error_layout.addWidget(self.cmd_error_label)
-        self.cmd_error_label.setAlignment(Qt.AlignCenter)
-        self.cmd_error_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
-        self.cmd_error_label.setStyleSheet("color: red;")  # Set error label color to red
-        self.cmd_error_label.setVisible(False)  # Initially hidden
+        self._error_label = QLabel()
+        self._error_label.setText("dummy error")
+        self._cmd_error_layout.addWidget(self._error_label)
+        self._error_label.setAlignment(Qt.AlignLeft)
+        self._error_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+        self._error_label.setStyleSheet("color: red;")  # Set error label color to red
+        self._error_label.setVisible(False)  # Initially hidden
         
         # add a layout for holding the ok and cancel buttons
-        self._cmd_button_layout = QHBoxLayout()
-        self._cmd_button_layout.setContentsMargins(0, 0, 0, 0)
-        self._cmd_button_layout.setSpacing(5)
-        self._cmd_button_layout.setSizeConstraint(QLayout.SetFixedSize)
-        self._cmd_button_layout.setStretch(0, 1)
-        self._cmd_button_layout.setStretch(1, 1)
+        self._button_layout = QHBoxLayout()
+        self._button_layout.setContentsMargins(0, 0, 0, 0)
+        self._button_layout.setSpacing(5)
+        self._button_layout.setSizeConstraint(QLayout.SetFixedSize)
+        self._button_layout.setStretch(0, 1)
+        self._button_layout.setStretch(1, 1)
 
         # add buttons to the layout
         self.ok_button = QPushButton("Ok")
@@ -113,17 +113,17 @@ class HciBaseUI(QDialog):
         self.cancel_button.clicked.connect(self.on_cancel_button_clicked)
         self.cancel_button.setDefault(True) # set as default button
         
-        self._cmd_button_layout.addWidget(self.ok_button)
-        self._cmd_button_layout.addWidget(self.cancel_button)
+        self._button_layout.addWidget(self.ok_button)
+        self._button_layout.addWidget(self.cancel_button)
         
         
         # Add all components to main layout
         self._main_layout.addWidget(self._title_layout)
         self._main_layout.addLayout(self.content_layout,1)
         self._main_layout.addLayout(self._cmd_error_layout)
-        self._main_layout.addLayout(self._cmd_button_layout)
+        self._main_layout.addLayout(self._button_layout)
         
-        self.setLayout(self.main_layout)
+        self.setLayout(self._main_layout)
     
     @abstractmethod
     def validate_parameters(self) -> bool:
@@ -143,6 +143,7 @@ class HciBaseUI(QDialog):
     
     def log(self, message: str):
         """Log a message to the console or UI"""
+        # @todo :replace by logger methods 
         # This is a placeholder - subclasses should implement this
         print(message)
         
@@ -183,7 +184,17 @@ class HciBaseUI(QDialog):
         # Update the parent that this window is now active
         if self.parent and hasattr(self.parent, 'status_bar'):
             self.parent.status_bar.showMessage(f"Active: {self.windowTitle()}")
+    
+    #logging function to log messages to the console or UI
+    def log_error(self, message: str):
+        """Log an error message to the command error label"""
+        self._error_label.setText(message)
+        self._error_label.setVisible(True)
         
+    def clear_error(self):
+        """Clear the command error label"""
+        self._error_label.setText("")
+        self._error_label.setVisible(False)  
 
 ##### HCI Command and Event UI Classes
 # These classes are specific implementations of the HciBaseUI for commands and events
@@ -209,8 +220,8 @@ class HCICmdBaseUI(HciBaseUI):
     def set_command_class(self, command_class: Type['HCICmdBaseUI']):
         """Set the command class for this UI"""
         self.command_class = command_class
-        self.cmd_error_label.setText("")
-        self.cmd_error_label.setVisible(False)
+        self._error_label.setText("")
+        self._error_label.setVisible(False)
         
         # Set the command opcode
         if hasattr(self.command_class, 'OPCODE'):
@@ -223,18 +234,16 @@ class HCICmdBaseUI(HciBaseUI):
         ret = None
         try:
             if not self.validate_parameters():
-                self.cmd_error_label.setText(f"Invalid parameters : {self.invalid_params}")
-                self.cmd_error_label.setVisible(True)
                 return
-            params = self.get_parameter_values()
-            ret = self.transport.write(params)
+            byte_data = self.get_parameter_values()
+            ret = self.transport.write(byte_data)
             
         except Exception as e:
             self.log(f"Error creating command: {str(e)}")
             return None
         self.close()
         self.command_sent.emit(ret)
-        
+    
     def on_cancel_button_clicked(self):
         """Handle Cancel button click - close the window"""
         self.close()
@@ -246,7 +255,7 @@ class HCICmdBaseUI(HciBaseUI):
         pass
     
     @abstractmethod
-    def get_parameter_values(self):
+    def get_parameter_values(self) -> bytes:
         """Get values from input fields"""
         # This is a placeholder - subclasses should implement this
         pass
@@ -274,13 +283,19 @@ class HCIEvtBaseUI(HciBaseUI):
         """Handle Cancel button click - close the window"""
         self.close()
         
+    @abstractmethod
+    def display_event_details(self):
+        """Display the details of the event in the UI"""
+        # This is a placeholder - subclasses should implement this
+        pass
+    
     def set_event_instance(self, event_instance):
         """Set the event instance for this UI"""
         self.event_instance = event_instance
         self.display_event_details()
-        self.cmd_name_label.setText(self.event_instance.__class__.__name__)
-        self.cmd_error_label.setText("")
-        self.cmd_error_label.setVisible(False)
+        self._name_label.setText(self.event_instance.__class__.__name__)
+        self._name_label.setText("")
+        self._name_label.setVisible(False)
 
     
     def process_event(self, event_bytes):

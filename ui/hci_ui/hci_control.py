@@ -12,19 +12,18 @@ from PyQt5.QtGui import QTextCursor, QIntValidator
 from PyQt5.QtCore import Qt, pyqtSignal
 
 from .hci_main_ui import HciMainUI
-from .hci_event_handler import HCIEventHandler
 
 class HCIControlUI:
     """
     Main HCI Control class - integrates command UI and event handling.
     """
     
-    def __init__(self, main_window : Optional[QMainWindow], name : str = "HCIControlUI"): 
+    def __init__(self, main_window : Optional[QMainWindow], title : str = "HCIControlUI"): 
         """Initialize the HCI Control with reference to the main window"""
         self.main_window = main_window
         
         # Create the main UI
-        self.main_ui = HciMainUI(main_window, name)
+        self.main_ui = HciMainUI(main_window, title=title)
         # register destroy method        
         self.main_ui.register_destroy(lambda: self._on_main_ui_closed())
 
@@ -198,7 +197,6 @@ HCI SubWindow Module
 This module defines an MDI subwindow class that can be used in the HCI tool UI.
 It provides a container for HCI-related UI components and handles window management.
 """
-
 from PyQt5.QtWidgets import QMdiSubWindow, QWidget, QVBoxLayout
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QCloseEvent
@@ -278,3 +276,190 @@ class HciSubWindow(QMdiSubWindow):
             y = (parent_rect.height() - self_rect.height()) // 2
             
             self.move(x, y)
+
+
+
+
+import inspect
+
+class HciMainWindow(QWidget):
+    """Main UI for HCI control"""
+    
+    _instance = None
+    
+    @classmethod
+    def create_instance(cls, main_window):
+        if cls._instance is None:
+            cls._instance = cls(main_window)
+        return cls._instance
+    
+    def __init__(self, main_window):
+        super().__init__()
+        self.main_window = main_window
+        self.setup_ui()
+        
+        # Create and show the subwindow
+        self.sub_window = QMdiSubWindow()
+        self.sub_window.setWidget(self)
+        self.sub_window.setWindowTitle("HCI Control")
+        self.sub_window.setAttribute(Qt.WA_DeleteOnClose)
+        self.sub_window.setWindowFlags(Qt.SubWindow)
+        self.sub_window.resize(600, 400)
+        
+        # Connect the destroyed signal to clean up the instance
+        self.sub_window.destroyed.connect(self._on_subwindow_closed)
+        
+        # Add to MDI area
+        if hasattr(main_window, 'mdi_area'):
+            main_window.mdi_area.addSubWindow(self.sub_window)
+            self.sub_window.show()
+    
+    def setup_ui(self):
+        """Set up the UI"""
+        self.layout = QHBoxLayout()
+        self.setLayout(self.layout)
+        
+        # Left side - Command/Event type selection
+        self.left_widget = QWidget()
+        self.left_layout = QVBoxLayout()
+        self.left_widget.setLayout(self.left_layout)
+        
+        # Mode selection (Command/Event)
+        self.mode_combo = QComboBox()
+        self.mode_combo.addItems(["Commands", "Events"])
+        self.mode_combo.currentTextChanged.connect(self.on_mode_changed)
+        self.left_layout.addWidget(self.mode_combo)
+        
+        # Type list container - will hold either command types or event types
+        self.type_container = QWidget()
+        self.type_layout = QVBoxLayout()
+        self.type_container.setLayout(self.type_layout)
+        self.left_layout.addWidget(self.type_container)
+        
+        # Right side - command/event details
+        self.right_widget = QWidget()
+        self.right_layout = QVBoxLayout()
+        self.right_widget.setLayout(self.right_layout)
+        
+        # Split the layout
+        self.layout.addWidget(self.left_widget, 1)
+        self.layout.addWidget(self.right_widget, 2)
+        
+        # Initialize the mode
+        self.on_mode_changed(self.mode_combo.currentText())
+    
+    def on_mode_changed(self, mode):
+        """Handle mode selection change"""
+        # Clear the type container
+        for i in reversed(range(self.type_layout.count())):
+            item = self.type_layout.itemAt(i)
+            if item.widget():
+                item.widget().deleteLater()
+        
+        # Create the appropriate type list
+        if mode == "Commands":
+            self.type_list = HciCommandTypeListUI("Command Types")
+            self.type_list.command_type_selected.connect(self.on_command_type_selected)
+        else:  # Events
+            self.type_list = HciEventTypeListUI("Event Types")
+            self.type_list.event_type_selected.connect(self.on_event_type_selected)
+        
+        # Add to container
+        self.type_layout.addWidget(self.type_list)
+    
+    def on_command_type_selected(self, module):
+        """Handle command type selection"""
+        # Clear the right side
+        for i in reversed(range(self.right_layout.count())):
+            item = self.right_layout.itemAt(i)
+            if item.widget():
+                item.widget().deleteLater()
+        
+        # Create command list
+        command_list = HciCommandListUI("Commands", module)
+        command_list.command_selected.connect(self.on_command_selected)
+        self.right_layout.addWidget(command_list)
+    
+    def on_event_type_selected(self, module):
+        """Handle event type selection"""
+        # Clear the right side
+        for i in reversed(range(self.right_layout.count())):
+            item = self.right_layout.itemAt(i)
+            if item.widget():
+                item.widget().deleteLater()
+        
+        # Create event list
+        # This part depends on how events are organized
+        # For now, we'll just show a message
+        label = QLabel("Event display not implemented yet")
+        self.right_layout.addWidget(label)
+    
+    def on_command_selected(self, command):
+        """Handle command selection"""
+        try:
+            # Check if it's a command class or function
+            if inspect.isclass(command):
+                # Class - create a UI for it
+                # Try to find a specific UI class for this command
+                command_name = command.__name__
+                module_name = command.__module__
+                
+                # Extract the command type from the module name
+                parts = module_name.split('.')
+                if len(parts) >= 3:
+                    cmd_type = parts[2]  # e.g., "link_controller"
+                    
+                    # Try to import a specific UI module for this command type
+                    try:
+                        ui_module = importlib.import_module(f"hci_ui.cmd.{cmd_type}.{cmd_type}_cmdui")
+                        
+                        # Try to find a specific UI class for this command
+                        ui_class_name = f"{command_name}UI"
+                        if hasattr(ui_module, ui_class_name):
+                            ui_class = getattr(ui_module, ui_class_name)
+                            ui_instance = ui_class(command)
+                            
+                            # Create a subwindow for this command
+                            HciCommandSubWindow(ui_instance, self.main_window, command_name)
+                            return
+                    except ImportError:
+                        pass  # No specific UI module found, we'll use the generic one
+                
+                # No specific UI found, create a generic one
+                # Check if the command needs parameters
+                if hasattr(command, '__init__'):
+                    # Get the parameters from the __init__ method
+                    init_sig = inspect.signature(command.__init__)
+                    if len(init_sig.parameters) > 1:  # More than just 'self'
+                        # Command needs parameters - create a UI
+                        from hci_ui.cmd.generic_cmdui import GenericCommandUI
+                        ui_instance = GenericCommandUI(command_name, command)
+                        HciCommandSubWindow(ui_instance, self.main_window, command_name)
+                    else:
+                        # Command doesn't need parameters - just create and send it
+                        cmd_instance = command()
+                        cmd_bytes = cmd_instance.to_bytes()
+                        print(f"Sending command (no parameters needed): {cmd_bytes.hex()}")
+                        # TODO: Actually send the command
+            elif inspect.isfunction(command):
+                # Function - call it directly if it doesn't need parameters
+                sig = inspect.signature(command)
+                if len(sig.parameters) == 0:
+                    # Function doesn't need parameters - just call it
+                    result = command()
+                    print(f"Called function: {command.__name__}, result: {result}")
+                else:
+                    # Function needs parameters - create a UI
+                    from hci_ui.cmd.generic_cmdui import GenericFunctionUI
+                    ui_instance = GenericFunctionUI(command.__name__, command)
+                    HciCommandSubWindow(ui_instance, self.main_window, command.__name__)
+            else:
+                print(f"Unknown command type: {type(command)}")
+        except Exception as e:
+            print(f"Error handling command selection: {str(e)}")
+    
+    def _on_subwindow_closed(self):
+        """Handle subwindow closure"""
+        HciMainWindow._instance = None
+        self.deleteLater()
+

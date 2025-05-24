@@ -1,23 +1,29 @@
-from PyQt5.QtWidgets import QMdiArea
+
+from PyQt5.QtWidgets import (QMdiArea, QMdiSubWindow)
+
 import struct
 from typing import Optional
+
+from transports.transport import Transport
 
 
 # Import event UI modules
 from .evt.link_control.link_control_evtui import HCIEventManager as LinkControlEventManager
 
-class HCIEventHandler:
+class HCIEventFactory:
     """
     Handler for HCI events - processes raw HCI packets and routes them to the appropriate
     event UI manager.
     """
-    
-    def __init__(self, mdi_area):
-        """Initialize the event handler with an MDI area to display event UIs."""
-        self.mdi_area = mdi_area
+    def __init__(self, title : str, parent_window : QMdiSubWindow, transport : Optional[Transport] = None):
+        self.title = title
+        self.transport = transport
+        self.parent = parent_window
+        # create a dictionary to track command windows and structure as {opcode: HCICmdUI}
+        self.command_windows  = {}
         
-        # Initialize event managers for different HCI event categories
-        self.link_control_manager = LinkControlEventManager(mdi_area)
+    
+
         
         # Mapping of event codes to the appropriate manager
         # Each manager handles a specific category of events

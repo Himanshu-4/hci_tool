@@ -32,13 +32,15 @@ class SetEventMaskUI(HCICmdUI):
     def __init__(self, title, parent=None, transport : Optional[Transport] = None):
         super().__init__(title, parent, transport)
     
-    def add_command_parameters(self):
-        """Add parameters specific to Set Event Mask command"""
+    def setup_ui(self):
+        """Initialize the Set Event Mask command UI"""
+        super().setup_ui()
+
         # Event Mask (8 bytes)
         self.event_mask_input = QLineEdit()
         self.event_mask_input.setPlaceholderText("Enter 8-byte hex value (e.g., 00001FFFFFFFFFFF)")
         self.event_mask_input.setText("00001FFFFFFFFFFF")  # Default from spec
-        self.params_layout.addRow("Event Mask:", self.event_mask_input)
+        self.form_layout.addRow("Event Mask:", self.event_mask_input)
         
         # Add help text explaining the mask bits
         help_text = """Event Mask bits (from LSB to MSB):
@@ -53,9 +55,9 @@ class SetEventMaskUI(HCICmdUI):
         help_label.setPlainText(help_text)
         help_label.setReadOnly(True)
         help_label.setMaximumHeight(150)
-        self.params_layout.addRow("Event Mask Info:", help_label)
+        self.form_layout.addRow("Event Mask Info:", help_label)
     
-    def get_parameter_values(self):
+    def get_parameter_values(self) -> bytes:
         """Get parameter values"""
         # Convert hex string to integer
         event_mask_hex = self.event_mask_input.text().strip()
@@ -73,33 +75,46 @@ class WriteLocalNameUI(HCICmdUI):
     """UI for the Write Local Name command"""
     OPCODE = create_opcode(OGF.CONTROLLER_BASEBAND, ControllerBasebandOCF.WRITE_LOCAL_NAME)
     NAME = "Write Local Name"
-    def __init__(self, command_class=WriteLocalName, parent=None):
-        super().__init__("Write Local Name Command", command_class, parent)
+    def __init__(self, title, parent=None, transport : Optional[Transport] = None):
+        super().__init__(title, parent, transport)
     
-    def add_command_parameters(self):
-        """Add parameters specific to Write Local Name command"""
+    def setup_ui(self):
+        """Add ui specific to Write Local Name command"""
+        super().setup_ui()
         # Local Name (up to 248 bytes)
         self.local_name_input = QLineEdit()
         self.local_name_input.setPlaceholderText("Enter device name (e.g., My Bluetooth Device)")
         self.local_name_input.setMaxLength(248)  # Maximum allowed by the spec
-        self.params_layout.addRow("Local Name:", self.local_name_input)
+        self.form_layout.addRow("Local Name:", self.local_name_input)
         
         # Show character count
         self.char_count_label = QLabel("0 / 248 characters")
         self.local_name_input.textChanged.connect(self._update_char_count)
-        self.params_layout.addRow("", self.char_count_label)
+        self.form_layout.addRow("", self.char_count_label)
     
     def _update_char_count(self):
         """Update the character count label"""
         count = len(self.local_name_input.text())
         self.char_count_label.setText(f"{count} / 248 characters")
     
-    def get_parameter_values(self):
+    def get_parameter_values(self) -> Optional[bytes]:
         """Get parameter values"""
-        return {
-            'local_name': self.local_name_input.text()
-        }
+        local_name = self.local_name_input.text().strip()
+        if not local_name:
+            self.log_error("Local Name cannot be empty")
+            return
 
+        local_name = WriteLocalName(local_name)
+        
+        # Ensure the name is within the allowed length
+        try:
+            local_name._validate_params()
+        except ValueError as e:
+            self.log_error(str(e))
+            return
+
+        # Encode the local name to bytes
+        return local_name._serialize_params()
 
 
 # Additional UI classes can be added for other Controller & Baseband commands

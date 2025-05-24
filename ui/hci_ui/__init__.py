@@ -3,8 +3,9 @@
 
 from .hci_control import HCIControlUI, HCIControlWindow
 from .hci_main_ui import HciMainUI
-from .hci_base_ui import HciBaseUI, HciCommandUI, HciEventUI
-
+from .hci_base_ui import HciBaseUI
+from .cmd_factory import HCICommandFactory
+from .evt_factory import HCIEventFactory
 
 from .cmds import *
 from .evt import *

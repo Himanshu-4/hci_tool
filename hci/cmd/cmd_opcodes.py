@@ -14,10 +14,14 @@ class OGF(IntEnum):
     LE_CONTROLLER = 0x08
     VENDOR_SPECIFIC = 0x3F
 
+
+class OCF(IntEnum):
+    # OCF values are defined in the specific command classes below
+    pass
 # OCF (OpCode Command Field) definitions for each OGF
 
 # Link Control Commands (OGF = 0x01)
-class LinkControlOCF(IntEnum):
+class LinkControlOCF(OCF):
     INQUIRY = 0x0001
     INQUIRY_CANCEL = 0x0002
     PERIODIC_INQUIRY_MODE = 0x0003
@@ -65,7 +69,7 @@ class LinkControlOCF(IntEnum):
     REMOTE_OOB_EXTENDED_DATA_REQUEST_REPLY = 0x0045
     
 # Link Policy Commands (OGF = 0x02)
-class LinkPolicyOCF(IntEnum):
+class LinkPolicyOCF(OCF):
     HOLD_MODE = 0x0001
     SNIFF_MODE = 0x0003
     EXIT_SNIFF_MODE = 0x0004
@@ -80,7 +84,7 @@ class LinkPolicyOCF(IntEnum):
     SNIFF_SUBRATING = 0x0011
     
 # Controller & Baseband Commands (OGF = 0x03)
-class ControllerBasebandOCF(IntEnum):
+class ControllerBasebandOCF(OCF):
     SET_EVENT_MASK = 0x0001
     RESET = 0x0003
     SET_EVENT_FILTER = 0x0005
@@ -178,7 +182,7 @@ class ControllerBasebandOCF(IntEnum):
     READ_MIN_ENCRYPTION_KEY_SIZE = 0x007B
 
 # Information Parameters Commands (OGF = 0x04)
-class InformationOCF(IntEnum):
+class InformationOCF(OCF):
     READ_LOCAL_VERSION_INFORMATION = 0x0001
     READ_LOCAL_SUPPORTED_COMMANDS = 0x0002
     READ_LOCAL_SUPPORTED_FEATURES = 0x0003
@@ -193,7 +197,7 @@ class InformationOCF(IntEnum):
     READ_LOCAL_SUPPORTED_CONTROLLER_DELAY = 0x000F
 
 # Status Parameters Commands (OGF = 0x05)
-class StatusOCF(IntEnum):
+class StatusOCF(OCF):
     READ_FAILED_CONTACT_COUNTER = 0x0001
     RESET_FAILED_CONTACT_COUNTER = 0x0002
     READ_LINK_QUALITY = 0x0003
@@ -208,7 +212,7 @@ class StatusOCF(IntEnum):
     READ_LOCAL_AMP_ASSOCIATED_CODING = 0x000D
 
 # Testing Commands (OGF = 0x06)
-class TestingOCF(IntEnum):
+class TestingOCF(OCF):
     READ_LOOPBACK_MODE = 0x0001
     WRITE_LOOPBACK_MODE = 0x0002
     ENABLE_DEVICE_UNDER_TEST_MODE = 0x0003
@@ -216,7 +220,7 @@ class TestingOCF(IntEnum):
     WRITE_SECURE_CONNECTIONS_TEST_MODE = 0x0005
 
 # LE Controller Commands (OGF = 0x08)
-class LEControllerOCF(IntEnum):
+class LEControllerOCF(OCF):
     SET_EVENT_MASK = 0x0001
     READ_BUFFER_SIZE = 0x0002
     READ_LOCAL_SUPPORTED_FEATURES = 0x0003
@@ -502,14 +506,26 @@ class VendorSpecificOCF(IntEnum):
     USER_PROFILES = 0xFF80
 
 
+# Dictionary of opcode to command name mappings
+OPCODE_TO_NAME = {}
+
 
 # Function to create complete opcode
-def create_opcode(ogf, ocf):
+def create_opcode(ogf : OGF, ocf : OCF) -> int:
     """Create HCI command opcode from OGF and OCF"""
     return ((ogf & 0x3F) << 10) | (ocf & 0x03FF)
 
-# Dictionary of opcode to command name mappings
-OPCODE_TO_NAME = {}
+def get_opcode_name(opcode : int) -> str:
+    """Get the command name for a given opcode"""
+    global OPCODE_TO_NAME
+    return OPCODE_TO_NAME.get(opcode, "UNKNOWN_OPCODE")
+
+def split_opcode(opcode) -> tuple[OGF,OCF]:
+    """Split opcode into OGF and OCF"""
+    ogf = (opcode >> 10) & 0x3F
+    ocf = opcode & 0x03FF
+    return ogf, ocf    
+
 
 # Generate opcodes for all commands
 def initialize_opcodes():

@@ -75,6 +75,7 @@ class WriteLocalName(HciCmdBasePacket):
     
     OPCODE = create_opcode(OGF.CONTROLLER_BASEBAND, ControllerBasebandOCF.WRITE_LOCAL_NAME)
     NAME = "Write_Local_Name"
+    MAX_NAME_LENGTH: ClassVar[int] = 248  # Maximum length for local name in bytes
     
     def __init__(self, local_name: str):
         """
@@ -91,7 +92,7 @@ class WriteLocalName(HciCmdBasePacket):
     
     def _validate_params(self) -> None:
         """Validate command parameters"""
-        if len(self.params['local_name']) > 248:
+        if len(self.params['local_name']) > WriteLocalName. MAX_NAME_LENGTH:
             raise ValueError(f"Invalid local_name length: {len(self.params['local_name'])}, must be at most 248 bytes")
     
     def _serialize_params(self) -> bytes:
