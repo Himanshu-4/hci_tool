@@ -8,7 +8,7 @@ the GUI dialog and programmatically.
 
 import sys
 import time
-from PyQt5.QtWidgets import QApplication, QMainWindow, QPushButton, QVBoxLayout, QWidget, QTextEdit
+from PyQt5.QtWidgets import QApplication, QMainWindow, QPushButton, QVBoxLayout, QWidget, QTextEdit, QLineEdit
 from PyQt5.QtCore import QTimer
 
 from ui.exts.connect_window import ConnectionDialog
@@ -45,13 +45,16 @@ class ExampleMainWindow(QMainWindow):
         # Send test data button
         self.send_btn = QPushButton("Send Test Data")
         self.send_btn.clicked.connect(self.send_test_data)
-        self.send_btn.setEnabled(False)
         layout.addWidget(self.send_btn)
+        
+        # create a input field for the user to enter the data
+        self.input_field = QLineEdit()
+        self.input_field.setPlaceholderText("Enter data to send")
+        layout.addWidget(self.input_field)
         
         # Disconnect button
         self.disconnect_btn = QPushButton("Disconnect")
         self.disconnect_btn.clicked.connect(self.disconnect_transport)
-        self.disconnect_btn.setEnabled(False)
         layout.addWidget(self.disconnect_btn)
         
         # Log text area
@@ -78,8 +81,8 @@ class ExampleMainWindow(QMainWindow):
                 self.log_message(f"Connected via {self.transport.get_interface_type()}")
                 self.setup_callbacks()
                 self.connect_btn.setText("Reconnect")
-                self.send_btn.setEnabled(True)
-                self.disconnect_btn.setEnabled(True)
+                # self.send_btn.setEnabled(True)
+                # self.disconnect_btn.setEnabled(True)
                 self.read_timer.start(100)  # Read every 100ms
             else:
                 self.log_message("Connection failed")
@@ -110,11 +113,26 @@ class ExampleMainWindow(QMainWindow):
     
     def send_test_data(self):
         """Send test data through transport"""
+        
+        test_data = self.input_field.text().encode('utf-8')  # Get data from input field
+        # user should enter the data in hex format
+        # convert the data to byte array
+        try:
+            test_data = bytearray.fromhex(test_data.decode('utf-8'))
+        except ValueError:
+            self.log_message("Invalid hex data format")
+            return
+        #convert the data to byte array
+        if not test_data:
+            self.log_message("No data to send")
+            return
+        # Send data
+        self.log_message(f"Sending: {[hex(data) for data in test_data]}")
+        
         if not self.transport or not self.transport.is_connected():
             self.log_message("Not connected!")
             return
         
-        test_data = b"Hello Transport World!\r\n"
         if self.transport.write(test_data):
             self.log_message(f"Test data sent successfully")
         else:
@@ -143,9 +161,9 @@ class ExampleMainWindow(QMainWindow):
             else:
                 self.log_message("Disconnect failed")
             
-            self.connect_btn.setText("Open Connection Dialog")
-            self.send_btn.setEnabled(False)
-            self.disconnect_btn.setEnabled(False)
+            # self.connect_btn.setText("Open Connection Dialog")
+            # self.send_btn.setEnabled(False)
+            # self.disconnect_btn.setEnabled(False)
     
     def programmatic_example(self):
         """Example of using transport programmatically without dialog"""

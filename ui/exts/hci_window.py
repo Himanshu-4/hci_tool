@@ -50,9 +50,10 @@ class HCIControl(QWidget):
         # if cls._instance is None:
         #     cls._instance = ConnectWindow(main_wind)
         # return cls._instance
-        instance = ConnectionDialog(main_window)
-        # hci_window_instance = HCIControlUI(main_window)
-        # hci_window_instance.register_destroy(lambda: cls.remove_instance(hci_window_instance))
+        # instance = ConnectionDialog(main_window)
+        name = f"ConnectWindow_{len(cls.hci_window_instance)}"
+        instance = HCIControlUI(main_window, name)
+        instance.register_destroy(lambda: cls.remove_instance(instance))
         cls.hci_window_instance.append(instance)
         print(f"[ConnectWindow] create_instance {instance}")
         

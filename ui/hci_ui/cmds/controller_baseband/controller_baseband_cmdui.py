@@ -17,18 +17,20 @@ from hci.cmd.cmd_opcodes import create_opcode, OGF, ControllerBasebandOCF
 from hci.cmd.controller_baseband import (
     Reset, SetEventMask, WriteLocalName, ReadLocalName
 )
+from typing import Optional, Union, List
+from transports.transport import Transport
 
-from ...hci_base_ui import HciCommandUI
+from ..cmd_baseui import HCICmdUI
 
 from .. import register_command_ui
 
 
-class SetEventMaskUI(HciCommandUI):
+class SetEventMaskUI(HCICmdUI):
     """UI for the Set Event Mask command"""
     OPCODE = create_opcode(OGF.CONTROLLER_BASEBAND, ControllerBasebandOCF.SET_EVENT_MASK)
     NAME = "Set Event Mask"
-    def __init__(self, command_class=SetEventMask, parent=None):
-        super().__init__("Set Event Mask Command", command_class, parent)
+    def __init__(self, title, parent=None, transport : Optional[Transport] = None):
+        super().__init__(title, parent, transport)
     
     def add_command_parameters(self):
         """Add parameters specific to Set Event Mask command"""
@@ -40,12 +42,12 @@ class SetEventMaskUI(HciCommandUI):
         
         # Add help text explaining the mask bits
         help_text = """Event Mask bits (from LSB to MSB):
-Bit 0: Inquiry Complete Event
-Bit 1: Inquiry Result Event
-...
-Bit 60: LE Meta Event
-...
-Default value enables all events except reserved bits."""
+                Bit 0: Inquiry Complete Event
+                Bit 1: Inquiry Result Event
+                ...
+                Bit 60: LE Meta Event
+                ...
+    Default value enables all events except reserved bits."""
         
         help_label = QTextEdit()
         help_label.setPlainText(help_text)
@@ -67,7 +69,7 @@ Default value enables all events except reserved bits."""
             'event_mask': event_mask
         }
 
-class WriteLocalNameUI(HciCommandUI):
+class WriteLocalNameUI(HCICmdUI):
     """UI for the Write Local Name command"""
     OPCODE = create_opcode(OGF.CONTROLLER_BASEBAND, ControllerBasebandOCF.WRITE_LOCAL_NAME)
     NAME = "Write Local Name"

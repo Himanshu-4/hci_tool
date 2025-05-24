@@ -12,7 +12,7 @@ import struct
 import sys
 from pathlib import Path
 
-from ..hci_base_ui import HciCommandUI
+from .cmd_baseui import HciCommandUI
 
 
 # Command registry - maps opcodes to command classes

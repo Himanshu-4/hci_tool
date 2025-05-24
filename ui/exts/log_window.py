@@ -172,7 +172,10 @@ class LogWindow(QWidget):
             trimmed = current_text[-MAX_LOG_SIZE_LOG_WINDOW // 4:]
             self.log_text.clear()
             self.log_text.append(trimmed)
+            # make sure the cursor is at the end of the text
             self.log_text.moveCursor(QTextCursor.End)
+            # make sure the cursor is visible
+            self.log_text.ensureCursorVisible()
 
     def clear_log(self):
         self.log_text.clear()
