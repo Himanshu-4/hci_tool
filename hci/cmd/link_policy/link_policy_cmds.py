@@ -134,6 +134,46 @@ class ExitSniffMode(HciCmdBasePacket):
             connection_handle=connection_handle
         )
 
+class HoldMode(HciCmdBasePacket):
+    """ Hold Mode Command (not implemented in this example)"""
+    OPCODE = create_opcode(OGF.LINK_POLICY, LinkPolicyOCF.HOLD_MODE)
+    NAME = "Hold_Mode"
+    
+    def __init__(self, connection_handle: int, hold_mode_params: Dict[str, Any]):
+        """
+        Initialize Hold Mode Command
+        
+        Args:
+            connection_handle: Connection handle (0x0000-0x0EFF)
+            hold_mode_params: Parameters for hold mode (not defined in this example)
+        """
+        super().__init__(
+            connection_handle=connection_handle,
+            hold_mode_params=hold_mode_params
+        )
+    
+    def _validate_params(self) -> None:
+        """Validate command parameters"""
+        # Validate connection handle
+        if not (0x0000 <= self.params['connection_handle'] <= 0x0EFF):
+            raise ValueError(f"Invalid connection_handle: {self.params['connection_handle']}, must be between 0x0000 and 0x0EFF")
+        
+        # Additional validations for hold_mode_params would go here
+        # This is a placeholder; actual validation depends on the specific parameters
+
+    def _serialize_params(self) -> bytes:
+        """Serialize parameters to bytes"""
+        # This is a simplified implementation; actual serialization depends on hold_mode_params structure
+        # Typically would include hold_mode_max_interval and hold_mode_min_interval
+        return struct.pack("<H", self.params['connection_handle'])
+        # Additional parameter serialization would be added based on hold_mode_params structure
+    
+    @classmethod
+    def from_bytes(cls, data: bytes) -> 'HoldMode':
+        """Create command from parameter bytes (excluding header)"""
+        # Deserialization logic for hold mode parameters would go here
+        return cls(connection_handle=0, hold_mode_params={})
+
 # Function wrappers for easier access
 def sniff_mode(connection_handle: int,
               sniff_max_interval: int,
@@ -163,4 +203,5 @@ __all__ = [
     'exit_sniff_mode',
     'SniffMode',
     'ExitSniffMode',
+    'HoldMode'
 ]

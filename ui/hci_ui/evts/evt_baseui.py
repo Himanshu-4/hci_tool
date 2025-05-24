@@ -1,43 +1,46 @@
-from PyQt5.QtWidgets import QMdiArea
-import struct
-from typing import Optional
+from transports.transport import Transport
+from PyQt5.QtWidgets import QGroupBox, QFormLayout
+from abc import abstractmethod
+from typing import  Union, Optional, List
 
+from ..hci_base_ui import HCIEvtBaseUI
 
 # Import event UI modules
-from .evt.link_control.link_control_evtui import HCIEventManager as LinkControlEventManager
 
-class HCIEventHandler:
+class HCIEvtUI(HCIEvtBaseUI):
     """
     Handler for HCI events - processes raw HCI packets and routes them to the appropriate
     event UI manager.
     """
-    
-    def __init__(self, mdi_area):
+
+    def __init__(self, title, parent=None, transport : Optional[Transport] = None):
         """Initialize the event handler with an MDI area to display event UIs."""
-        self.mdi_area = mdi_area
+        super().__init__(title, parent, transport)
+        self.title = title
+        self.transport = transport
+      
+    def setup_ui(self):
+        """Initialize the Event UI"""
+        super().setup_ui()
         
-        # Initialize event managers for different HCI event categories
-        self.link_control_manager = LinkControlEventManager(mdi_area)
+        self.param_group = QGroupBox("Event Parameters")
+        self.form_layout = QFormLayout()
+        self.param_group.setLayout(self.form_layout)
         
-        # Mapping of event codes to the appropriate manager
-        # Each manager handles a specific category of events
-        self.event_managers = {
-            # Link Control events (0x01 - 0x07, 0x22)
-            0x01: self.link_control_manager,  # Inquiry Complete
-            0x02: self.link_control_manager,  # Inquiry Result
-            0x03: self.link_control_manager,  # Connection Complete
-            0x04: self.link_control_manager,  # Connection Request
-            0x05: self.link_control_manager,  # Disconnection Complete
-            0x07: self.link_control_manager,  # Remote Name Request Complete
-            0x22: self.link_control_manager,  # Inquiry Result with RSSI
-            
-            # Add more event codes and managers here as needed
-            # For example:
-            # Link Policy events (0x08 - 0x0B)
-            # Controller & Baseband events (0x0C - 0x16)
-            # etc.
-        }
-    
+        # # Add command info
+        # info_group = QGroupBox("Command Information")
+        # info_layout = QFormLayout()
+        # info_layout.addRow("Command:", QLabel(self.cmd_name))
+        # info_layout.addRow("OGF:", QLabel(f"0x{self.ogf:02X}"))
+        # info_layout.addRow("OCF:", QLabel(f"0x{self.ocf:02X}"))
+        # info_layout.addRow("OpCode:", QLabel(f"0x{(self.ogf << 10) | self.ocf:04X}"))
+        # info_group.setLayout(info_layout)
+        
+        # Add groups to content layout
+        # self.content_layout.addWidget(info_group)
+
+        self.content_layout.addWidget(self.param_group)
+        
     def process_hci_packet(self, packet_data : Optional[bytearray]):
         """
         Process an HCI event packet and route it to the appropriate event manager.

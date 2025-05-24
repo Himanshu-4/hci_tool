@@ -14,9 +14,8 @@ from PyQt5.QtCore import Qt, pyqtSignal
 
 
 from hci.cmd.cmd_opcodes import create_opcode, OGF, ControllerBasebandOCF
-from hci.cmd.controller_baseband import (
-    Reset, SetEventMask, WriteLocalName, ReadLocalName
-)
+import hci.cmd.controller_baseband as cb_cmds
+
 from typing import Optional, Union, List
 from transports.transport import Transport
 
@@ -57,7 +56,7 @@ class SetEventMaskUI(HCICmdUI):
         help_label.setMaximumHeight(150)
         self.form_layout.addRow("Event Mask Info:", help_label)
     
-    def get_parameter_values(self) -> bytes:
+    def get_data_bytes(self) -> bytes:
         """Get parameter values"""
         # Convert hex string to integer
         event_mask_hex = self.event_mask_input.text().strip()
@@ -97,24 +96,25 @@ class WriteLocalNameUI(HCICmdUI):
         count = len(self.local_name_input.text())
         self.char_count_label.setText(f"{count} / 248 characters")
     
-    def get_parameter_values(self) -> Optional[bytes]:
+    def validate_parameters(self):
+        """Validate parameters before sending by the WritelocalName command"""
+        try:
+            cb_cmds.WriteLocalName(self.local_name_input.text().strip())._validate_params()
+        except ValueError as e:
+            self.log_error(f"Validation error: {str(e)}")
+            return False
+        return True
+
+    
+    def get_data_bytes(self) -> Optional[bytes]:
         """Get parameter values"""
         local_name = self.local_name_input.text().strip()
         if not local_name:
             self.log_error("Local Name cannot be empty")
             return
 
-        local_name = WriteLocalName(local_name)
+        return cb_cmds.WriteLocalName(local_name).to_bytes()
         
-        # Ensure the name is within the allowed length
-        try:
-            local_name._validate_params()
-        except ValueError as e:
-            self.log_error(str(e))
-            return
-
-        # Encode the local name to bytes
-        return local_name._serialize_params()
 
 
 # Additional UI classes can be added for other Controller & Baseband commands

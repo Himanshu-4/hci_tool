@@ -125,11 +125,6 @@ class HciBaseUI(QDialog):
         
         self.setLayout(self._main_layout)
     
-    @abstractmethod
-    def validate_parameters(self) -> bool:
-        """Validate the parameters entered in the UI"""
-        # This is a placeholder - subclasses should implement this
-        pass
     
     @abstractmethod
     def on_ok_button_clicked(self):
@@ -228,14 +223,20 @@ class HCICmdBaseUI(HciBaseUI):
             self.OPCODE = self.command_class.OPCODE
         else:
             raise ValueError("Command class does not have an OPCODE defined")
-        
+    
+    @abstractmethod
+    def validate_parameters(self) -> bool:
+        """Validate the parameters entered in the UI"""
+        # This is a placeholder - subclasses should implement this
+        pass
+    
     def on_ok_button_clicked(self):
         """Handle OK button click - send the command"""
         ret = None
         try:
             if not self.validate_parameters():
                 return
-            byte_data = self.get_parameter_values()
+            byte_data = self.get_data_bytes()
             ret = self.transport.write(byte_data)
             
         except Exception as e:
@@ -255,7 +256,7 @@ class HCICmdBaseUI(HciBaseUI):
         pass
     
     @abstractmethod
-    def get_parameter_values(self) -> bytes:
+    def get_data_bytes(self) -> Optional[bytes]:
         """Get values from input fields"""
         # This is a placeholder - subclasses should implement this
         pass

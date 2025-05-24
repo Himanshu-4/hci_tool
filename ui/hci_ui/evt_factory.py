@@ -1,14 +1,16 @@
 
 from PyQt5.QtWidgets import (QMdiArea, QMdiSubWindow)
 
-import struct
-from typing import Optional
+
+from typing import Optional, Type
 
 from transports.transport import Transport
 
+from .evts import HC
+
 
 # Import event UI modules
-from .evt.link_control.link_control_evtui import HCIEventManager as LinkControlEventManager
+
 
 class HCIEventFactory:
     """

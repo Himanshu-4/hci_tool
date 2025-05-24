@@ -12,23 +12,24 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtGui import QIntValidator, QFont
 from PyQt5.QtCore import Qt, pyqtSignal
 
-from .. import register_command_ui
+
+from typing import Optional
+from transports.transport import Transport
 
 from hci.cmd.cmd_opcodes import create_opcode, OGF, LEControllerOCF
+import hci.cmd.le_cmds as le_cmds
+from hci.cmd.cmd_parser import bd_addr_str_to_bytes
 
-from hci.cmd.le_cmds import (
-    LeSetAdvParams, LeSetAdvData, LeSetScanParameters, LeSetScanEnable,
-    AdvertisingType, AddressType
-)
+from ..cmd_baseui import HCICmdUI
+from .. import register_command_ui
 
-from ...hci_base_ui import HciCommandUI
 
-class LeSetAdvParamsUI(HciCommandUI):
+class LeSetAdvParamsUI(HCICmdUI):
     """UI for the LE Set Advertising Parameters command"""
     OPCODE = create_opcode(OGF.LE_CONTROLLER, LEControllerOCF.SET_ADVERTISING_PARAMETERS)
     NAME = "LE Set Advertising Parameters"
-    def __init__(self, command_class=LeSetAdvParams, parent=None):
-        super().__init__("LE Set Advertising Parameters", command_class, parent)
+    def __init__(self, title, parent=None, transport : Optional[Transport] = None):
+        super().__init__(title, parent, transport)
     
     def add_command_parameters(self):
         """Add parameters specific to LE Set Advertising Parameters command"""
@@ -126,12 +127,12 @@ class LeSetAdvParamsUI(HciCommandUI):
             'adv_filter_policy': self.filter_policy_input.currentData()
         }
 
-class LeSetAdvDataUI(HciCommandUI):
+class LeSetAdvDataUI(HCICmdUI):
     """UI for the LE Set Advertising Data command"""
     OPCODE = create_opcode(OGF.LE_CONTROLLER, LEControllerOCF.SET_ADVERTISING_DATA)
     NAME = "LE Set Advertising Data"
-    def __init__(self, command_class=LeSetAdvData, parent=None):
-        super().__init__("LE Set Advertising Data", command_class, parent)
+    def __init__(self, title, parent=None, transport : Optional[Transport] = None):
+        super().__init__(title, parent, transport)
     
     def add_command_parameters(self):
         """Add parameters specific to LE Set Advertising Data command"""
@@ -202,12 +203,12 @@ class LeSetAdvDataUI(HciCommandUI):
             'data_length': len(adv_data)
         }
 
-class LeSetScanParametersUI(HciCommandUI):
+class LeSetScanParametersUI(HCICmdUI):
     """UI for the LE Set Scan Parameters command"""
     OPCODE = create_opcode(OGF.LE_CONTROLLER, LEControllerOCF.SET_SCAN_PARAMETERS)
     NAME = "LE Set Scan Parameters"
-    def __init__(self, command_class=LeSetScanParameters, parent=None):
-        super().__init__("LE Set Scan Parameters", command_class, parent)
+    def __init__(self, title, parent=None, transport : Optional[Transport] = None):
+        super().__init__(title, parent, transport)
     
     def add_command_parameters(self):
         """Add parameters specific to LE Set Scan Parameters command"""
@@ -256,12 +257,12 @@ class LeSetScanParametersUI(HciCommandUI):
             'scanning_filter_policy': self.filter_policy_input.currentData()
         }
 
-class LeSetScanEnableUI(HciCommandUI):
+class LeSetScanEnableUI(HCICmdUI):
     """UI for the LE Set Scan Enable command"""
     OPCODE = create_opcode(OGF.LE_CONTROLLER, LEControllerOCF.SET_SCAN_ENABLE)
     NAME = "LE Set Scan Enable"
-    def __init__(self, command_class=LeSetScanEnable, parent=None):
-        super().__init__("LE Set Scan Enable", command_class, parent)
+    def __init__(self, title, parent=None, transport : Optional[Transport] = None):
+        super().__init__(title, parent, transport)
     
     def add_command_parameters(self):
         """Add parameters specific to LE Set Scan Enable command"""

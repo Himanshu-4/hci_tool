@@ -99,6 +99,147 @@ class InquiryCancel(HciCmdBasePacket):
         """Create command from parameter bytes (excluding header)"""
         return cls()
 
+class CreateConnection(HciCmdBasePacket):
+    """Create Connection Command"""
+    
+    OPCODE = create_opcode(OGF.LINK_CONTROL, LinkControlOCF.CREATE_CONNECTION)
+    NAME = "Create_Connection"
+    
+    def __init__(self, 
+                 bd_addr: bytes,  # Bluetooth Device Address (6 bytes)
+                 packet_type: int = 0x0008,  # Default packet type
+                 page_scan_repetition_mode: int = 0x00,  # Default mode
+                 clock_offset: int = 0x0000,  # Default clock offset
+                 allow_role_switch: bool = True):  # Allow role switch
+        """
+        Initialize Create Connection Command
+        
+        Args:
+            bd_addr: Bluetooth Device Address (6 bytes)
+            packet_type: Packet type for the connection
+            page_scan_repetition_mode: Page scan repetition mode
+            clock_offset: Clock offset for the connection
+            allow_role_switch: Allow role switch during connection establishment
+        """
+        super().__init__(
+            bd_addr=bd_addr,
+            packet_type=packet_type,
+            page_scan_repetition_mode=page_scan_repetition_mode,
+            clock_offset=clock_offset,
+            allow_role_switch=allow_role_switch
+        )
+    
+    def _validate_params(self) -> None:
+        """Validate command parameters"""
+        if len(self.params['bd_addr']) != 6:
+            raise ValueError(f"Invalid bd_addr length: {len(self.params['bd_addr'])}, must be 6 bytes")
+        
+        if not (0x0001 <= self.params['packet_type'] <= 0xFFFF):
+            raise ValueError(f"Invalid packet_type: {self.params['packet_type']}, must be between 0x0001 and 0xFFFF")
+        
+        if not (0x00 <= self.params['page_scan_repetition_mode'] <= 0x03):
+            raise ValueError(f"Invalid page_scan_repetition_mode: {self.params['page_scan_repetition_mode']}, must be between 0x00 and 0x03")
+        
+        if not (0x0000 <= self.params['clock_offset'] <= 0xFFFF):
+            raise ValueError(f"Invalid clock_offset: {self.params['clock_offset']}, must be between 0x0000 and 0xFFFF")
+    
+    def _serialize_params(self) -> bytes:
+        """Serialize parameters to bytes"""
+        return struct.pack("<6sHHB",
+                          self.params['bd_addr'],
+                          self.params['packet_type'],
+                          self.params['page_scan_repetition_mode'],
+                          self.params['clock_offset'],
+                          1 if self.params['allow_role_switch'] else 0)
+
+
+class AcceptConnectionRequest(HciCmdBasePacket):
+    """Accept Connection Request Command"""
+    
+    OPCODE = create_opcode(OGF.LINK_CONTROL, LinkControlOCF.ACCEPT_CONNECTION_REQUEST)
+    NAME = "Accept_Connection_Request"
+    
+    MASTER_ROLE = 0x00  # Master role
+    SLAVE_ROLE = 0x01   # Slave role
+    
+    def __init__(self, bd_addr: bytes, role: int = 0x00):
+        """
+        Initialize Accept Connection Request Command
+        
+        Args:
+            bd_addr: Bluetooth Device Address (6 bytes)
+            role: Role to assign (0x00 = Master, 0x01 = Slave)
+        """
+        super().__init__(
+            bd_addr=bd_addr,
+            role=role
+        )
+    
+    def _validate_params(self) -> None:
+        """Validate command parameters"""
+        if len(self.params['bd_addr']) != 6:
+            raise ValueError(f"Invalid bd_addr length: {len(self.params['bd_addr'])}, must be 6 bytes")
+        
+        if self.params['role'] not in (0x00, 0x01):
+            raise ValueError(f"Invalid role: {self.params['role']}, must be 0x00 (Master) or 0x01 (Slave)")
+    
+    def _serialize_params(self) -> bytes:
+        """Serialize parameters to bytes"""
+        return struct.pack("<6sB", self.params['bd_addr'], self.params['role'])
+    
+    @classmethod
+    def from_bytes(cls, data: bytes) -> 'AcceptConnectionRequest':
+        """Create command from parameter bytes (excluding header)"""
+        if len(data) < 7:
+            raise ValueError(f"Invalid data length: {len(data)}, expected at least 7 bytes")
+        
+        bd_addr = data[:6]
+        role = data[6]
+        
+        return cls(
+            bd_addr=bd_addr,
+            role=role
+        )
+        
+class RejectConnectionRequest(HciCmdBasePacket):
+    """Reject Connection Request Command"""
+    
+    OPCODE = create_opcode(OGF.LINK_CONTROL, LinkControlOCF.REJECT_CONNECTION_REQUEST)
+    NAME = "Reject_Connection_Request"
+    
+    def __init__(self, bd_addr: bytes):
+        """
+        Initialize Reject Connection Request Command
+        
+        Args:
+            bd_addr: Bluetooth Device Address (6 bytes)
+        """
+        super().__init__(
+            bd_addr=bd_addr
+        )
+    
+    def _validate_params(self) -> None:
+        """Validate command parameters"""
+        if len(self.params['bd_addr']) != 6:
+            raise ValueError(f"Invalid bd_addr length: {len(self.params['bd_addr'])}, must be 6 bytes")
+    
+    def _serialize_params(self) -> bytes:
+        """Serialize parameters to bytes"""
+        return struct.pack("<6s", self.params['bd_addr'])
+    
+    @classmethod
+    def from_bytes(cls, data: bytes) -> 'RejectConnectionRequest':
+        """Create command from parameter bytes (excluding header)"""
+        if len(data) < 6:
+            raise ValueError(f"Invalid data length: {len(data)}, expected at least 6 bytes")
+        
+        bd_addr = data[:6]
+        
+        return cls(
+            bd_addr=bd_addr
+        )
+        
+  
 class Disconnect(HciCmdBasePacket):
     """Disconnect Command"""
     
@@ -163,6 +304,79 @@ class Disconnect(HciCmdBasePacket):
             reason=reason
         )
 
+class ChangeConnectionPacketType(HciCmdBasePacket):
+    """Change Connection Packet Type Command"""
+    
+    OPCODE = create_opcode(OGF.LINK_CONTROL, LinkControlOCF.CHANGE_CONNECTION_PACKET_TYPE)
+    NAME = "Change_Connection_Packet_Type"
+    
+    def __init__(self, connection_handle: int, packet_type: int):
+        """
+        Initialize Change Connection Packet Type Command
+        
+        Args:
+            connection_handle: Connection handle (0x0000-0x0EFF)
+            packet_type: New packet type for the connection
+        """
+        super().__init__(
+            connection_handle=connection_handle,
+            packet_type=packet_type
+        )
+    
+    def _validate_params(self) -> None:
+        """Validate command parameters"""
+        if not (0x0000 <= self.params['connection_handle'] <= 0x0EFF):
+            raise ValueError(f"Invalid connection_handle: {self.params['connection_handle']}, must be between 0x0000 and 0x0EFF")
+        
+        if not (0x0001 <= self.params['packet_type'] <= 0xFFFF):
+            raise ValueError(f"Invalid packet_type: {self.params['packet_type']}, must be between 0x0001 and 0xFFFF")
+    
+    def _serialize_params(self) -> bytes:
+        """Serialize parameters to bytes"""
+        return struct.pack("<HB",
+                          self.params['connection_handle'],
+                          self.params['packet_type'])
+        
+    
+class RemoteNameRequest(HciCmdBasePacket):
+    """Remote Name Request Command"""
+    
+    OPCODE = create_opcode(OGF.LINK_CONTROL, LinkControlOCF.REMOTE_NAME_REQUEST)
+    NAME = "Remote_Name_Request"
+    
+    def __init__(self, bd_addr: bytes):
+        """
+        Initialize Remote Name Request Command
+        
+        Args:
+            bd_addr: Bluetooth Device Address (6 bytes)
+        """
+        super().__init__(
+            bd_addr=bd_addr
+        )
+    
+    def _validate_params(self) -> None:
+        """Validate command parameters"""
+        if len(self.params['bd_addr']) != 6:
+            raise ValueError(f"Invalid bd_addr length: {len(self.params['bd_addr'])}, must be 6 bytes")
+    
+    def _serialize_params(self) -> bytes:
+        """Serialize parameters to bytes"""
+        return struct.pack("<6s", self.params['bd_addr'])
+    
+    @classmethod
+    def from_bytes(cls, data: bytes) -> 'RemoteNameRequest':
+        """Create command from parameter bytes (excluding header)"""
+        if len(data) < 6:
+            raise ValueError(f"Invalid data length: {len(data)}, expected at least 6 bytes")
+        
+        bd_addr = data[:6]
+        
+        return cls(
+            bd_addr=bd_addr
+        )
+            
+    
 # Function wrappers for easier access
 def inquiry(lap: bytes = Inquiry.IAC_GIAC,
            inquiry_length: int = 0x30,
@@ -185,11 +399,18 @@ def disconnect(connection_handle: int,
         connection_handle=connection_handle,
         reason=reason
     )
+    
+
 
 # Register all command classes
 register_command(Inquiry)
 register_command(InquiryCancel)
+register_command(CreateConnection)
+register_command(AcceptConnectionRequest)
+register_command(RejectConnectionRequest)
 register_command(Disconnect)
+register_command(ChangeConnectionPacketType)
+register_command(RemoteNameRequest)
 
 # Export public functions and classes
 __all__ = [
@@ -197,6 +418,11 @@ __all__ = [
     'inquiry_cancel',
     'disconnect',
     'Inquiry',
+    'CreateConnection',
+    'AcceptConnectionRequest',
+    'RejectConnectionRequest',
     'InquiryCancel',
     'Disconnect',
+    'ChangeConnectionPacketType',
+    'RemoteNameRequest'
 ]

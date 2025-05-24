@@ -8,11 +8,11 @@ from .cmd_factory import HCICommandFactory
 from .evt_factory import HCIEventFactory
 
 from .cmds import *
-from .evt import *
+from .evts import *
 
 __all__ = [
     'cmds',
-    'evt',
+    'evts',
     'HCIControlUI',
     'HCIControlWindow',
     'HCIEventHandler',
