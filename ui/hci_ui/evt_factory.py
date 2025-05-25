@@ -26,6 +26,8 @@
     The factory also provides a method to close all open event windows, ensuring
     that resources are properly released when the user is done with the HCI events.
 """
+import traceback
+import weakref
 
 from PyQt5.QtWidgets import (QMdiSubWindow)
 
@@ -49,15 +51,40 @@ class HCIEventFactory:
     def __init__(self, title : str, parent_window : QMdiSubWindow, transport : Optional[Transport] = None):
         self.title = title
         self.transport = transport
-        self.parent = parent_window
+        self.parent = weakref.ref(parent_window) if parent_window else None
+        self._is_destroyed = False
         # create a dictionary to track event windows and structure as {event_code: HCIEvtUI}
         self.event_windows : dict[int, HCIEvtUI] = {}
 
     def __del__(self):  
         """Destructor to ensure all event windows are closed"""
+        if not self._is_destroyed:
+            self.cleanup()
+        
+    def cleanup(self):
+        """Explicit cleanup method to be called before destruction"""
+        if self._is_destroyed:
+            return
+            
+        self._is_destroyed = True
         self.close_all_event_windows()
         self.remove_from_parent()
-        
+    
+    def get_parent(self):
+        """Safely get the parent window"""
+        # parent = self.parent
+        # # Check if the parent still exists and hasn't been deleted
+        # if parent is None:
+        #     return None
+        # try:
+        #     # Try to access a property to see if the object is still valid
+        #     _ = parent.title()
+        #     return parent
+        # except RuntimeError:
+        #     # Object has been deleted by Qt
+        #     return None
+        return self.parent if self.parent and not self._is_destroyed else None
+    
     def __repr__(self):
         return f"<HCIEventFactory parent={self.parent}, windows={len(self.event_windows)}>"
         
@@ -78,8 +105,11 @@ class HCIEventFactory:
     
     def create_event_window(self, event_code : int) -> Optional[HCIEvtUI]:
         """Create an event window based on the event code"""
+        if self._is_destroyed:
+            return None
+            
         event_window = None
-
+        parent = self.get_parent()
         evt_type = get_event_ui_class(event_code)
         
         if evt_type is not None:
@@ -92,7 +122,7 @@ class HCIEventFactory:
                 return existing_window
             
             # Add to parent's tracking system
-            event_window = evt_type(self.title, self.parent, self.transport)
+            event_window = evt_type(self.title, parent, self.transport)
             event_window.window_closing.connect(lambda : self.close_event_window(event_code))
             # Store in our local tracking
             self.event_windows[event_code] = event_window
@@ -109,19 +139,25 @@ class HCIEventFactory:
     
     def position_window(self, window : HCIEvtUI):
         """Position the window relative to the main window"""
-        if self.parent:
-            # Get main window geometry
-            main_rect = self.parent.geometry()
-            
-            # Calculate offset position
-            offset_x = 50 + (len(self.event_windows) * 30)
-            offset_y = 50 + (len(self.event_windows) * 30)
-            
-            # Set new position
-            new_x = main_rect.x() + offset_x
-            new_y = main_rect.y() + offset_y
-            
-            window.move(new_x, new_y)
+        parent = self.get_parent()
+        if parent:
+            try:
+                # Get main window geometry
+                main_rect = parent.geometry()
+                
+                # Calculate offset position
+                offset_x = 50 + (len(self.event_windows) * 30)
+                offset_y = 50 + (len(self.event_windows) * 30)
+                
+                # Set new position
+                new_x = main_rect.x() + offset_x
+                new_y = main_rect.y() + offset_y
+                
+                window.move(new_x, new_y)
+            except RuntimeError:
+                # Parent window has been deleted, skip positioning
+                pass
+    
     
     def get_event_window_by_code(self, event_code: int) -> Optional[HCIEvtUI]:
         """Get an event window by its event code"""
@@ -143,13 +179,24 @@ class HCIEventFactory:
 
     def add_to_parent(self):
         """Add this factory to the parent window's event tracking"""
-        if self.parent and hasattr(self.parent, 'add_event_factory'):
-            self.parent.add_event_factory(self)
+        parent = self.get_parent()
+        if parent and hasattr(parent, 'add_event_factory'):
+            try:
+                parent.add_event_factory(self)
+            except RuntimeError:
+                # Parent has been deleted
+                pass
             
     def remove_from_parent(self):
         """Remove this factory from the parent window's event tracking"""
-        if self.parent and hasattr(self.parent, 'remove_event_factory'):
-            self.parent.remove_event_factory(self)
+        parent = self.get_parent()
+        if parent and hasattr(parent, 'remove_event_factory'):
+            try:
+                parent.remove_event_factory(self)
+            except RuntimeError:
+                # Parent has been deleted, nothing to do
+                pass
+    
     
     def get_event_window(self, event_code : int) -> Optional[HCIEvtUI]:
         """Get an event window by its event code"""

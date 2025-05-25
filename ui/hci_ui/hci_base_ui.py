@@ -6,6 +6,8 @@ It defines common functionality for all HCI UI components.
 """
 
 import traceback
+import weakref
+import inspect
 
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QTextEdit, QMdiSubWindow, 
@@ -20,7 +22,6 @@ from PyQt5.QtCore import Qt, pyqtSignal, QObject
 
 from transports.transport import Transport
 
-import inspect
 
 from abc import ABC, abstractmethod
 from typing import ClassVar, Type, Optional, Dict, Any, Union, Tuple
@@ -46,13 +47,25 @@ class HciBaseUI(QDialog):
         self.command_class = None  # Placeholder for command class
         self._main_layout = None
         self.content_layout = None
-        self.parent = parent
+        self._is_destroyed = False  # Flag to track if the window is destroyed
+        self.parent = weakref.ref(parent) if parent else None
          # Make windows stay on top of main window but not system-wide
         if parent:
             self.setWindowFlags(Qt.Window | Qt.WindowStaysOnTopHint | Qt.WindowCloseButtonHint)
         # call the setup_ui method to initialize the UI
         self.setup_ui()    
     
+    def __del__(self):
+        """Destructor to clean up resources"""
+        if not self._is_destroyed:
+            self.cleanup()
+            
+    def cleanup(self):
+        """Explicit cleanup method"""
+        if self._is_destroyed:
+            return
+        self._is_destroyed = True
+        
     def setup_ui(self):
         """Initialize the base UI components"""
         self.setWindowTitle(self.title)
@@ -74,7 +87,7 @@ class HciBaseUI(QDialog):
         self._title_layout.setStretch(0, 1)
         
         self._name_label = QLabel()
-        self._name_label.setText(self.NAME)
+        self._name_label.setText(self.__class__.NAME)
         self._title_layout.addWidget(self._name_label)
         self._name_label.setAlignment(Qt.AlignCenter)
         self._name_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
@@ -153,6 +166,22 @@ class HciBaseUI(QDialog):
         self.raise_()
         self.activateWindow()
         self.showNormal()  # In case it was minimized
+    
+    def get_parent(self):
+        """Safely get the parent window"""
+        if self.parent is None:
+            return None
+        parent = self.parent()
+        # Check if the parent still exists and hasn't been deleted
+        if parent is None:
+            return None
+        try:
+            # Try to access a property to see if the object is still valid
+            _ = parent.windowTitle()
+            return parent
+        except RuntimeError:
+            # Object has been deleted by Qt
+            return None
         
     def add_to_parent(self):
         """Add this window to the parent's tracking system"""
@@ -168,35 +197,57 @@ class HciBaseUI(QDialog):
             
     def closeEvent(self, event):
         """Handle window close event"""
+        if not self._is_destroyed:
         # Emit signal that window is closing
-        self.window_closing.emit(self)
+            self.window_closing.emit(self)
+            self.cleanup()  # Clean up resources
         super().closeEvent(event)
         
     def mousePressEvent(self, event):
         """Handle mouse press - bring window to front"""
-        super().mousePressEvent(event)
-        if event.button() == Qt.LeftButton:
-            self.bring_to_front()
+        if self._is_destroyed:
+            return
+        try:
+            super().mousePressEvent(event)
+            if event.button() == Qt.LeftButton:
+                self.bring_to_front()
+        except RuntimeError:
+            pass  # Ignore if the window is already destroyed
             
     def focusInEvent(self, event):
         """Handle focus events"""
-        super().focusInEvent(event)
-        # Update the parent that this window is now active
-        if self.parent and hasattr(self.parent, 'status_bar'):
-            self.parent.status_bar.showMessage(f"Active: {self.windowTitle()}")
-    
-    #logging function to log messages to the console or UI
+        try:
+            super().focusInEvent(event)
+            parent = self.parent()
+            # Update the parent that this window is now active
+            if parent and hasattr(parent, 'status_bar'):
+                self.parent.status_bar.showMessage(f"Active: {self.windowTitle()}")
+        except RuntimeError:
+            pass
+     #logging function to log messages to the console or UI
     def log_error(self, message: str):
         """Log an error message to the command error label"""
+        if self._is_destroyed:
+            return
         # log the full traceback to console
         traceback.print_exc()  # Print the full traceback to console.
-        self._error_label.setText(message)
-        self._error_label.setVisible(True)
+        try:
+            self._error_label.setText(message)
+            self._error_label.setVisible(True)
+        except RuntimeError:
+            # Widget has been destroyed
+            pass
         
     def clear_error(self):
         """Clear the command error label"""
-        self._error_label.setText("")
-        self._error_label.setVisible(False)  
+        if self._is_destroyed:
+            return
+        try:
+            self._error_label.setText("")
+            self._error_label.setVisible(False)
+        except RuntimeError:
+            # Widget has been destroyed
+            pass
 
 ##### HCI Command and Event UI Classes
 # These classes are specific implementations of the HciBaseUI for commands and events
@@ -236,25 +287,38 @@ class HCICmdBaseUI(HciBaseUI):
         """Validate the parameters entered in the UI"""
         # This is a placeholder - subclasses should implement this
         pass
-    
+        
     def on_ok_button_clicked(self):
         """Handle OK button click - send the command"""
+        if self._is_destroyed:
+            return
         ret = None
         try:
             if not self.validate_parameters():
                 return
             byte_data = self.get_data_bytes()
-            ret = self.transport.write(byte_data)
+            if self.transport:
+                ret = self.transport.write(byte_data)
             
         except Exception as e:
             self.log(f"Error creating command: {str(e)}")
             return None
-        self.close()
-        self.command_sent.emit(ret)
+        try:
+            self.close()
+            if ret:
+                self.command_sent.emit(ret)
+        except RuntimeError:
+            # Window already destroyed
+            pass
     
     def on_cancel_button_clicked(self):
         """Handle Cancel button click - close the window"""
-        self.close()
+        try:
+            self.close()
+        except RuntimeError:
+            # Window already destroyed
+            pass
+
 
     @abstractmethod
     def add_command_parameters(self):
@@ -285,14 +349,22 @@ class HCIEvtBaseUI(HciBaseUI):
     def setup_ui(self):
         """Set up the UI for event display"""
         super().setup_ui()
-    
+  
     def on_ok_button_clicked(self):
         """Handle OK button click - close the window"""
-        self.close()
+        try:
+            self.close()
+        except RuntimeError:
+            # Window already destroyed
+            pass
         
     def on_cancel_button_clicked(self):
         """Handle Cancel button click - close the window"""
-        self.close()
+        try:
+            self.close()
+        except RuntimeError:
+            # Window already destroyed
+            pass
         
     @abstractmethod
     def display_event_details(self):
@@ -302,15 +374,23 @@ class HCIEvtBaseUI(HciBaseUI):
     
     def set_event_instance(self, event_instance):
         """Set the event instance for this UI"""
+        if self._is_destroyed:
+            return
         self.event_instance = event_instance
         self.display_event_details()
-        self._name_label.setText(self.event_instance.__class__.__name__)
-        self._name_label.setText("")
-        self._name_label.setVisible(False)
+        try:
+            self._name_label.setText(self.event_instance.__class__.__name__)
+            self._name_label.setText("")
+            self._name_label.setVisible(False)
+        except (RuntimeError, AttributeError):
+            # Widget has been destroyed or event_instance is None
+            pass
 
     
     def process_event(self, event_bytes):
         """Process an event and update the UI"""
+        if self._is_destroyed:
+            return False
         try:
             # Parse the event
             event = hci_evt.hci_evt_parse_from_bytes(event_bytes)

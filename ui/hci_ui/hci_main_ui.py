@@ -112,11 +112,14 @@ class HciCommandSelector(QWidget):
         self.categories = []
         self.commands = {}
         self.filtered_commands = {}
+        self._is_destroyed = False  # Flag to track if the instance is destroyed
         self.init_ui()
         self.load_commands()
-        
+
     def init_ui(self):
         """Initialize the UI components"""
+        if self._is_destroyed:
+            return
         # Main layout
         main_layout = QVBoxLayout()
         self.setLayout(main_layout)
@@ -303,22 +306,32 @@ class HciCommandSelector(QWidget):
 
 class HciCommandManager:
     """Manager class for HCI commands and their UIs"""
-    _inited = False  # Class variable to track initialization state
     
     def __init__(self, title, parent_window : QMainWindow , transport: Transport):
         self.parent_window = parent_window
-        self._inited = True  # Set initialization state to True
+        self._is_destroyed = False  # Flag to track if the instance is destroyed
         # Keep track of open windows by command
         self._cmd_factory = HCICommandFactory(title, parent_window, transport)
         self._evt_factory = HCIEventFactory(title, parent_window, transport)
     
     def __del__(self):
         """Destructor to ensure all command windows are closed"""
-        if not self._inited:
+        if not self._is_destroyed:
+            self.cleanup()
+    
+    def cleanup(self):
+        """Explicit cleanup method"""
+        if self._is_destroyed:
             return
-        self.close_all_windows()
-        self._cmd_factory = None
-        self._evt_factory = None
+            
+        self._is_destroyed = True
+        
+        if hasattr(self, '_cmd_factory') and self._cmd_factory:
+            self._cmd_factory.cleanup()
+            self._cmd_factory = None
+        if hasattr(self, '_evt_factory') and self._evt_factory:
+            self._evt_factory.cleanup()
+            self._evt_factory = None
     
     def __repr__(self):
         return f"<HciCommandManager parent={self.parent_window}, cmd_factory={self._cmd_factory}, evt_factory={self._evt_factory}>"
@@ -326,17 +339,19 @@ class HciCommandManager:
         return f"HciCommandManager(parent={self.parent_window}, cmd_factory={self._cmd_factory}, evt_factory={self._evt_factory})"
     def __len__(self):
         """Return the number of command windows currently managed"""
-        return len(self._cmd_factory)
+        return len(self._cmd_factory) if self._cmd_factory else 0
     def __contains__(self, cmd_opcode: int) -> bool:
         """Check if a command window with the given opcode exists"""
-        return cmd_opcode in self._cmd_factory
+        return cmd_opcode in self._cmd_factory if self._cmd_factory else False
     def __getitem__(self, cmd_opcode: int) -> Optional[HCICmdUI]:
         """Get a command window by its opcode"""
-        return self._cmd_factory[cmd_opcode]
+        return self._cmd_factory[cmd_opcode] if self._cmd_factory else None
     
     
     def open_command_ui(self, category : str, command : str):
         """Open a UI for the specified HCI command"""
+        if self._is_destroyed or (self._cmd_factory is None) :
+            return
         
         try:
             cmd_opcode = None
@@ -372,11 +387,8 @@ class HciCommandManager:
     
     def close_all_windows(self):
         """Close all command windows"""
-        self._inited = False  # Set initialization state to False
-        # close all the cmd and evt windows
-        self._cmd_factory.close_all_command_windows()
-        self._evt_factory.close_all_event_windows()
-
+        self.cleanup()
+        
     # create a mouse event handler when clicked it will raise all the command windows
     def raise_all_command_windows(self):
         """Raise all command windows to the front"""
@@ -396,60 +408,94 @@ class HciMainUI(QWidget):
         for instance in cls.open_instances:
             if instance.transport == transport:
                 # If an instance with the same transport exists, bring it to the front
-                instance.sub_window.raise_()
-                instance.sub_window.activateWindow()
-                return instance
+                try:
+                    instance.sub_window.raise_()
+                    instance.sub_window.activateWindow()
+                    return instance
+                except (RuntimeError, AttributeError):
+                    # Instance exists but window is deleted, remove from list
+                    cls.open_instances.remove(instance)
+                    break
         
         # Create a new instance if no existing one matches
         new_instance = cls(main_window, title=title, transport=transport)
         return new_instance
     
-    @classmethod
     def get_instance(cls, window_name_or_transport: str | transport) -> Optional['HciMainUI']:
         """Get an instance of HciMainUI by window name or transport"""
-        for instance in cls.open_instances:
-            if isinstance(window_name_or_transport, str):
-                if instance.title == window_name_or_transport:
-                    return instance
-            elif isinstance(window_name_or_transport, transport):
-                # Check if the transport matches
-                if instance.transport == window_name_or_transport:
-                    return instance
+        for instance in list(cls.open_instances):  # Create a copy to avoid modification during iteration
+            try:
+                if isinstance(window_name_or_transport, str):
+                    if instance.title == window_name_or_transport:
+                        return instance
+                elif isinstance(window_name_or_transport, transport):
+                    # Check if the transport matches
+                    if instance.transport == window_name_or_transport:
+                        return instance
+            except (RuntimeError, AttributeError):
+                # Instance is no longer valid, remove it
+                cls.open_instances.remove(instance)
         return None
     
     @classmethod
     def get_open_instances(cls)  -> list['HciMainUI']:
         """Get a list of all open HCI Command Center windows"""
+        # Filter out invalid instances
+        valid_instances = []
+        for instance in cls.open_instances:
+            try:
+                # Try to access a property to check if the instance is still valid
+                _ = instance.title
+                valid_instances.append(instance)
+            except (RuntimeError, AttributeError):
+                # Instance is no longer valid, skip it
+                pass
+        cls.open_instances = valid_instances
         return cls.open_instances
     
     @classmethod
     def delete_instance(cls, window_name_or_transport :  str | transport) -> None:
         """Delete an instance of HciMainUI by window name or transport"""
-        for instance in cls.open_instances:
-            if isinstance(window_name_or_transport, str):
-                if instance.title == window_name_or_transport:
-                    instance.sub_window.close()
-                    break
-            elif isinstance(window_name_or_transport, transport):
-                # Check if the transport matches
-                if instance.transport == window_name_or_transport:
-                    instance.sub_window.close()
-                    break
+        for instance in list(cls.open_instances):  # Create a copy to avoid modification during iteration
+            try:
+                if isinstance(window_name_or_transport, str):
+                    if instance.title == window_name_or_transport:
+                        instance.cleanup()
+                        break
+                elif isinstance(window_name_or_transport, transport):
+                    # Check if the transport matches
+                    if instance.transport == window_name_or_transport:
+                        instance.cleanup()
+                        break
+            except (RuntimeError, AttributeError):
+                # Instance is no longer valid, remove it
+                if instance in cls.open_instances:
+                    cls.open_instances.remove(instance)
+                    
     @classmethod
     def close_all_instances(cls):
         """Close all open HCI Command Center windows"""
         # Make a copy to avoid list modification during iteration
         instances = list(cls.open_instances)
         for instance in instances:
-            if instance.sub_window:
-                instance.sub_window.close()
+            try:
+                instance.cleanup()
+            except (RuntimeError, AttributeError):
+                # Instance is already invalid
+                pass
+        cls.open_instances.clear()
                 
     @classmethod
     def close_instance(cls, instance: 'HciMainUI') -> None:
         """Close a specific instance of HciMainUI"""
         if instance in cls.open_instances:
-            instance.sub_window.close()
-            cls.open_instances.remove(instance)
+            try:
+                instance.cleanup()
+            except (RuntimeError, AttributeError):
+                # Instance is already invalid
+                pass
+            if instance in cls.open_instances:
+                cls.open_instances.remove(instance)
 
     ############################################################
     ##== Initialization and UI Setup ===##
@@ -462,24 +508,54 @@ class HciMainUI(QWidget):
         self.transport = transport
         self.title = title
         self._destroy_window_handler = None
+        self._is_destroyed = False  # Flag to track if the instance is destroyed
+        self.command_manager = None  # Command manager instance
+        self.command_selector = None  # Command selector widget
         self.init_ui()
         self.show_window()
         
         # Add this instance to the list of open instances
         HciMainUI.open_instances.append(self)
         
+            
     def __del__(self):
         """Destructor to clean up resources"""
+        if not self._is_destroyed:
+            self.cleanup()
+
+    def cleanup(self):
+        """Explicit cleanup method"""
+        if self._is_destroyed:
+            return
+            
+        self._is_destroyed = True
+        
+        # Close the subwindow safely
         if hasattr(self, 'sub_window') and self.sub_window:
-            self.sub_window.close()
+            try:
+                self.sub_window.close()
+            except RuntimeError:
+                # Window already deleted by Qt
+                pass
+            self.sub_window = None
+            
         # Remove this instance from the list of open instances
         if self in HciMainUI.open_instances:
             HciMainUI.open_instances.remove(self)
+            
         # Clean up command manager
-        if hasattr(self, 'command_manager'):
-            self.command_manager.close_all_windows()
+        if hasattr(self, 'command_manager') and self.command_manager:
+            self.command_manager.cleanup()
             self.command_manager = None
-
+            
+        # Call destroy handler if set
+        if self._destroy_window_handler:
+            try:
+                self._destroy_window_handler()
+            except Exception:
+                pass  # Ignore errors in handler
+            
+            
     def init_ui(self):
         """Initialize the UI components"""
         # Main layout
@@ -540,18 +616,31 @@ class HciMainUI(QWidget):
         
     def on_subwindow_closed(self):
         """Handle subwindow closed event - clean up resources"""
+        if self._is_destroyed:
+            return
+            
+        # Mark as destroyed first to prevent recursive calls
+        self._is_destroyed = True
+        
         # Close all command windows opened by this instance
-        if hasattr(self, 'command_manager'):
-            self.command_manager.close_all_windows()
+        if hasattr(self, 'command_manager') and self.command_manager:
+            self.command_manager.cleanup()
         
         # Remove this instance from the list of open instances
         if self in HciMainUI.open_instances:
             HciMainUI.open_instances.remove(self)
         
         if self._destroy_window_handler:
-            self._destroy_window_handler()
+            try:
+                self._destroy_window_handler()
+            except Exception:
+                pass  # Ignore errors in handler
+                
         # Clean up
-        self.deleteLater()
+        try:
+            self.deleteLater()
+        except RuntimeError:
+            pass  # Already deleted
         
     def register_destroy(self, handler : callable):
         """Register a handler to be called when the window is destroyed"""
@@ -561,12 +650,19 @@ class HciMainUI(QWidget):
     
     def mousePressEvent(self, event):
         """Handle mouse press events - raise all command windows when clicked"""
+        if self._is_destroyed:
+            return
+            
         # Call the base class implementation first
-        super().mousePressEvent(event)
+        try:
+            super().mousePressEvent(event)
+        except RuntimeError:
+            return
         
         # Raise all command windows when any mouse button is clicked
         if hasattr(self, 'command_manager') and self.command_manager:
             self.command_manager.raise_all_command_windows()
+        
         
     # def closeEvent(self, event): --- should not implement this otherwise subwindow not call on_subwindow_closed
     #     """Handle close event for the main window"""

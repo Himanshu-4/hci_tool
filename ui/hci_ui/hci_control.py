@@ -14,6 +14,7 @@ from PyQt5.QtCore import Qt, pyqtSignal
 from .hci_main_ui import HciMainUI
 from transports.transport import Transport
 
+
 class HCIControlUI:
     """
     Main HCI Control class - integrates command UI and event handling.
@@ -22,6 +23,7 @@ class HCIControlUI:
     def __init__(self, main_window : Optional[QMainWindow],  transport : Transport, title : Optional[str] = "HCIControlUI"): 
         """Initialize the HCI Control with reference to the main window"""
         self.main_window = main_window
+        self._is_destroyed = False
         
         # Create the main UI
         self.main_ui = HciMainUI(main_window, title=title, transport=transport)
@@ -30,16 +32,42 @@ class HCIControlUI:
 
     def __del__(self):
         """Destructor to clean up the instance"""
+        if not self._is_destroyed:
+            self.cleanup()
+
+    def cleanup(self):
+        """Explicit cleanup method"""
+        if self._is_destroyed:
+            return
+            
+        self._is_destroyed = True
         print("HCIControlUI instance deleted")
+        
+        if hasattr(self, 'main_ui') and self.main_ui:
+            try:
+                self.main_ui.cleanup()
+            except (RuntimeError, AttributeError):
+                # UI already destroyed
+                pass
+            self.main_ui = None
+            
+        if hasattr(self, 'event_handler'):
+            self.event_handler = None
 
         
     def _on_main_ui_closed(self):
         """Handle closing of the main UI"""
+        if self._is_destroyed:
+            return
+            
         print("HCIControlUI closed")
-        if self._destroy_window_handler:
-            self._destroy_window_handler()
-        self.main_ui = None
-        self.event_handler = None
+        if hasattr(self, '_destroy_window_handler') and self._destroy_window_handler:
+            try:
+                self._destroy_window_handler()
+            except Exception:
+                pass  # Ignore errors in handler
+                
+        self.cleanup()
 
     
     def register_destroy(self, handler : Optional[callable]):
@@ -49,13 +77,14 @@ class HCIControlUI:
         
     def process_hci_event(self, event_data):
         """Process an incoming HCI event packet"""
-        if self.event_handler:
+        if not self._is_destroyed and hasattr(self, 'event_handler') and self.event_handler:
             self.event_handler.process_hci_packet(event_data)
     
     def simulate_event(self, event_code, event_data):
         """Simulate an HCI event for testing purposes"""
-        if self.event_handler:
+        if not self._is_destroyed and hasattr(self, 'event_handler') and self.event_handler:
             self.event_handler.simulate_event(event_code, event_data)
+
 
 # Class for the HCI Control Window interface
 class HCIControlWindow(QWidget):

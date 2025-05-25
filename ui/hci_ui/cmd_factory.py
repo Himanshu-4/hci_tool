@@ -24,6 +24,8 @@
     The factory also provides a method to close all open command windows, ensuring
     that resources are properly released when the user is done with the HCI commands.
 """
+import traceback
+import weakref
 
 from PyQt5.QtWidgets import  (QMdiSubWindow)
 
@@ -45,14 +47,39 @@ class HCICommandFactory:
         self.title = title
         self.transport = transport
         self.parent = parent_window
+        self._is_destroyed = False
         # create a dictionary to track command windows and structure as {opcode: HCICmdUI}
         self.command_windows : dict[int, HCICmdUI] = {}
 
     def __del__(self):  
         """Destructor to ensure all command windows are closed"""
+        if not self._is_destroyed:
+            self.cleanup()
+        
+    def cleanup(self):
+        """Explicit cleanup method to be called before destruction"""
+        if self._is_destroyed:
+            return
+            
+        self._is_destroyed = True
         self.close_all_command_windows()
         self.remove_from_parent()
-        
+    
+    def get_parent(self):
+        """Safely get the parent window"""
+        # parent = self.parent
+        # # Check if the parent still exists and hasn't been deleted
+        # if parent is None:
+        #     return None
+        # try:
+        #     # Try to access a property to see if the object is still valid
+        #     _ = parent.windowTitle()
+        #     return parent
+        # except RuntimeError:
+        #     # Object has been deleted by Qt
+        #     return None
+        return self.parent if self.parent and not self._is_destroyed else None
+    
     def __repr__(self):
         return f"<HCICommandFactory parent={self.parent}, windows={len(self.command_windows)}>"
     def __str__(self):
@@ -69,8 +96,11 @@ class HCICommandFactory:
     
     def create_command_window(self, cmd_opcode : int) -> Optional[HCICmdUI]:
         """Create a command window based on the OGF and OCF values"""
+        if self._is_destroyed:
+            return None
+            
         cmd_window = None
-
+        parent = self.get_parent()
         cmd_type = get_cmd_ui_class(cmd_opcode)
         
         if cmd_type is not None:
@@ -83,7 +113,7 @@ class HCICommandFactory:
                 return cmd_window
             
             # Add to parent's tracking system
-            cmd_window = cmd_type(self.title, self.parent, self.transport)
+            cmd_window = cmd_type(self.title, parent, self.transport)
             cmd_window.window_closing.connect( lambda : self.close_command_window(cmd_opcode))
             # Store in our local tracking
             self.command_windows[cmd_opcode] = cmd_window
@@ -100,19 +130,25 @@ class HCICommandFactory:
     
     def position_window(self, window : HCICmdUI):
         """Position the window relative to the main window"""
-        if self.parent:
-            # Get main window geometry
-            main_rect = self.parent.geometry()
-            
-            # Calculate offset position
-            offset_x = 50 + (len(self.command_windows) * 30)
-            offset_y = 50 + (len(self.command_windows) * 30)
-            
-            # Set new position
-            new_x = main_rect.x() + offset_x
-            new_y = main_rect.y() + offset_y
-            
-            window.move(new_x, new_y)
+        parent = self.get_parent()
+        if parent:
+            try:
+                # Get main window geometry
+                main_rect = parent.geometry()
+                
+                # Calculate offset position
+                offset_x = 50 + (len(self.command_windows) * 30)
+                offset_y = 50 + (len(self.command_windows) * 30)
+                
+                # Set new position
+                new_x = main_rect.x() + offset_x
+                new_y = main_rect.y() + offset_y
+                
+                window.move(new_x, new_y)
+            except RuntimeError:
+                # Parent window has been deleted, skip positioning
+                pass
+    
     
     def get_command_window_by_opcode(self, cmd_opcode: int) -> Optional[HCICmdUI]:
         """Get a command window by its opcode"""
@@ -121,9 +157,14 @@ class HCICommandFactory:
     def get_command_window_by_name(self, window_name: str) -> Optional[HCICmdUI]:
         """Get a command window by its name"""
         for window in self.command_windows.values():
-            if window.NAME == window_name:
-                return window
+            try:
+                if window.NAME == window_name:
+                    return window
+            except RuntimeError:
+                # Window has been deleted, skip
+                continue
         return None
+    
     
     def get_command_window_by_type(self, cmd_type: Type[HCICmdUI]) -> Optional[HCICmdUI]:
         """Get a command window by its type"""
@@ -134,13 +175,23 @@ class HCICommandFactory:
 
     def add_to_parent(self):
         """Add this factory to the parent window's command tracking"""
-        if self.parent and hasattr(self.parent, 'add_command_factory'):
-            self.parent.add_command_factory(self)
+        parent = self.get_parent()
+        if parent and hasattr(parent, 'add_command_factory'):
+            try:
+                parent.add_command_factory(self)
+            except RuntimeError:
+                # Parent has been deleted
+                pass
             
     def remove_from_parent(self):
         """Remove this factory from the parent window's command tracking"""
-        if self.parent and hasattr(self.parent, 'remove_command_factory'):
-            self.parent.remove_command_factory(self)
+        parent = self.get_parent()
+        if parent and hasattr(parent, 'remove_command_factory'):
+            try:
+                parent.remove_command_factory(self)
+            except RuntimeError:
+                # Parent has been deleted, nothing to do
+                pass
     
     def get_command_window(self, cmd_opcode : int) -> Optional[HCICmdUI]:
         """Get a command window by its opcode"""
@@ -161,7 +212,9 @@ class HCICommandFactory:
             except RuntimeError:
                 # Window already destroyed
                 pass
-            del self.command_windows[cmd_opcode]
+            # del self.command_windows[cmd_opcode] somehow del is not working here
+            # Remove from tracking
+            self.command_windows.pop(cmd_opcode, None)
     
     def close_all_command_windows(self):
         """Close all open command windows"""
@@ -171,10 +224,15 @@ class HCICommandFactory:
     
     def raise_all_command_windows(self):
         """Raise all command windows to the front"""
-        for window in self.command_windows.values():
-            if window.isVisible():
-                window.raise_()
-                window.activateWindow()
+        for cmd_opcode, window in list(self.command_windows.items()):
+            try:
+                if window.isVisible():
+                    window.raise_()
+                    window.activateWindow()
+            except RuntimeError:
+                # Window has been deleted, remove from tracking
+                del self.command_windows[cmd_opcode]
+
 
     def deafualt_base_cmd_executor(self, opcode : int  , command_data: Optional[dict] = None) -> bool:
         """Default command executor for HCI commands

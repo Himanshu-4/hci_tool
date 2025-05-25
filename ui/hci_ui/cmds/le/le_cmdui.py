@@ -28,48 +28,53 @@ class LeSetAdvParamsUI(HCICmdUI):
     """UI for the LE Set Advertising Parameters command"""
     OPCODE = create_opcode(OGF.LE_CONTROLLER, LEControllerOCF.SET_ADVERTISING_PARAMETERS)
     NAME = "LE Set Advertising Parameters"
+    
+    AdressType = le_cmds.AddressType
+    AdvertisingType = le_cmds.AdvertisingType
+    
     def __init__(self, title, parent=None, transport : Optional[Transport] = None):
         super().__init__(title, parent, transport)
     
-    def add_command_parameters(self):
+    def setup_ui(self):
         """Add parameters specific to LE Set Advertising Parameters command"""
+        super().setup_ui()
         # Advertising Interval Min
         self.min_interval_input = QSpinBox()
         self.min_interval_input.setRange(0x0020, 0x4000)
         self.min_interval_input.setValue(0x0800)  # Default: 1.28s
         self.min_interval_input.setToolTip("Minimum advertising interval (N * 0.625 ms)")
-        self.params_layout.addRow("Advertising Interval Min:", self.min_interval_input)
+        self.form_layout.addRow("Advertising Interval Min:", self.min_interval_input)
         
         # Advertising Interval Max
         self.max_interval_input = QSpinBox()
         self.max_interval_input.setRange(0x0020, 0x4000)
         self.max_interval_input.setValue(0x0800)  # Default: 1.28s
         self.max_interval_input.setToolTip("Maximum advertising interval (N * 0.625 ms)")
-        self.params_layout.addRow("Advertising Interval Max:", self.max_interval_input)
+        self.form_layout.addRow("Advertising Interval Max:", self.max_interval_input)
         
         # Advertising Type
         self.adv_type_input = QComboBox()
-        for adv_type in AdvertisingType:
+        for adv_type in le_cmds.AdvertisingType:
             self.adv_type_input.addItem(adv_type.name, adv_type.value)
-        self.params_layout.addRow("Advertising Type:", self.adv_type_input)
+        self.form_layout.addRow("Advertising Type:", self.adv_type_input)
         
         # Own Address Type
         self.own_addr_type_input = QComboBox()
-        for addr_type in AddressType:
+        for addr_type in le_cmds.AddressType:
             self.own_addr_type_input.addItem(addr_type.name, addr_type.value)
-        self.params_layout.addRow("Own Address Type:", self.own_addr_type_input)
+        self.form_layout.addRow("Own Address Type:", self.own_addr_type_input)
         
         # Peer Address Type
         self.peer_addr_type_input = QComboBox()
-        for addr_type in AddressType:
+        for addr_type in le_cmds.AddressType:
             self.peer_addr_type_input.addItem(addr_type.name, addr_type.value)
-        self.params_layout.addRow("Peer Address Type:", self.peer_addr_type_input)
+        self.form_layout.addRow("Peer Address Type:", self.peer_addr_type_input)
         
         # Peer Address
         self.peer_addr_input = QLineEdit()
         self.peer_addr_input.setPlaceholderText("Enter hex bytes (e.g., 112233445566)")
         self.peer_addr_input.setText("000000000000")  # Default: all zeros
-        self.params_layout.addRow("Peer Address:", self.peer_addr_input)
+        self.form_layout.addRow("Peer Address:", self.peer_addr_input)
         
         # Advertising Channel Map
         channel_map_widget = QWidget()
@@ -87,7 +92,7 @@ class LeSetAdvParamsUI(HCICmdUI):
         channel_map_layout.addWidget(self.channel_38_check)
         channel_map_layout.addWidget(self.channel_39_check)
         
-        self.params_layout.addRow("Advertising Channel Map:", channel_map_widget)
+        self.form_layout.addRow("Advertising Channel Map:", channel_map_widget)
         
         # Advertising Filter Policy
         self.filter_policy_input = QComboBox()
@@ -95,7 +100,7 @@ class LeSetAdvParamsUI(HCICmdUI):
         self.filter_policy_input.addItem("Process connection requests from all devices, scan requests only from White List", 0x01)
         self.filter_policy_input.addItem("Process scan requests from all devices, connection requests only from White List", 0x02)
         self.filter_policy_input.addItem("Process scan and connection requests only from White List", 0x03)
-        self.params_layout.addRow("Advertising Filter Policy:", self.filter_policy_input)
+        self.form_layout.addRow("Advertising Filter Policy:", self.filter_policy_input)
     
     def get_parameter_values(self):
         """Get parameter values"""
@@ -134,11 +139,12 @@ class LeSetAdvDataUI(HCICmdUI):
     def __init__(self, title, parent=None, transport : Optional[Transport] = None):
         super().__init__(title, parent, transport)
     
-    def add_command_parameters(self):
+    def setup_ui(self):
         """Add parameters specific to LE Set Advertising Data command"""
+        super().setup_ui()
         # Data Length (auto-calculated)
         self.data_length_label = QLabel("0 bytes")
-        self.params_layout.addRow("Data Length:", self.data_length_label)
+        self.form_layout.addRow("Data Length:", self.data_length_label)
         
         # Advertising Data
         self.adv_data_input = QLineEdit()
@@ -149,8 +155,8 @@ class LeSetAdvDataUI(HCICmdUI):
         help_label = QLabel("Common formats: 0201XX (Flags), 09XX..XX (Complete Local Name)")
         help_label.setStyleSheet("color: gray; font-size: 10pt;")
         
-        self.params_layout.addRow("Advertising Data:", self.adv_data_input)
-        self.params_layout.addRow("", help_label)
+        self.form_layout.addRow("Advertising Data:", self.adv_data_input)
+        self.form_layout.addRow("", help_label)
         
         # Example buttons
         examples_widget = QWidget()
@@ -167,7 +173,7 @@ class LeSetAdvDataUI(HCICmdUI):
         example2_btn.clicked.connect(lambda: self._set_example("02010607094C452044657669636520"))
         examples_layout.addWidget(example2_btn)
         
-        self.params_layout.addRow("Examples:", examples_widget)
+        self.form_layout.addRow("Examples:", examples_widget)
     
     def _update_data_length(self):
         """Update the data length label based on the input"""
@@ -210,34 +216,35 @@ class LeSetScanParametersUI(HCICmdUI):
     def __init__(self, title, parent=None, transport : Optional[Transport] = None):
         super().__init__(title, parent, transport)
     
-    def add_command_parameters(self):
+    def setup_ui(self):
         """Add parameters specific to LE Set Scan Parameters command"""
+        super().setup_ui()
         # Scan Type
         self.scan_type_input = QComboBox()
         self.scan_type_input.addItem("Passive Scanning", 0x00)
         self.scan_type_input.addItem("Active Scanning", 0x01)
         self.scan_type_input.setCurrentIndex(1)  # Default: Active
-        self.params_layout.addRow("Scan Type:", self.scan_type_input)
+        self.form_layout.addRow("Scan Type:", self.scan_type_input)
         
         # Scan Interval
         self.scan_interval_input = QSpinBox()
         self.scan_interval_input.setRange(0x0004, 0x4000)
         self.scan_interval_input.setValue(0x0010)  # Default: 10ms
         self.scan_interval_input.setToolTip("Scan interval (N * 0.625 ms)")
-        self.params_layout.addRow("Scan Interval:", self.scan_interval_input)
+        self.form_layout.addRow("Scan Interval:", self.scan_interval_input)
         
         # Scan Window
         self.scan_window_input = QSpinBox()
         self.scan_window_input.setRange(0x0004, 0x4000)
         self.scan_window_input.setValue(0x0010)  # Default: 10ms
         self.scan_window_input.setToolTip("Scan window (N * 0.625 ms)")
-        self.params_layout.addRow("Scan Window:", self.scan_window_input)
+        self.form_layout.addRow("Scan Window:", self.scan_window_input)
         
         # Own Address Type
         self.own_addr_type_input = QComboBox()
         for addr_type in AddressType:
             self.own_addr_type_input.addItem(addr_type.name, addr_type.value)
-        self.params_layout.addRow("Own Address Type:", self.own_addr_type_input)
+        self.form_layout.addRow("Own Address Type:", self.own_addr_type_input)
         
         # Scanning Filter Policy
         self.filter_policy_input = QComboBox()
@@ -245,7 +252,7 @@ class LeSetScanParametersUI(HCICmdUI):
         self.filter_policy_input.addItem("Accept only from devices in White List", 0x01)
         self.filter_policy_input.addItem("Accept all (use extended scan_request filtering)", 0x02)
         self.filter_policy_input.addItem("Accept only from White List (use extended scan_request filtering)", 0x03)
-        self.params_layout.addRow("Scanning Filter Policy:", self.filter_policy_input)
+        self.form_layout.addRow("Scanning Filter Policy:", self.filter_policy_input)
     
     def get_parameter_values(self):
         """Get parameter values"""
@@ -264,17 +271,18 @@ class LeSetScanEnableUI(HCICmdUI):
     def __init__(self, title, parent=None, transport : Optional[Transport] = None):
         super().__init__(title, parent, transport)
     
-    def add_command_parameters(self):
+    def setup_ui(self):
         """Add parameters specific to LE Set Scan Enable command"""
+        super().setup_ui()
         # Scan Enable
         self.scan_enable_input = QCheckBox("Enable Scanning")
         self.scan_enable_input.setChecked(True)
-        self.params_layout.addRow("Scan Enable:", self.scan_enable_input)
+        self.form_layout.addRow("Scan Enable:", self.scan_enable_input)
         
         # Filter Duplicates
         self.filter_duplicates_input = QCheckBox("Filter Duplicates")
         self.filter_duplicates_input.setChecked(True)
-        self.params_layout.addRow("Filter Duplicates:", self.filter_duplicates_input)
+        self.form_layout.addRow("Filter Duplicates:", self.filter_duplicates_input)
     
     def get_parameter_values(self):
         """Get parameter values"""
