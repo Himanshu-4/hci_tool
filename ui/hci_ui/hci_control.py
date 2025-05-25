@@ -12,18 +12,19 @@ from PyQt5.QtGui import QTextCursor, QIntValidator
 from PyQt5.QtCore import Qt, pyqtSignal
 
 from .hci_main_ui import HciMainUI
+from transports.transport import Transport
 
 class HCIControlUI:
     """
     Main HCI Control class - integrates command UI and event handling.
     """
     
-    def __init__(self, main_window : Optional[QMainWindow], title : str = "HCIControlUI"): 
+    def __init__(self, main_window : Optional[QMainWindow],  transport : Transport, title : Optional[str] = "HCIControlUI"): 
         """Initialize the HCI Control with reference to the main window"""
         self.main_window = main_window
         
         # Create the main UI
-        self.main_ui = HciMainUI(main_window, title=title)
+        self.main_ui = HciMainUI(main_window, title=title, transport=transport)
         # register destroy method        
         self.main_ui.register_destroy(lambda: self._on_main_ui_closed())
 

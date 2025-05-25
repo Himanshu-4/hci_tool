@@ -1,5 +1,7 @@
 """Main UI for HCI command selection and management"""  
 
+import traceback
+
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QSizePolicy,
     QListWidget, QListWidgetItem, QMdiArea, QMdiSubWindow,
@@ -303,7 +305,7 @@ class HciCommandManager:
     """Manager class for HCI commands and their UIs"""
     _inited = False  # Class variable to track initialization state
     
-    def __init__(self, title, parent_window=None, transport: Optional[Transport] = None):
+    def __init__(self, title, parent_window : QMainWindow , transport: Transport):
         self.parent_window = parent_window
         self._inited = True  # Set initialization state to True
         # Keep track of open windows by command
@@ -359,7 +361,9 @@ class HciCommandManager:
                 self.execute_simple_command(cmd_opcode)
                 
         except Exception as e:
-            print(f"Error opening command UI: {str(e)}")
+            print(f"Error opening command UI: {e} ")
+            # also point where the error happened
+            traceback.print_exc()
     
     def execute_simple_command(self, cmd_opcode : int):
         """Execute a simple command that doesn't need a UI"""
@@ -373,6 +377,11 @@ class HciCommandManager:
         self._cmd_factory.close_all_command_windows()
         self._evt_factory.close_all_event_windows()
 
+    # create a mouse event handler when clicked it will raise all the command windows
+    def raise_all_command_windows(self):
+        """Raise all command windows to the front"""
+        self._cmd_factory.raise_all_command_windows()
+        
 
 class HciMainUI(QWidget):
     """Main UI for HCI command selection and management"""
@@ -445,7 +454,7 @@ class HciMainUI(QWidget):
     ############################################################
     ##== Initialization and UI Setup ===##
     #############################################################
-    def __init__(self, main_window : QMainWindow, *, title : Optional[str] = "HCI Command Center" , transport : Optional[Transport] = None):
+    def __init__(self, main_window : QMainWindow, *, title : Optional[str] = "HCI Command Center" , transport : Transport):
         """Initialize the HCI Main UI"""
         super().__init__()
         self.main_window = main_window
@@ -462,7 +471,6 @@ class HciMainUI(QWidget):
     def __del__(self):
         """Destructor to clean up resources"""
         if hasattr(self, 'sub_window') and self.sub_window:
-            self.sub_window.destroyed.disconnect(self.on_subwindow_closed)
             self.sub_window.close()
         # Remove this instance from the list of open instances
         if self in HciMainUI.open_instances:
@@ -548,6 +556,17 @@ class HciMainUI(QWidget):
     def register_destroy(self, handler : callable):
         """Register a handler to be called when the window is destroyed"""
         self._destroy_window_handler = handler
+        
+    ########################################################
+    
+    def mousePressEvent(self, event):
+        """Handle mouse press events - raise all command windows when clicked"""
+        # Call the base class implementation first
+        super().mousePressEvent(event)
+        
+        # Raise all command windows when any mouse button is clicked
+        if hasattr(self, 'command_manager') and self.command_manager:
+            self.command_manager.raise_all_command_windows()
         
     # def closeEvent(self, event): --- should not implement this otherwise subwindow not call on_subwindow_closed
     #     """Handle close event for the main window"""

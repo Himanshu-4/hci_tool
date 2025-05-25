@@ -13,7 +13,7 @@ from ui.hci_ui import HCIControlUI
 
 # from ui.cmds import (cmds)
 
-# from transport.trans_lib import (transport, transport_type)
+from transports.transport import Transport
 
 from utils.Exceptions import *
 
@@ -52,7 +52,8 @@ class HCIControl(QWidget):
         # return cls._instance
         # instance = ConnectionDialog(main_window)
         name = f"ConnectWindow_{len(cls.hci_window_instance)}"
-        instance = HCIControlUI(main_window, name)
+        transport = Transport()
+        instance = HCIControlUI(main_window, transport, name)
         instance.register_destroy(lambda: cls.remove_instance(instance))
         cls.hci_window_instance.append(instance)
         print(f"[ConnectWindow] create_instance {instance}")

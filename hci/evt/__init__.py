@@ -23,6 +23,7 @@ from .event_types import (
 
 # Event registry - maps event codes to event classes
 _evt_registry: Dict[int, Type[HciEvtBasePacket]] = {}
+_sub_evt_registry: Dict[int, Type[HciEvtBasePacket]] = {}
 
 def register_event(evt_class: Type[HciEvtBasePacket]) -> None:
     """Register an event class with its event code"""
@@ -30,14 +31,26 @@ def register_event(evt_class: Type[HciEvtBasePacket]) -> None:
         raise ValueError(f"Event class {evt_class.__name__} has no EVENT_CODE defined")
     
     event_code = evt_class.EVENT_CODE
+    sub_event_code = evt_class.SUB_EVENT_CODE
     # print(f"Registering event {evt_class.__name__} with opcode 0x{event_code:04X} in file {evt_class.__module__}\r\n caller {__file__}")
-    if event_code in _evt_registry:
-        raise ValueError(f"Event with code 0x{event_code:02X} already registered as {_evt_registry[event_code].__name__} with name {__file__}")
-    
-    _evt_registry[event_code] = evt_class
+    if event_code != HciEventCode.LE_META_EVENT and sub_event_code is None:
+        if event_code in _evt_registry:
+            raise ValueError(f"Event with code 0x{event_code:02X} already registered as {_evt_registry[event_code].__name__} with name {__file__}")
+        # Register as main event
+        _evt_registry[event_code] = evt_class
+    else :
+        if sub_event_code is None:
+            raise ValueError(f"Event class {evt_class.__name__} has no SUB_EVENT_CODE defined")
+        if sub_event_code in _sub_evt_registry:
+            raise ValueError(f"Sub-event with code 0x{sub_event_code:02X} already registered as {_sub_evt_registry[sub_event_code].__name__} with name {__file__}")
+        # Register as sub-event
+        _sub_evt_registry[sub_event_code] = evt_class
+   
 
-def get_event_class(event_code: int) -> Optional[Type[HciEvtBasePacket]]:
+def get_event_class(event_code: int, sub_evnt_code : Optional[int]) -> Optional[Type[HciEvtBasePacket]]:
     """Get event class from event code"""
+    if sub_evnt_code is not None:
+        return _sub_evt_registry.get(sub_evnt_code)
     return _evt_registry.get(event_code)
 
 def evt_from_bytes(data: bytes) -> Optional[HciEvtBasePacket]:
@@ -53,15 +66,35 @@ def evt_from_bytes(data: bytes) -> Optional[HciEvtBasePacket]:
     if len(data) < 2:  # Need at least event code (1 byte) and length (1 byte)
         return None
     
-    event_code, length = struct.unpack("<BB", data[:2])
-    evt_class = get_event_class(event_code)
+    # extract the event code and subevent code if present and then get the event class
+    evt_class = None
+    sub_event_code = None
+    # First byte is event code, second byte is length
+    # If the event code is LE_META_EVENT, we need to check the sub_event_code
+    event_code, sub_event_code = struct.unpack("<BB", data[:2])
+    if event_code == HciEventCode.LE_META_EVENT:
+        # For LE Meta Event, use sub_event_code to determine the specific event class
+        if len(data) < 3:
+            print("LE Meta Event data too short")
+            return None
+        sub_event_code = data[2]
+    else:
+        sub_event_code = None
+    # Get the event class based on the event code and sub-event code
+    # If the event code is LE_META_EVENT, we need to check the sub_event_code
+    evt_class = get_event_class(event_code, sub_event_code)
     
     if evt_class is None:
-        print(f"Unknown event with code 0x{event_code:02X}")
+        print(f"Unknown event with code 0x{event_code:02X} and sub-event code 0x{sub_event_code:02X} (if applicable)")
         return None
     
     try:
-        return evt_class.from_bytes(data[2:])
+        if sub_event_code is not None:
+            # For LE Meta Event, we need to pass the sub-event code
+            return evt_class.from_bytes_sub_event(data[3:], sub_event_code)
+        else:
+            # For regular events, just pass the data excluding the header
+            return evt_class.from_bytes(data[2:])
     except Exception as e:
         print(f"Failed to parse event: {e}")
         return None

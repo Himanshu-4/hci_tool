@@ -18,7 +18,7 @@ class LeConnectionCompleteEvent(HciEvtBasePacket):
     """LE Connection Complete Event"""
     
     EVENT_CODE = HciEventCode.LE_META_EVENT
-    SUBEVENT_CODE = LeMetaEventSubCode.CONNECTION_COMPLETE
+    SUB_EVENT_CODE = LeMetaEventSubCode.CONNECTION_COMPLETE
     NAME = "LE_Connection_Complete"
     
     # Role values
@@ -58,7 +58,6 @@ class LeConnectionCompleteEvent(HciEvtBasePacket):
             role = role.value
             
         super().__init__(
-            subevent_code=self.SUBEVENT_CODE,
             status=status,
             connection_handle=connection_handle,
             role=role,
@@ -72,10 +71,6 @@ class LeConnectionCompleteEvent(HciEvtBasePacket):
     
     def _validate_params(self) -> None:
         """Validate event parameters"""
-        # Validate subevent code
-        if self.params['subevent_code'] != self.SUBEVENT_CODE:
-            raise ValueError(f"Invalid subevent_code: {self.params['subevent_code']}, expected {self.SUBEVENT_CODE}")
-        
         # Validate status
         if not (0 <= self.params['status'] <= 0xFF):
             raise ValueError(f"Invalid status: {self.params['status']}, must be between 0 and 0xFF")
@@ -134,14 +129,10 @@ class LeConnectionCompleteEvent(HciEvtBasePacket):
         return result
     
     @classmethod
-    def from_bytes(cls, data: bytes) -> 'LeConnectionCompleteEvent':
+    def from_bytes_sub_event(cls, data: bytes, sub_event_code: int)-> 'LeConnectionCompleteEvent':
         """Create event from parameter bytes (excluding header)"""
         if len(data) < 19:  # Need all parameters
             raise ValueError(f"Invalid data length: {len(data)}, expected at least 19 bytes")
-        
-        # Check subevent code
-        if data[0] != cls.SUBEVENT_CODE:
-            raise ValueError(f"Invalid subevent_code: {data[0]}, expected {cls.SUBEVENT_CODE}")
         
         # Parse parameters
         subevent_code, status, connection_handle, role, peer_address_type = struct.unpack("<BBHBB", data[:6])
@@ -168,7 +159,7 @@ class LeAdvertisingReportEvent(HciEvtBasePacket):
     """LE Advertising Report Event"""
     
     EVENT_CODE = HciEventCode.LE_META_EVENT
-    SUBEVENT_CODE = LeMetaEventSubCode.ADVERTISING_REPORT
+    SUB_EVENT_CODE = LeMetaEventSubCode.ADVERTISING_REPORT
     NAME = "LE_Advertising_Report"
     
     # Event type values
@@ -204,7 +195,6 @@ class LeAdvertisingReportEvent(HciEvtBasePacket):
             event_type = event_type.value
             
         super().__init__(
-            subevent_code=self.SUBEVENT_CODE,
             num_reports=num_reports,
             event_type=event_type,
             address_type=address_type,
@@ -216,10 +206,6 @@ class LeAdvertisingReportEvent(HciEvtBasePacket):
     
     def _validate_params(self) -> None:
         """Validate event parameters"""
-        # Validate subevent code
-        if self.params['subevent_code'] != self.SUBEVENT_CODE:
-            raise ValueError(f"Invalid subevent_code: {self.params['subevent_code']}, expected {self.SUBEVENT_CODE}")
-        
         # Validate number of reports
         if not (1 <= self.params['num_reports'] <= 0xFF):
             raise ValueError(f"Invalid num_reports: {self.params['num_reports']}, must be between 1 and 0xFF")
@@ -271,15 +257,10 @@ class LeAdvertisingReportEvent(HciEvtBasePacket):
         return result
     
     @classmethod
-    def from_bytes(cls, data: bytes) -> 'LeAdvertisingReportEvent':
+    def from_bytes_sub_event(cls, data: bytes, sub_event_code: int) -> 'LeAdvertisingReportEvent':
         """Create event from parameter bytes (excluding header)"""
         if len(data) < 12:  # Need at least basic parameters
             raise ValueError(f"Invalid data length: {len(data)}, expected at least 12 bytes")
-        
-        # Check subevent code
-        if data[0] != cls.SUBEVENT_CODE:
-            raise ValueError(f"Invalid subevent_code: {data[0]}, expected {cls.SUBEVENT_CODE}")
-        
         # Parse beginning parameters
         subevent_code, num_reports, event_type, address_type = struct.unpack("<BBBB", data[:4])
         
@@ -313,7 +294,7 @@ class LeConnectionUpdateCompleteEvent(HciEvtBasePacket):
     """LE Connection Update Complete Event"""
     
     EVENT_CODE = HciEventCode.LE_META_EVENT
-    SUBEVENT_CODE = LeMetaEventSubCode.CONNECTION_UPDATE_COMPLETE
+    SUB_EVENT_CODE = LeMetaEventSubCode.CONNECTION_UPDATE_COMPLETE
     NAME = "LE_Connection_Update_Complete"
     
     def __init__(self, 
@@ -337,7 +318,6 @@ class LeConnectionUpdateCompleteEvent(HciEvtBasePacket):
             status = status.value
             
         super().__init__(
-            subevent_code=self.SUBEVENT_CODE,
             status=status,
             connection_handle=connection_handle,
             conn_interval=conn_interval,
@@ -347,10 +327,6 @@ class LeConnectionUpdateCompleteEvent(HciEvtBasePacket):
     
     def _validate_params(self) -> None:
         """Validate event parameters"""
-        # Validate subevent code
-        if self.params['subevent_code'] != self.SUBEVENT_CODE:
-            raise ValueError(f"Invalid subevent_code: {self.params['subevent_code']}, expected {self.SUBEVENT_CODE}")
-        
         # Validate status
         if not (0 <= self.params['status'] <= 0xFF):
             raise ValueError(f"Invalid status: {self.params['status']}, must be between 0 and 0xFF")
@@ -382,15 +358,10 @@ class LeConnectionUpdateCompleteEvent(HciEvtBasePacket):
                           self.params['supervision_timeout'])
     
     @classmethod
-    def from_bytes(cls, data: bytes) -> 'LeConnectionUpdateCompleteEvent':
+    def from_bytes_sub_event(cls, data: bytes, sub_event_code: int) -> 'LeConnectionUpdateCompleteEvent':
         """Create event from parameter bytes (excluding header)"""
         if len(data) < 9:  # Need all parameters
             raise ValueError(f"Invalid data length: {len(data)}, expected at least 9 bytes")
-        
-        # Check subevent code
-        if data[0] != cls.SUBEVENT_CODE:
-            raise ValueError(f"Invalid subevent_code: {data[0]}, expected {cls.SUBEVENT_CODE}")
-        
         subevent_code, status, connection_handle, conn_interval, conn_latency, supervision_timeout = struct.unpack("<BBHHH", data[:9])
         
         return cls(
@@ -405,7 +376,7 @@ class LeReadRemoteFeaturesCompleteEvent(HciEvtBasePacket):
     """LE Read Remote Features Complete Event"""
     
     EVENT_CODE = HciEventCode.LE_META_EVENT
-    SUBEVENT_CODE = LeMetaEventSubCode.READ_REMOTE_FEATURES_COMPLETE
+    SUB_EVENT_CODE = LeMetaEventSubCode.READ_REMOTE_FEATURES_COMPLETE
     NAME = "LE_Read_Remote_Features_Complete"
     
     def __init__(self, 
@@ -425,7 +396,6 @@ class LeReadRemoteFeaturesCompleteEvent(HciEvtBasePacket):
             status = status.value
             
         super().__init__(
-            subevent_code=self.SUBEVENT_CODE,
             status=status,
             connection_handle=connection_handle,
             le_features=le_features
@@ -433,10 +403,6 @@ class LeReadRemoteFeaturesCompleteEvent(HciEvtBasePacket):
     
     def _validate_params(self) -> None:
         """Validate event parameters"""
-        # Validate subevent code
-        if self.params['subevent_code'] != self.SUBEVENT_CODE:
-            raise ValueError(f"Invalid subevent_code: {self.params['subevent_code']}, expected {self.SUBEVENT_CODE}")
-        
         # Validate status
         if not (0 <= self.params['status'] <= 0xFF):
             raise ValueError(f"Invalid status: {self.params['status']}, must be between 0 and 0xFF")
@@ -462,14 +428,10 @@ class LeReadRemoteFeaturesCompleteEvent(HciEvtBasePacket):
         return result
     
     @classmethod
-    def from_bytes(cls, data: bytes) -> 'LeReadRemoteFeaturesCompleteEvent':
+    def from_bytes_sub_event(cls, data: bytes, sub_event_code: int) -> 'LeReadRemoteFeaturesCompleteEvent':
         """Create event from parameter bytes (excluding header)"""
         if len(data) < 12:  # Need all parameters
             raise ValueError(f"Invalid data length: {len(data)}, expected at least 12 bytes")
-        
-        # Check subevent code
-        if data[0] != cls.SUBEVENT_CODE:
-            raise ValueError(f"Invalid subevent_code: {data[0]}, expected {cls.SUBEVENT_CODE}")
         
         subevent_code, status, connection_handle = struct.unpack("<BBH", data[:4])
         le_features = data[4:12]
@@ -481,10 +443,10 @@ class LeReadRemoteFeaturesCompleteEvent(HciEvtBasePacket):
         )
 
 # Register all event classes
-# register_event(LeConnectionCompleteEvent)
-# register_event(LeAdvertisingReportEvent)
-# register_event(LeConnectionUpdateCompleteEvent)
-# register_event(LeReadRemoteFeaturesCompleteEvent)
+register_event(LeConnectionCompleteEvent)
+register_event(LeAdvertisingReportEvent)
+register_event(LeConnectionUpdateCompleteEvent)
+register_event(LeReadRemoteFeaturesCompleteEvent)
 
 # Function wrappers for easier access
 def le_connection_complete(status: Union[int, StatusCode], connection_handle: int,
@@ -540,13 +502,13 @@ def le_read_remote_features_complete(status: Union[int, StatusCode], connection_
     )
 
 # # Export public functions and classes
-# __all__ = [
-#     'le_connection_complete',
-#     'le_advertising_report',
-#     'le_connection_update_complete',
-#     'le_read_remote_features_complete',
-#     'LeConnectionCompleteEvent',
-#     'LeAdvertisingReportEvent',
-#     'LeConnectionUpdateCompleteEvent',
-#     'LeReadRemoteFeaturesCompleteEvent',
-# ]
+__all__ = [
+    'le_connection_complete',
+    'le_advertising_report',
+    'le_connection_update_complete',
+    'le_read_remote_features_complete',
+    'LeConnectionCompleteEvent',
+    'LeAdvertisingReportEvent',
+    'LeConnectionUpdateCompleteEvent',
+    'LeReadRemoteFeaturesCompleteEvent',
+]

@@ -18,9 +18,9 @@ class Reset(HciCmdBasePacket):
     OPCODE = HciOpcode.RESET
     NAME = "Reset"
     
-    def __init__(self):
+    def __init__(self, **kwargs: Optional[Any]):
         """Initialize Reset Command (no parameters)"""
-        super().__init__()
+        super().__init__(**kwargs)
     
     def _validate_params(self) -> None:
         """Validate command parameters (none for Reset)"""
@@ -117,9 +117,9 @@ class ReadLocalName(HciCmdBasePacket):
     OPCODE = create_opcode(OGF.CONTROLLER_BASEBAND, ControllerBasebandOCF.READ_LOCAL_NAME)
     NAME = "Read_Local_Name"
     
-    def __init__(self):
+    def __init__(self, **kwargs: Optional[Any]):
         """Initialize Read Local Name Command (no parameters)"""
-        super().__init__()
+        super().__init__(**kwargs)
     
     def _validate_params(self) -> None:
         """Validate command parameters (none for Read Local Name)"""

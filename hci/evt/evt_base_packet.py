@@ -12,6 +12,7 @@ class HciEvtBasePacket(HciEventPacket):
     
     # Class variables to be defined by subclasses
     EVENT_CODE: ClassVar[int]  # The event code (1 byte)
+    SUB_EVENT_CODE: Optional[int] = None  # Sub-event code (if applicable, 1 byte)
     NAME: ClassVar[str]        # Human-readable name of the event
     
     def __init__(self, **kwargs):
@@ -38,6 +39,17 @@ class HciEvtBasePacket(HciEventPacket):
     
     @classmethod
     @abstractmethod
-    def from_bytes(cls, data: bytes) -> 'HciEvtBasePacket':
+    def from_bytes(cls, data: bytes, sub_event_code : Optional[int] = None) -> 'HciEvtBasePacket':
         """Create event from parameter bytes (excluding header)"""
+        pass
+    
+    @classmethod
+    @abstractmethod
+    def from_bytes_sub_event(cls, data: bytes, sub_event_code: int) -> 'HciEvtBasePacket':
+        """Create event from parameter bytes for sub-event"""
+        """
+        This method is used for events that have a sub-event code.
+        It allows the creation of an event instance from raw bytes,
+        including the sub-event code.
+        """
         pass

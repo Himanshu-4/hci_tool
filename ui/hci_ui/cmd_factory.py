@@ -41,7 +41,7 @@ from typing import ClassVar, Optional, Dict, Type
 # Import other command classes as needed
 
 class HCICommandFactory:
-    def __init__(self, title : str, parent_window : QMdiSubWindow, transport : Optional[Transport] = None):
+    def __init__(self, title : str, parent_window : QMdiSubWindow, transport : Transport):
         self.title = title
         self.transport = transport
         self.parent = parent_window
@@ -168,7 +168,13 @@ class HCICommandFactory:
         for cmd_opcode in list(self.command_windows.keys()):
             self.close_command_window(cmd_opcode)
         self.command_windows.clear()
-        
+    
+    def raise_all_command_windows(self):
+        """Raise all command windows to the front"""
+        for window in self.command_windows.values():
+            if window.isVisible():
+                window.raise_()
+                window.activateWindow()
 
     def deafualt_base_cmd_executor(self, opcode : int  , command_data: Optional[dict] = None) -> bool:
         """Default command executor for HCI commands
@@ -191,7 +197,7 @@ class HCICommandFactory:
             return False
         
         # Create an instance of the command class
-        cmd_instance = cmd_class(opcode, **command_data)
+        cmd_instance = cmd_class(**command_data)
         return self.transport.write(cmd_instance.to_bytes())
 
     def deafult_controller_baseband_cmd_executor(self, opcode: int, command_data: Optional[dict] = None) -> bool:

@@ -5,12 +5,6 @@ This module provides functionality for creating and parsing HCI commands.
 """
 
 from typing import Dict, Type, Optional, Any, Union
-import importlib
-import pkgutil
-import inspect
-import struct
-import sys
-from pathlib import Path
 
 from .cmd_baseui import HCICmdUI
 

@@ -10,9 +10,10 @@ from ..hci_packet import HciCommandPacket
 class HciCmdBasePacket(HciCommandPacket):
     """Base class for all HCI command packets"""
     
-    # Class variables to be defined by subclasses
+    # # Class variables to be defined by subclasses
     OPCODE: ClassVar[int]  # The command opcode (2 bytes)
     NAME: ClassVar[str]    # Human-readable name of the command
+    PARAMS : Optional[bytes]  # Default parameters (empty for no parameters)
     
     def __init__(self, **kwargs):
         """Initialize command with parameters"""
@@ -20,7 +21,18 @@ class HciCmdBasePacket(HciCommandPacket):
     
     def to_bytes(self) -> bytes:
         """Convert command to bytes, including header"""
-        param_bytes = self.PARAMS +  self._serialize_params()
+        # print the types of PARAMS and _serialize_params
+        param_bytes = self._serialize_params()
+        
+        # Get class attributes from the derived class
+        params = getattr(self.__class__, 'PARAMS', None)
+        if params:
+            param_bytes += params
+        
+        opcode = getattr(self.__class__, 'OPCODE', 0)
+        name = getattr(self.__class__, 'NAME', 'Unknown')
+        packet_type = getattr(self.__class__, 'PACKET_TYPE')
+        
         length = len(param_bytes)
         
         # HCI Command packet format:
@@ -28,13 +40,15 @@ class HciCmdBasePacket(HciCommandPacket):
         # - 2 bytes: Opcode (OGF:6 bits, OCF:10 bits)
         # - 1 byte: Parameter Total Length
         # - N bytes: Parameters
-        header = struct.pack("<BHB",self.PACKET_TYPE, self.OPCODE, length)
+        print(f" {packet_type} and {packet_type.value} Serializing command {self.__class__.NAME} with opcode 0x{opcode} and params length {length}")
+        header = struct.pack("<BHB", packet_type.value, opcode, length)
         return header + param_bytes
     
     @abstractmethod
     def _serialize_params(self) -> bytes:
         """Serialize parameters to bytes"""
         pass
+    
     
     @staticmethod
     def get_opcode_bytes(opcode: int) -> Tuple[int, int]:

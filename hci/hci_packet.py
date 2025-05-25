@@ -25,7 +25,6 @@ class HciPacket(ABC):
     def __init__(self, **kwargs):
         """Initialize a HCI packet with parameters"""
         self.params = kwargs
-        self._validate_params()
     
     @abstractmethod
     def _validate_params(self) -> None:
@@ -54,7 +53,7 @@ class HciCommandPacket(HciPacket):
     # Additional class variables
     OPCODE: ClassVar[int]  # Command opcode
     NAME: ClassVar[str]    # Command name
-    PARAMS: bytes       # Command parameters
+    PARAMS: Optional[bytes]# Command parameters
     
     def __init__(self, **kwargs):
         """
@@ -82,11 +81,29 @@ class HciEventPacket(HciPacket):
     
     # Additional class variables
     EVENT_CODE: ClassVar[int]  # Event code
+    SUB_EVENT_CODE: ClassVar[int]  # Sub-event code (if applicable)
     NAME: ClassVar[str]        # Event name
     
-    def __str__(self) -> str:
+    def __str__(self):
         """String representation of the event packet"""
-        return f"{self.NAME} (0x{self.EVENT_CODE:02X}): {self.params}"
+        return f"{self.NAME} (0x{self.EVENT_CODE:02X} | {self.SUB_EVENT_CODE}): {self.params}"
+
+    def __init__(self, **kwargs):
+        """
+        Initialize HCI Event packet
+        
+        Args:
+            event_code: Event code (1 byte)
+            sub_event_code: Sub-event code (if applicable, 1 byte)
+            params: Event parameters
+        """
+        super().__init__(**kwargs)
+        if not self.params.get('event_code'):
+            self.EVENT_CODE =  self.params.get('event_code')
+        if not self.params.get('sub_event_code'):
+            self.SUB_EVENT_CODE =  self.params.get('sub_event_code')
+        if not self.params.get('name'):
+            self.NAME =  self.params.get('name')
 
 class HciAclDataPacket(HciPacket):
     """Base class for HCI ACL Data packets"""

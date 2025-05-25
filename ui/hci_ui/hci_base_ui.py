@@ -5,6 +5,8 @@ This module provides base classes for HCI command and event UI elements.
 It defines common functionality for all HCI UI components.
 """
 
+import traceback
+
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QTextEdit, QMdiSubWindow, 
     QMainWindow, QSizePolicy, QHBoxLayout, QLabel, 
@@ -47,14 +49,17 @@ class HciBaseUI(QDialog):
         self.parent = parent
          # Make windows stay on top of main window but not system-wide
         if parent:
-            self.setWindowFlags(Qt.Window | Qt.WindowStaysOnTopHint)
+            self.setWindowFlags(Qt.Window | Qt.WindowStaysOnTopHint | Qt.WindowCloseButtonHint)
         # call the setup_ui method to initialize the UI
         self.setup_ui()    
     
     def setup_ui(self):
         """Initialize the base UI components"""
         self.setWindowTitle(self.title)
-        self.setWindowModality(Qt.ApplicationModal)  # Make it modal to the parent
+        # self.setWindowModality(Qt.ApplicationModal)  # Make it modal to the parent/high priority window
+        # self.setWindowFlags(Qt.Window | Qt.WindowStaysOnTopHint | Qt.WindowCloseButtonHint)
+        # self.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Preferred)
+        # self.setAttribute(Qt.WA_ShowModal, True)  # Show as modal dialog
         self.setAttribute(Qt.WA_DeleteOnClose, True)
         self.setAttribute(Qt.WA_QuitOnClose, False)
         
@@ -118,7 +123,7 @@ class HciBaseUI(QDialog):
         
         
         # Add all components to main layout
-        self._main_layout.addWidget(self._title_layout)
+        self._main_layout.addLayout(self._title_layout)
         self._main_layout.addLayout(self.content_layout,1)
         self._main_layout.addLayout(self._cmd_error_layout)
         self._main_layout.addLayout(self._button_layout)
@@ -183,6 +188,8 @@ class HciBaseUI(QDialog):
     #logging function to log messages to the console or UI
     def log_error(self, message: str):
         """Log an error message to the command error label"""
+        # log the full traceback to console
+        traceback.print_exc()  # Print the full traceback to console.
         self._error_label.setText(message)
         self._error_label.setVisible(True)
         
@@ -264,7 +271,10 @@ class HCICmdBaseUI(HciBaseUI):
 class HCIEvtBaseUI(HciBaseUI):
     """Base class for HCI event UI components"""
     
-    OPCODE: ClassVar[int]  # The event opcode (2 bytes)
+    OPCODE: ClassVar[int]  # The command opcde for the successful event or completion (2 bytes)
+    
+    EVENT_CODE : ClassVar[int]  # The event code (1 byte)
+    SUB_EVENT_CODE: Optional[int] = None  # Sub-event code (if applicable, 1 byte)
     NAME: ClassVar[str]    # Human-readable name of the event
     event_rcvd = pyqtSignal(bytes)
     

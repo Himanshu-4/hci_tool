@@ -15,7 +15,7 @@ from . import get_command_class
 def parse_command_header(data: bytes) -> Tuple[int, int, bytes]:
     """
     Parse HCI command header (opcode and parameter length)
-    
+
     Args:
         data: Complete command bytes
         
