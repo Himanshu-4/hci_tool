@@ -1,6 +1,7 @@
 """Main UI for HCI command selection and management"""  
 
 import traceback
+import re 
 
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QSizePolicy,
@@ -171,6 +172,8 @@ class HciCommandSelector(QWidget):
         self.search_box = QLineEdit()
         self.search_box.setPlaceholderText("Search commands...")
         self.search_box.textChanged.connect(self.filter_commands)
+        self.search_box.setClearButtonEnabled(True)  # Enable clear button
+        self.search_box.installEventFilter(self)  # Install event filter for keyboard handling
         search_layout.addWidget(self.search_box)
         
         categories_layout.addLayout(search_layout)
@@ -200,6 +203,38 @@ class HciCommandSelector(QWidget):
                 return True  # Event handled
         return super().eventFilter(source, event)
     
+    def eventFilter(self, source, event):
+        """Handle keyboard events for regex search navigation"""
+        if event.type() == event.KeyPress:
+            if source == self.search_box:
+                if event.key() == Qt.Key_Return or event.key() == Qt.Key_Enter:
+                    # Navigate to next match or execute command
+                    self._handle_enter_navigation()
+                    return True
+                elif event.key() == Qt.Key_Down:
+                    # Move focus to command list
+                    if self.commands_list.count() > 0:
+                        self.commands_list.setFocus()
+                        self.commands_list.setCurrentRow(0)
+                    return True
+                elif event.key() == Qt.Key_Escape:
+                    # Clear search
+                    self.search_box.clear()
+                    return True
+                    
+            elif source == self.commands_list:
+                if event.key() == Qt.Key_Return or event.key() == Qt.Key_Enter:
+                    # Execute selected command
+                    current_item = self.commands_list.currentItem()
+                    if current_item:
+                        self._on_command_cliked(current_item)
+                    return True
+                elif event.key() == Qt.Key_Escape:
+                    # Return focus to search box
+                    self.search_box.setFocus()
+                    return True
+        # Call the base class event filter for other events       
+        return super().eventFilter(source, event)
     
     def load_commands(self):
         """Load available HCI command categories and commands"""
@@ -234,6 +269,35 @@ class HciCommandSelector(QWidget):
         self.commands_list.setEnabled(is_enabled)
         self.command_type_combo.setEnabled(is_enabled)
         self.search_box.setEnabled(is_enabled)
+    
+    def _handle_enter_navigation(self):
+        """Handle Enter key in search box - navigate through matches"""
+        # if not self.filtered_results:
+        #     return
+            
+        # if len(self.filtered_results) == 1:
+        #     # Only one match - execute it directly
+        #     command = self.filtered_results[0]['command']
+        #     self._execute_selected_command(command)
+        # else:
+        #     # Multiple matches - navigate through them
+        #     self.current_match_index = (self.current_match_index + 1) % len(self.filtered_results)
+            
+        #     # Find the item in the list and select it
+        #     target_command = self.filtered_results[self.current_match_index]['command']
+        #     for i in range(self.commands_list.count()):
+        #         item = self.commands_list.item(i)
+        #         if item.text() == target_command:
+        #             self.commands_list.setCurrentRow(i)
+        #             self.commands_list.scrollToItem(item)
+        #             break
+            
+        #     # Update status to show navigation
+        #     current = self.current_match_index + 1
+        #     total = len(self.filtered_results)
+        #     print(f"Navigating to match {current}/{total}: {target_command}")
+        self.commands_list.setCurrentRow(5)  # Reset to first item
+        print("Enter key pressed in search box - navigating through matches")    
         
     def filter_commands(self):
         """Filter commands by type and search text"""
@@ -241,7 +305,7 @@ class HciCommandSelector(QWidget):
         
         # Get the selected command type
         selected_type_index = self.command_type_combo.currentIndex()
-        
+
         # Initialize empty filtered commands
         self.filtered_commands = {}
         
