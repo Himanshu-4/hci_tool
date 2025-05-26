@@ -21,15 +21,17 @@ from .connect_window import ConnectionDialog
 
 
 
-
 class HCIControl(QWidget):
-    _connect_window_instance = None
-    hci_window_instance = []
-    _instance = None
     """
         A singleton class to manage the HCI Control UI and its instances.
         have to see how to manage the create, destroy, and update of the instances.
     """
+    
+    _connect_window_instance = None
+    hci_window_instance = []
+    _instance = None
+    _main_window = None
+    _transport = None
     
     @classmethod
     def is_inited(cls):
@@ -51,14 +53,45 @@ class HCIControl(QWidget):
         #     cls._instance = ConnectWindow(main_wind)
         # return cls._instance
         # instance = ConnectionDialog(main_window)
-        name = f"ConnectWindow_{len(cls.hci_window_instance)}"
-        transport = Transport()
-        instance = HCIControlUI(main_window, transport, name)
-        instance.register_destroy(lambda: cls.remove_instance(instance))
-        cls.hci_window_instance.append(instance)
-        print(f"[ConnectWindow] create_instance {instance}")
+        cls.create_connect_window(main_window)
         
-    
+    @classmethod
+    def create_connect_window(cls, main_window: QMainWindow = None) -> None:
+        """
+        Create a new instance of ConnectWindow if it doesn't exist
+        """
+        if cls._connect_window_instance is not None and cls._connect_window_instance.isVisible():
+            cls._connect_window_instance.raise_()
+            cls._connect_window_instance.activateWindow()
+            return
+        # cre
+        cls._main_window = main_window
+        cls._connect_window_instance = ConnectionDialog(main_window)
+        cls._connect_window_instance.connection_done_signal.connect(HCIControl.create_new_instance)
+        cls._connect_window_instance.show()
+
+    @staticmethod
+    def create_new_instance(transport: Transport):
+        """ 
+        Create a new instance of HCIControlUI with the provided transport
+        """
+        print(f"[ConnectWindow] create_new_instance {transport} name {transport.name}")
+        if HCIControl._main_window is None:
+            raise ValueError("Main window must be set before creating a new instance.")
+        if transport is None:
+            raise ValueError("Transport must be provided to create a new instance.")
+        # Ensure the main window is set before creating an instance
+        name = transport.name
+        # add the read callback to print the data
+        transport.add_callback('write',lambda _ : transport.read(4))
+        transport.add_callback('read', lambda data: print(f"[HCIControl] Data received: {data}"))
+        instance = HCIControlUI(HCIControl._main_window, transport, name)
+        instance.register_destroy(lambda: HCIControl.remove_instance(instance))
+        HCIControl.hci_window_instance.append(instance)
+        print(f"[ConnectWindow] create_instance {instance}")
+        HCIControl._main_window = None  # Reset main window after creating instance
+        HCIControl._connect_window_instance = None  # Reset connect window after creating instance
+
     @classmethod
     def get_instance(cls):
         """

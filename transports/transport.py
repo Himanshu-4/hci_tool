@@ -4,10 +4,12 @@ from .UART.uart import UARTTransport
 from .SDIO.sdio import SDIOTransport
 from .USB.usb import USBTransport
 
+
 class Transport:
     """Main transport class that manages different transport interfaces"""
     
-    def __init__(self):
+    def __init__(self, name: str = "DefaultTransport"):
+        self.name = name
         self.interface_type = None
         self.transport_instance = None
         

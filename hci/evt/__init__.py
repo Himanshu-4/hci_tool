@@ -21,6 +21,11 @@ from .event_types import (
     LEEventType
 )
 
+
+# define the list of event codes that also have sub-events
+# This is used to filter out events that are not LE Meta Events
+_sub_evt_codes = [HciEventCode.LE_META_EVENT]
+
 # Event registry - maps event codes to event classes
 _evt_registry: Dict[int, Type[HciEvtBasePacket]] = {}
 _sub_evt_registry: Dict[int, Type[HciEvtBasePacket]] = {}
@@ -33,16 +38,16 @@ def register_event(evt_class: Type[HciEvtBasePacket]) -> None:
     event_code = evt_class.EVENT_CODE
     sub_event_code = evt_class.SUB_EVENT_CODE
     # print(f"Registering event {evt_class.__name__} with opcode 0x{event_code:04X} in file {evt_class.__module__}\r\n caller {__file__}")
-    if event_code != HciEventCode.LE_META_EVENT and sub_event_code is None:
+    if event_code not in  _sub_evt_codes and sub_event_code is None:
         if event_code in _evt_registry:
-            raise ValueError(f"Event with code 0x{event_code:02X} already registered as {_evt_registry[event_code].__name__} with name {__file__}")
+            raise ValueError(f"Event with code 0x{event_code:02X} already registered as {_evt_registry[event_code].__class__.__name__} with name {__file__}")
         # Register as main event
         _evt_registry[event_code] = evt_class
     else :
         if sub_event_code is None:
             raise ValueError(f"Event class {evt_class.__name__} has no SUB_EVENT_CODE defined")
         if sub_event_code in _sub_evt_registry:
-            raise ValueError(f"Sub-event with code 0x{sub_event_code:02X} already registered as {_sub_evt_registry[sub_event_code].__name__} with name {__file__}")
+            raise ValueError(f"Sub-event with code 0x{sub_event_code:02X} already registered as {_sub_evt_registry[sub_event_code].__class__.__name__} with name {__file__}")
         # Register as sub-event
         _sub_evt_registry[sub_event_code] = evt_class
    

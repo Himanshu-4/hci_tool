@@ -7,384 +7,28 @@
     The window also includes a QLabel to display the status of the connection and a QPushButton to refresh the list of devices.
     The ConnectWindow class includes methods for refreshing the list of devices, connecting to a selected device,
     and handling the connection process.
-    
 """
 
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QListWidget, QPushButton, QLabel
-from PyQt5.QtCore import Qt, pyqtSignal
-import serial.tools.list_ports
-from typing import List, Optional
-from serial import SerialException
-from serial import Serial
-from serial import SerialTimeoutException
-from serial import SerialException
-
-
-class ConnectWindow(QWidget):
-    """
-    ConnectWindow is a PyQt5 widget that allows the user to connect to a serial device.
-    
-    Attributes:
-        available_ports (List[str]): List of available serial ports.
-        selected_port (Optional[str]): The currently selected port.
-        connection_status (str): The status of the connection.
-    """
-    
-    # Signal emitted when a connection is established
-    connection_established = pyqtSignal(str)
-    
-    def __init__(self):
-        super().__init__()
-        
-        self.available_ports: List[str] = []
-        self.selected_port: Optional[str] = None
-        self.connection_status: str = "Disconnected"
-        
-        self.init_ui()
-        self.refresh_ports()
-        self.connect_button.clicked.connect(self.connect_to_device)
-        
-
-# class ConnectWindow(QWidget):
-#     """A window for connecting to a device.
-#         this window contains information like COM_PORT, Baudrate, and Transport type.
-#         basis on the transport type, the window will show different options.
-#     """
-#     _instance = None
-#     def __init__(self, main_wind: QMainWindow = None):
-#         print("[ConnectWindow].__init__")
-#         if ConnectWindow._instance is not None:
-#             raise Exception("Only one instance of ConnectWindow is allowed")
-#         # init base class
-#         super().__init__()
-        
-#         ConnectWindow._instance = self
-        
-#         # init the main window
-#         self.main_wind: QMainWindow = main_wind
-#         # init the connect window
-#         self.sub_window = QMdiSubWindow()
-#         self.sub_window.setWindowTitle("Connect")
-#         self.sub_window.setWindowIconText("Connect Window")  # Set window icon text
-#         self.sub_window.setWidget(self)
-#         # self.sub_window.setWindowFlags(Qt.Window)
-#         self.sub_window.setWindowModality(Qt.ApplicationModal)
-#         self.sub_window.setAttribute(Qt.WA_DeleteOnClose, True)  # Enable deletion on close
-        
-#         self.sub_window.resize(200, 300)
-#         self.sub_window.setMinimumSize(200, 300)  # Set minimum size
-#         self.sub_window.setMaximumSize(200, 300)  # Set maximum size
-#         self.sub_window.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-#         # Set window flags to make it a top-level window
-#         # self.sub_window.setWindowFlags(Qt.Window)
-#         # Set window modality to application modal
-#         # Set window flags to make it a top-level window
-#         # self.sub_window.setWindowFlags(Qt.Window | Qt.WindowTitleHint | Qt.WindowCloseButtonHint)
-#         # Set window modality to application modal
-#         # self.sub_window.setWindowModality(Qt.ApplicationModal)  # Set window modality to application modal
-#         self.sub_window.setWindowFlags(Qt.Dialog
-#                            | Qt.WindowTitleHint
-#                            | Qt.WindowCloseButtonHint)
-#         # auto-delete on close
-#         self.sub_window.destroyed.connect(
-#             lambda _: (setattr(self, "sub_window", None),
-#                    self._on_subwindow_closed())
-#         )
-        
-        
-#         layout = QVBoxLayout()
-
-#         # Transport type
-#         self.transport_type = QComboBox()
-#         # for transport in transport_type:
-#         #     self.transport_type.addItem(transport.name)
-#         layout.addWidget(self.transport_type)
-
-#         # COM Port
-#         self.com_port = QLineEdit()
-#         self.com_port.setPlaceholderText("COM Port")
-#         self.com_port.setValidator(QIntValidator())
-#         layout.addWidget(self.com_port)
-
-#         # Baudrate
-#         self.baudrate = QLineEdit()
-#         self.baudrate.setPlaceholderText("Baudrate")
-#         self.baudrate.setValidator(QIntValidator())
-#         layout.addWidget(self.baudrate)
-
-#         # Connect button
-#         self.connect_button = QPushButton("Connect")
-#         layout.addWidget(self.connect_button)
-
-
-#         # Set the layout
-#         self.setLayout(layout)
-#         # Set the size policy
-#         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-#         # Set the background color
-#         self.setStyleSheet("background-color: lightblue;")  # Set background color
-#         # Set the window icon text
-#         self.setWindowIconText("Connect Window")  # Set window icon text
-#         # Set the attribute to delete on close
-#         self.setAttribute(Qt.WA_DeleteOnClose)  # Enable deletion on close
-#         # Connect the transport type selection to the update function
-#         self.transport_type.currentTextChanged.connect(self.update_transport_options)
-#         # Connect the connect button to the connect function
-#         self.connect_button.clicked.connect(self.connect_to_device)
-#         # Set the initial transport type
-#         self.transport_type.setCurrentText("SDIO")
-#         # Update the transport options based on the initial selection
-#         # self.update_transport_options(self.transport_type.currentText())
-#         # Set the initial transport type
-#         self.transport = None
-#         self.transport_type.setCurrentText("UART")
-#         # Update the transport options based on the initial selection
-#         # self.update_transport_options(self.transport_type.currentText())
-#         # Set the initial transport type
-        
-#         # show the subwindow in the main window's MDI area
-#         self.main_wind.mdi_area.addSubWindow(self.sub_window)
-#         self.sub_window.raise_()  # Bring the subwindow to the front
-#         self.sub_window.activateWindow()  # Activate the subwindow
-#         self.sub_window.setFocus()  # Set focus to the subwindow
-#         self.sub_window.show()
-        
-    
-#     def _on_subwindow_closed(self):
-#         """
-#         Called when the QMdiSubWindow is destroyed—
-#         cleans up the ConnectWindow singleton and widget.
-#         """
-#         if self.sub_window is not None:
-#             self.sub_window.close()
-#             self.sub_window.deleteLater()
-#             self.sub_window = None
-#         ConnectWindow._instance = None
-#         self.deleteLater()
-#         print("[ConnectWindow] subwindow closed, instance reset.")
-        
-#     def __del__(self):
-#         if ConnectWindow._instance is not None:
-#             self._on_subwindow_closed()
-#         # clean up in base class
-#         if hasattr(super(), "__del__"):
-#             super().__del__()
-#         print("[ConnectWindow] __del__")
-        
-
-#     def update_transport_options(self, transport_name):         
-#         """Update the transport options based on the selected transport type."""
-#         # Clear the log area
-#         self.log_area.clear()
-#         # Get the selected transport type
-#         selected_transport = next((t for t in transport_type if t.name == transport_name), None)
-#         if selected_transport:
-#             # Update the transport options based on the selected transport type
-#             self.com_port.setEnabled(selected_transport.supports_com_port)
-#             self.baudrate.setEnabled(selected_transport.supports_baudrate)
-#             self.connect_button.setEnabled(True)
-#         else:
-#             # Disable the options if no valid transport type is selected
-#             self.com_port.setEnabled(False)
-#             self.baudrate.setEnabled(False)
-#             self.connect_button.setEnabled(False)
-#     def connect_to_device(self):
-#         """Connect to the device using the selected transport type."""
-#         # Get the selected transport type
-#         selected_transport = next((t for t in transport_type if t.name == self.transport_type.currentText()), None)
-#         if selected_transport:
-#             # Create a new transport instance
-#             self.transport = transport(selected_transport, self.com_port.text(), int(self.baudrate.text()))
-#             # Connect to the device
-#             if self.transport.connect():
-#                 self.log_area.append("Connected to device.")
-#             else:
-#                 self.log_area.append("Failed to connect to device.")
-#         else:
-#             self.log_area.append("Invalid transport type selected.")
-#     def log(self, message):
-#         """Log a message to the log area."""
-#         self.log_area.append(message)
-#         # Scroll to the bottom of the log area
-#         self.log_area.moveCursor(QTextCursor.End)
-#         # Set the focus to the log area
-#         self.log_area.setFocus()
-#         # Set the size policy
-#         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-#         # Set the background color
-#         self.setStyleSheet("background-color: lightblue;")
-
-
-
-
-class ConnectWindow(QWidget):
-    """A window for connecting to a device."""
-    
-    _instance = None
-    
-    def __init__(self, main_wind=None):
-        """Initialize the Connect Window"""
-        print("[ConnectWindow].__init__")
-        if ConnectWindow._instance is not None:
-            raise Exception("Only one instance of ConnectWindow is allowed")
-        
-        # Initialize the base class
-        super().__init__()
-        
-        ConnectWindow._instance = self
-        
-        # Initialize the main window reference
-        self.main_wind = main_wind
-        
-        # Create the sub-window
-        self.sub_window = QMdiSubWindow()
-        self.sub_window.setWindowTitle("Connect")
-        self.sub_window.setWindowIconText("Connect Window")
-        self.sub_window.setWidget(self)
-        self.sub_window.setAttribute(Qt.WA_DeleteOnClose, True)
-        
-        # Set window properties
-        self.sub_window.resize(200, 300)
-        self.sub_window.setMinimumSize(200, 300)
-        self.sub_window.setMaximumSize(200, 300)
-        self.sub_window.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        
-        # Set window flags
-        self.sub_window.setWindowFlags(Qt.Dialog | Qt.WindowTitleHint | Qt.WindowCloseButtonHint)
-        
-        # Connect close signal
-        self.sub_window.destroyed.connect(
-            lambda _: (setattr(self, "sub_window", None), self._on_subwindow_closed())
-        )
-        
-        # Create the UI layout
-        layout = QVBoxLayout()
-        
-        # Transport type selection
-        self.transport_type = QComboBox()
-        self.transport_type.addItem("UART")
-        self.transport_type.addItem("SDIO")
-        self.transport_type.addItem("USB")
-        layout.addWidget(self.transport_type)
-        
-        # COM Port input
-        self.com_port = QLineEdit()
-        self.com_port.setPlaceholderText("COM Port")
-        self.com_port.setValidator(QIntValidator())
-        layout.addWidget(self.com_port)
-        
-        # Baudrate input
-        self.baudrate = QLineEdit()
-        self.baudrate.setPlaceholderText("Baudrate")
-        self.baudrate.setValidator(QIntValidator())
-        layout.addWidget(self.baudrate)
-        
-        # Connect button
-        self.connect_button = QPushButton("Connect")
-        self.connect_button.clicked.connect(self.connect_to_device)
-        layout.addWidget(self.connect_button)
-        
-        # Add a log area
-        self.log_area = QTextEdit()
-        self.log_area.setReadOnly(True)
-        layout.addWidget(self.log_area)
-        
-        # Set the layout
-        self.setLayout(layout)
-        
-        # Set the style
-        self.setStyleSheet("background-color: lightblue;")
-        
-        # Connect signals
-        self.transport_type.currentTextChanged.connect(self.update_transport_options)
-        
-        # Show the window
-        self.main_wind.mdi_area.addSubWindow(self.sub_window)
-        self.sub_window.raise_()
-        self.sub_window.activateWindow()
-        self.sub_window.setFocus()
-        self.sub_window.show()
-    
-    def _on_subwindow_closed(self):
-        """Handle subwindow closed event"""
-        if self.sub_window is not None:
-            self.sub_window.close()
-            self.sub_window.deleteLater()
-            self.sub_window = None
-        ConnectWindow._instance = None
-        self.deleteLater()
-        print("[ConnectWindow] subwindow closed, instance reset.")
-    
-    def __del__(self):
-        """Destructor"""
-        if ConnectWindow._instance is not None:
-            self._on_subwindow_closed()
-        # Call base class destructor if available
-        if hasattr(super(), "__del__"):
-            super().__del__()
-        print("[ConnectWindow] __del__")
-    
-    def update_transport_options(self, transport_name):
-        """Update UI based on selected transport type"""
-        self.log_area.clear()
-        
-        # Enable/disable controls based on transport type
-        if transport_name == "UART":
-            self.com_port.setEnabled(True)
-            self.baudrate.setEnabled(True)
-        elif transport_name == "SDIO":
-            self.com_port.setEnabled(False)
-            self.baudrate.setEnabled(False)
-        elif transport_name == "USB":
-            self.com_port.setEnabled(True)
-            self.baudrate.setEnabled(False)
-        
-        self.connect_button.setEnabled(True)
-    
-    def connect_to_device(self):
-        """Handle connect button click"""
-        transport_type = self.transport_type.currentText()
-        com_port = self.com_port.text() if self.com_port.isEnabled() else ""
-        baudrate = self.baudrate.text() if self.baudrate.isEnabled() else ""
-        
-        # Log connection attempt
-        self.log_area.append(f"Connecting to device using {transport_type}...")
-        if com_port:
-            self.log_area.append(f"COM Port: {com_port}")
-        if baudrate:
-            self.log_area.append(f"Baudrate: {baudrate}")
-        
-        # In a real application, you would connect to the device here
-        # For now, we'll just simulate success
-        self.log_area.append("Connected successfully!")
-        
-        # Move cursor to end of log
-        self.log_area.moveCursor(QTextCursor.End)
-    
-    def log(self, message):
-        """Add a message to the log area"""
-        self.log_area.append(message)
-        self.log_area.moveCursor(QTextCursor.End)
-
-
-
-from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QGroupBox, 
+from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QGroupBox,QLineEdit,
                              QRadioButton, QLabel, QComboBox, QCheckBox, QPushButton,
-                             QButtonGroup, QGridLayout, QSpinBox)
-from PyQt5.QtCore import Qt
+                             QButtonGroup, QGridLayout, QSpinBox, QSizePolicy)
+from PyQt5.QtCore import Qt, pyqtSignal
 import serial.tools.list_ports
 from transports.transport import Transport
 
 class ConnectionDialog(QDialog):
+    
+    connection_done_signal =  pyqtSignal(object)
     def __init__(self, parent=None):
         print("[ConnectionDialog].__init__")
         super().__init__(parent)
         self.setWindowTitle("Connection Configuration")
-        # self.setModal(True)  # Makes it a high priority window
+        self.setModal(True)  # Makes it a high priority window
         self.setFixedSize(450, 400)
         
         # Transport instance
         self.transport = None
+        self._name = "ConnectionDialogDeafault"
         
         # Setup UI
         self.setup_ui()
@@ -447,10 +91,65 @@ class ConnectionDialog(QDialog):
         self.setup_usb_parameters()
     
     def setup_uart_parameters(self):
+        
+        self.name_label = QLabel("Transport Name:")
+        self.name_input = QLineEdit()
+        # set the size of name input
+        self.name_input.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+        self.name_input.setPlaceholderText("Enter transport name")
+        self.name_input.setToolTip("Enter a name for the transport")
+        self.name_input.setWhatsThis("Enter a name for the transport")
+        self.name_input.setStatusTip("Enter a name for the transport")
+        self.name_input.setFixedWidth(200)  # Set a fixed width for better layout
+        # self.name_layout = QHBoxLayout()
+        # self.name_layout.addWidget(self.name_label)
+        # self.name_layout.addWidget(self.name_input)
+
         # COM Port
         self.uart_port_label = QLabel("COM Port:")
         self.uart_port_combo = QComboBox()
+        self.uart_port_combo.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+        #refresh the ports when box is clicked
+        self.uart_port_combo.setEditable(False)  # Make it a dropdown
+        self.uart_port_combo.setInsertPolicy(QComboBox.InsertAtTop)
+        self.uart_port_combo.setSizeAdjustPolicy(QComboBox.AdjustToContents)
+        self.uart_port_combo.setFixedWidth(200)  # Set a fixed width for better layout
+        self.uart_port_combo.setToolTip("Select the COM port for UART connection")
+        self.uart_port_combo.setWhatsThis("Select the COM port for UART connection")
+        self.uart_port_combo.setStatusTip("Select the COM port for UART connection")
+        # call a function when the combo box is clicked to refresh the ports
         self.refresh_com_ports()
+        #put a refresh icon on the right side of the combo box
+        # ADD THIS:
+        # Create refresh button with Unicode icon
+        self.refresh_button = QPushButton("🔄")
+        self.refresh_button.setFixedSize(24, 24)
+        self.refresh_button.setToolTip("Refresh COM ports")
+        self.refresh_button.setStyleSheet("""
+            QPushButton {
+                border: 1px solid #c0c0c0;
+                border-radius: 4px;
+                background-color: #f8f8f8;
+                font-size: 14px;
+                padding: 2px;
+            }
+            QPushButton:hover {
+                background-color: #e8e8e8;
+                border-color: #a0a0a0;
+            }
+            QPushButton:pressed {
+                background-color: #d8d8d8;
+                border-color: #808080;
+            }
+            QPushButton:disabled {
+                background-color: #f0f0f0;
+                color: #c0c0c0;
+                border-color: #e0e0e0;
+            }
+        """)
+        
+        self.refresh_button.clicked.connect(self.refresh_com_ports)
+
         
         # Baud Rate
         self.uart_baud_label = QLabel("Baud Rate:")
@@ -471,15 +170,15 @@ class ConnectionDialog(QDialog):
         self.uart_stop_bits_combo.addItems(["1", "1.5", "2"])
         self.uart_stop_bits_combo.setCurrentText("1")
         
+        # Hardware Flow Control
+        self.uart_hw_flow_label = QLabel("HW Flow Control:")
+        self.uart_hw_flow_check = QCheckBox()
+        
         # Parity
         self.uart_parity_label = QLabel("Parity:")
         self.uart_parity_combo = QComboBox()
         self.uart_parity_combo.addItems(["None", "Even", "Odd", "Mark", "Space"])
         self.uart_parity_combo.setCurrentText("None")
-        
-        # Hardware Flow Control
-        self.uart_hw_flow_label = QLabel("HW Flow Control:")
-        self.uart_hw_flow_check = QCheckBox()
         
         # Timeout
         self.uart_timeout_label = QLabel("Timeout (s):")
@@ -490,29 +189,34 @@ class ConnectionDialog(QDialog):
         
         # Add UART widgets to layout
         row = 0
+        # self.parameters_layout.addLayout(self.name_layout, row, 0, 1, 2)
+        self.parameters_layout.addWidget(self.name_label, row, 0)
+        self.parameters_layout.addWidget(self.name_input, row, 1)
+        row += 1
         self.parameters_layout.addWidget(self.uart_port_label, row, 0)
         self.parameters_layout.addWidget(self.uart_port_combo, row, 1)
+        self.parameters_layout.addWidget(self.refresh_button, row, 3)
         row += 1
         self.parameters_layout.addWidget(self.uart_baud_label, row, 0)
         self.parameters_layout.addWidget(self.uart_baud_combo, row, 1)
         row += 1
         self.parameters_layout.addWidget(self.uart_data_bits_label, row, 0)
         self.parameters_layout.addWidget(self.uart_data_bits_combo, row, 1)
-        row += 1
-        self.parameters_layout.addWidget(self.uart_stop_bits_label, row, 0)
-        self.parameters_layout.addWidget(self.uart_stop_bits_combo, row, 1)
-        row += 1
-        self.parameters_layout.addWidget(self.uart_parity_label, row, 0)
-        self.parameters_layout.addWidget(self.uart_parity_combo, row, 1)
+        self.parameters_layout.addWidget(self.uart_stop_bits_label, row, 2)
+        self.parameters_layout.addWidget(self.uart_stop_bits_combo, row, 3)
         row += 1
         self.parameters_layout.addWidget(self.uart_hw_flow_label, row, 0)
         self.parameters_layout.addWidget(self.uart_hw_flow_check, row, 1)
+        self.parameters_layout.addWidget(self.uart_timeout_label, row, 2)
+        self.parameters_layout.addWidget(self.uart_timeout_spin, row, 3)
         row += 1
-        self.parameters_layout.addWidget(self.uart_timeout_label, row, 0)
-        self.parameters_layout.addWidget(self.uart_timeout_spin, row, 1)
+        self.parameters_layout.addWidget(self.uart_parity_label, row, 0)
+        self.parameters_layout.addWidget(self.uart_parity_combo, row, 1)
+        # row += 1
         
         # Store UART widgets for easy access
         self.uart_widgets = [
+            self.name_label, self.name_input,
             self.uart_port_label, self.uart_port_combo,
             self.uart_baud_label, self.uart_baud_combo,
             self.uart_data_bits_label, self.uart_data_bits_combo,
@@ -539,10 +243,6 @@ class ConnectionDialog(QDialog):
     def setup_buttons(self):
         self.button_layout = QHBoxLayout()
         
-        # Refresh button for COM ports
-        self.refresh_btn = QPushButton("Refresh Ports")
-        self.refresh_btn.clicked.connect(self.refresh_com_ports)
-        
         # Test connection button
         self.test_btn = QPushButton("Test Connection")
         self.test_btn.clicked.connect(self.test_connection)
@@ -555,7 +255,6 @@ class ConnectionDialog(QDialog):
         self.cancel_btn.clicked.connect(self.reject)
         
         # Add buttons to layout
-        self.button_layout.addWidget(self.refresh_btn)
         self.button_layout.addWidget(self.test_btn)
         self.button_layout.addStretch()
         self.button_layout.addWidget(self.ok_btn)
@@ -567,6 +266,7 @@ class ConnectionDialog(QDialog):
     
     def refresh_com_ports(self):
         """Refresh the list of available COM ports"""
+        print("[ConnectionDialog].refresh_com_ports")
         self.uart_port_combo.clear()
         ports = serial.tools.list_ports.comports()
         for port in ports:
@@ -600,7 +300,7 @@ class ConnectionDialog(QDialog):
     def get_uart_config(self):
         """Get UART configuration parameters"""
         port = self.uart_port_combo.currentText().split(" - ")[0] if self.uart_port_combo.currentText() else ""
-        
+        print(f"[ConnectionDialog].get_uart_config: port={port}")
         # Map parity strings to pyserial constants
         parity_map = {
             "None": serial.PARITY_NONE,
@@ -632,7 +332,7 @@ class ConnectionDialog(QDialog):
         """Test the connection with current parameters"""
         try:
             interface = self.get_selected_interface()
-            transport = Transport()
+            transport = Transport(self._name)
             transport.select_interface(interface)
             
             if interface == "UART":
@@ -652,7 +352,7 @@ class ConnectionDialog(QDialog):
         """Accept the connection and create transport instance"""
         try:
             interface = self.get_selected_interface()
-            self.transport = Transport()
+            self.transport = Transport(self.name_input.text() or self._name)
             self.transport.select_interface(interface)
             
             if interface == "UART":
@@ -666,12 +366,14 @@ class ConnectionDialog(QDialog):
                 return
             
             if self.transport.connect():
+                self.connection_done_signal.emit(self.transport)
                 self.accept()
             else:
                 self.show_message("Failed to establish connection!")
                 
         except Exception as e:
             self.show_message(f"Connection error: {str(e)}")
+        
     
     def get_transport(self):
         """Return the configured transport instance"""

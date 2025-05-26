@@ -1,8 +1,8 @@
 from abc import ABC, abstractmethod
 from typing import Dict, Any, Callable, Optional
-from enum import Enum
+from enum import StrEnum
 
-class ConnectionStatus(Enum):
+class ConnectionStatus(StrEnum):
     """Enumeration for connection status"""
     DISCONNECTED = "disconnected"
     CONNECTING = "connecting" 

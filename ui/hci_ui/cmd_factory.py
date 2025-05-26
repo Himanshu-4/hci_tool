@@ -130,6 +130,7 @@ class HCICommandFactory:
     
     def position_window(self, window : HCICmdUI):
         """Position the window relative to the main window"""
+        #@todo this operation is not handling properly and every window should be positioned near main window
         parent = self.get_parent()
         if parent:
             try:
@@ -137,16 +138,17 @@ class HCICommandFactory:
                 main_rect = parent.geometry()
                 
                 # Calculate offset position
-                offset_x = 50 + (len(self.command_windows) * 30)
-                offset_y = 50 + (len(self.command_windows) * 30)
+                offset_x = 50 + (len(self.command_windows) * 40)
+                offset_y = 50 + (len(self.command_windows) * 40)
                 
                 # Set new position
                 new_x = main_rect.x() + offset_x
                 new_y = main_rect.y() + offset_y
                 
                 window.move(new_x, new_y)
-            except RuntimeError:
+            except Exception as e:
                 # Parent window has been deleted, skip positioning
+                print(f"error in positioning command window, {e}")
                 pass
     
     
@@ -252,6 +254,7 @@ class HCICommandFactory:
         cmd_class  = get_command_class(opcode)
         if cmd_class is None:
             print(f"Command with opcode {opcode} not found.")
+            # @todo: when no class found we can just directly  send the packet with 0 len
             return False
         
         # Create an instance of the command class

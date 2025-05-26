@@ -256,6 +256,38 @@ class HCIEventFactory:
         
         print(f"Processing HCI event: 0x{event_code:02X}, length: {param_length}")
         
+        # Route the event to the appropriate manager
+        # if event_code in self.event_managers:
+        #     manager = self.event_managers[event_code]
+        #     manager.process_event(event_code, event_data)
+        #     return True
+        # else:
+        #     print(f"No handler for event code 0x{event_code:02X}")
+        #     return False
+        
+        if not packet_data or len(packet_data) < 3:
+            print("Invalid HCI packet: too short")
+            return False
+        
+        # Check if this is an HCI event packet (type = 0x04)
+        if packet_data[0] != 0x04:
+            print(f"Not an HCI event packet (type = 0x{packet_data[0]:02X})")
+            return False
+        
+        # Extract event code and parameter length
+        event_code = packet_data[1]
+        param_length = packet_data[2]
+        
+        # Check if the packet length is correct
+        if len(packet_data) < param_length + 3:
+            print("Invalid HCI packet: data length mismatch")
+            return False
+        
+        # Extract event parameters
+        event_data = packet_data[3:3+param_length]
+        
+        print(f"Processing HCI event: 0x{event_code:02X}, length: {param_length}")
+        
         # Parse the event using the HCI event system
         try:
             # For LE Meta Events, we need to extract the sub-event code

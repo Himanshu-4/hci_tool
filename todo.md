@@ -24,3 +24,12 @@
 1. when closing the HCI subwindow the delte instance not getting called so have to check why it's not deleted properly or delete called properly
 
 2. make sure that all the objects that deleted should free the memory or aka memeory while running the app should not increase gracefully or beyond a threshold
+
+
+
+@Feature implementation & pending 
+1. implement the search filter methods to highlight the cmd in cmd list
+2. check the working of  event factory and stimulate 1 event in evt factory
+3. create evt decoding properly to handle the evt decoders 
+4. develop some common events for evt dactory 
+5. create the basic transport lib for transport handling 
