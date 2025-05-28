@@ -72,7 +72,7 @@ def get_cmd_complete_event_class(opcode: int) -> Optional[Type[HciEvtBasePacket]
         return _cmd_complete_evt_registery[opcode]
     return None
 
-def get_event_class(event_code: int, sub_evnt_code : Optional[int], opcode : Optional[int]) -> Optional[Type[HciEvtBasePacket]]:
+def get_event_class(event_code: int, sub_evnt_code : Optional[int], opcode : Optional[int]) -> Optional[HciEvtBasePacket]:
     """Get event class from event code"""
     if sub_evnt_code is not None:
         return _sub_evt_registry.get(sub_evnt_code)
@@ -122,11 +122,7 @@ def evt_from_bytes(data: bytes) -> Optional[HciEvtBasePacket]:
         raise ValueError(f"Unknown event with code 0x{event_code:02X} and sub-event code 0x{sub_event_code:02X} (if applicable)")
     
     try:
-        if sub_event_code is not None:
-            # For LE Meta Event, we need to pass the sub-event code
-            return evt_class.from_bytes_sub_event(data[3:], sub_event_code)
-        else:
-            # For regular events, just pass the data excluding the header
+            # For regular events, just pass the data excluding the header [packet ID + Evt code ]
             return evt_class.from_bytes(data[2:])
     except Exception as e:
         print(f"Failed to parse event: {e}")

@@ -105,6 +105,7 @@ class HciEventPacket(HciPacket):
         if not self.params.get('name'):
             self.NAME =  self.params.get('name')
 
+
 class HciAclDataPacket(HciPacket):
     """Base class for HCI ACL Data packets"""
     PACKET_TYPE = HciPacketType.ACL_DATA

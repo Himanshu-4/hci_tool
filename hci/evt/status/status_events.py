@@ -13,7 +13,7 @@ from ...cmd.cmd_opcodes import StatusOCF,OGF,create_opcode
 from ..evt_base_packet import HciEvtBasePacket
 from ..evt_codes import HciEventCode
 from ..event_types import StatusEventType
-from ..error_codes import StatusCode
+from ..error_codes import StatusCode, get_status_description
 from .. import register_event
 
 class ReadRssiCompleteEvent(HciEvtBasePacket):
@@ -54,6 +54,7 @@ class ReadRssiCompleteEvent(HciEvtBasePacket):
     
     def _validate_params(self) -> None:
         """Validate event parameters"""
+        print("Read RSSI Complete Event parameters")
         # Validate num_hci_command_packets
         if not (0 <= self.params['num_hci_command_packets'] <= 0xFF):
             raise ValueError(f"Invalid num_hci_command_packets: {self.params['num_hci_command_packets']}, must be between 0 and 0xFF")
@@ -334,7 +335,7 @@ class ReadClockCompleteEvent(HciEvtBasePacket):
             connection_handle=connection_handle,
             clock=clock,
             accuracy=accuracy
-        )
+        ) 
     
     def _validate_params(self) -> None:
         """Validate event parameters"""
@@ -443,6 +444,7 @@ register_event(ReadRssiCompleteEvent)
 register_event(ReadLinkQualityCompleteEvent)
 register_event(ReadAFHChannelMapCompleteEvent)
 register_event(ReadClockCompleteEvent)
+
 
 # Function wrappers for easier access
 def read_rssi_complete(status: Union[int, StatusCode], connection_handle: int, 

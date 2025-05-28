@@ -19,6 +19,13 @@ class HciEvtBasePacket(HciEventPacket):
     def __init__(self, **kwargs):
         """Initialize event with parameters"""
         super().__init__(**kwargs)
+        self.__validate_params()
+        
+    def __validate_params(self) -> None:
+        # call the derived class to validate the parameters
+        """Validate event packet parameters"""
+        if hasattr(self.__class__, '_validate_params'):
+            self.__class__._validate_params(self)
     
     def to_bytes(self) -> bytes:
         """Convert event to bytes, including header"""
@@ -42,15 +49,4 @@ class HciEvtBasePacket(HciEventPacket):
     @abstractmethod
     def from_bytes(cls, data: bytes, sub_event_code : Optional[int] = None) -> 'HciEvtBasePacket':
         """Create event from parameter bytes (excluding header)"""
-        pass
-    
-    @classmethod
-    @abstractmethod
-    def from_bytes_sub_event(cls, data: bytes, sub_event_code: int) -> 'HciEvtBasePacket':
-        """Create event from parameter bytes for sub-event"""
-        """
-        This method is used for events that have a sub-event code.
-        It allows the creation of an event instance from raw bytes,
-        including the sub-event code.
-        """
         pass
