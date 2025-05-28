@@ -11,6 +11,7 @@ class HciEvtBasePacket(HciEventPacket):
     """Base class for all HCI event packets"""
     
     # Class variables to be defined by subclasses
+    OPCODE: ClassVar[int]  # The command opcode for the successful event or completion (2 bytes)
     EVENT_CODE: ClassVar[int]  # The event code (1 byte)
     SUB_EVENT_CODE: Optional[int] = None  # Sub-event code (if applicable, 1 byte)
     NAME: ClassVar[str]        # Human-readable name of the event

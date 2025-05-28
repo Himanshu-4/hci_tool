@@ -15,7 +15,7 @@ from .. import register_command
 class Reset(HciCmdBasePacket):
     """Reset Command"""
     
-    OPCODE = HciOpcode.RESET
+    OPCODE = create_opcode(OGF.CONTROLLER_BASEBAND, ControllerBasebandOCF.RESET)
     NAME = "Reset"
     
     def __init__(self, **kwargs: Optional[Any]):

@@ -7,6 +7,7 @@ This module provides functionality for creating and parsing HCI events.
 from typing import Dict, Type, Optional, Any, Union
 import struct
 
+
 # Import event base packet and codes
 from .evt_base_packet import HciEvtBasePacket
 from .evt_codes import HciEventCode, LeMetaEventSubCode
@@ -26,6 +27,7 @@ from .event_types import (
 # This is used to filter out events that are not LE Meta Events
 _sub_evt_codes = [HciEventCode.LE_META_EVENT]
 
+_cmd_complete_evt_registery: Dict[int, Type[HciEvtBasePacket]] = {}
 # Event registry - maps event codes to event classes
 _evt_registry: Dict[int, Type[HciEvtBasePacket]] = {}
 _sub_evt_registry: Dict[int, Type[HciEvtBasePacket]] = {}
@@ -33,11 +35,23 @@ _sub_evt_registry: Dict[int, Type[HciEvtBasePacket]] = {}
 def register_event(evt_class: Type[HciEvtBasePacket]) -> None:
     """Register an event class with its event code"""
     if not hasattr(evt_class, 'EVENT_CODE'):
-        raise ValueError(f"Event class {evt_class.__name__} has no EVENT_CODE defined")
+        raise ValueError(f"Event class {evt_class.__class__.__name__} has no EVENT_CODE defined")
     
     event_code = evt_class.EVENT_CODE
     sub_event_code = evt_class.SUB_EVENT_CODE
-    # print(f"Registering event {evt_class.__name__} with opcode 0x{event_code:04X} in file {evt_class.__module__}\r\n caller {__file__}")
+    
+    # Check if the event code is a main event or a sub-event
+    if not isinstance(event_code, int) or event_code < 0 or event_code > 0xFF:
+        raise ValueError(f"Invalid event code: {event_code}, must be an integer between 0 and 255 (0x00 to 0xFF)")
+    
+    # register the command complete event if it has an opcode
+    if hasattr(evt_class, 'OPCODE') and event_code == HciEventCode.COMMAND_COMPLETE:
+        opcode = evt_class.OPCODE
+        if opcode in _cmd_complete_evt_registery:
+            raise ValueError(f"Command complete event with opcode 0x{opcode:04X} already registered as {_cmd_complete_evt_registery[opcode].__class__.__name__} with name {__file__}")
+        _cmd_complete_evt_registery[opcode] = evt_class
+        return
+        
     if event_code not in  _sub_evt_codes and sub_event_code is None:
         if event_code in _evt_registry:
             raise ValueError(f"Event with code 0x{event_code:02X} already registered as {_evt_registry[event_code].__class__.__name__} with name {__file__}")
@@ -52,11 +66,23 @@ def register_event(evt_class: Type[HciEvtBasePacket]) -> None:
         _sub_evt_registry[sub_event_code] = evt_class
    
 
-def get_event_class(event_code: int, sub_evnt_code : Optional[int]) -> Optional[Type[HciEvtBasePacket]]:
+def get_cmd_complete_event_class(opcode: int) -> Optional[Type[HciEvtBasePacket]]:
+    """Get command complete event class from opcode"""
+    if opcode in _cmd_complete_evt_registery:
+        return _cmd_complete_evt_registery[opcode]
+    return None
+
+def get_event_class(event_code: int, sub_evnt_code : Optional[int], opcode : Optional[int]) -> Optional[Type[HciEvtBasePacket]]:
     """Get event class from event code"""
     if sub_evnt_code is not None:
         return _sub_evt_registry.get(sub_evnt_code)
+    
+    if opcode is not None and event_code == HciEventCode.COMMAND_COMPLETE:
+        # If an opcode is provided, check the command complete event registry
+        return get_cmd_complete_event_class(opcode)
+    # If no sub-event code or opcode, check the main event registry
     return _evt_registry.get(event_code)
+
 
 def evt_from_bytes(data: bytes) -> Optional[HciEvtBasePacket]:
     """
@@ -68,7 +94,7 @@ def evt_from_bytes(data: bytes) -> Optional[HciEvtBasePacket]:
     Returns:
         Parsed event object or None if parsing failed
     """
-    if len(data) < 2:  # Need at least event code (1 byte) and length (1 byte)
+    if len(data) < 4:  # Need at least packet ID, event code (1 byte) and length (1 byte)
         return None
     
     # extract the event code and subevent code if present and then get the event class
@@ -76,13 +102,16 @@ def evt_from_bytes(data: bytes) -> Optional[HciEvtBasePacket]:
     sub_event_code = None
     # First byte is event code, second byte is length
     # If the event code is LE_META_EVENT, we need to check the sub_event_code
-    event_code, sub_event_code = struct.unpack("<BB", data[:2])
+    packetid, event_code, param_len, sub_event_code = struct.unpack("<BBBB", data[:4])
+    
+    if packetid != HciEvtBasePacket.PACKET_TYPE:
+        raise ValueError(f"Invalid packet ID: {packetid}, expected {HciEvtBasePacket.PACKET_TYPE}")
+    
     if event_code == HciEventCode.LE_META_EVENT:
         # For LE Meta Event, use sub_event_code to determine the specific event class
-        if len(data) < 3:
-            print("LE Meta Event data too short")
-            return None
-        sub_event_code = data[2]
+        if len(data) < 4:
+            raise ValueError("LE Meta Event data too short")
+        sub_event_code = data[3]  # Sub-event code is the 4th byte
     else:
         sub_event_code = None
     # Get the event class based on the event code and sub-event code
@@ -90,8 +119,7 @@ def evt_from_bytes(data: bytes) -> Optional[HciEvtBasePacket]:
     evt_class = get_event_class(event_code, sub_event_code)
     
     if evt_class is None:
-        print(f"Unknown event with code 0x{event_code:02X} and sub-event code 0x{sub_event_code:02X} (if applicable)")
-        return None
+        raise ValueError(f"Unknown event with code 0x{event_code:02X} and sub-event code 0x{sub_event_code:02X} (if applicable)")
     
     try:
         if sub_event_code is not None:
@@ -129,7 +157,7 @@ from . import link_control
 from . import link_policy
 from . import controller_baseband
 from . import testing
-# from . import status
+from . import status
 from . import le
 from . import vs_specific
 

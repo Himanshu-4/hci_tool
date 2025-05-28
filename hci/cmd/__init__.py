@@ -40,7 +40,7 @@ def register_command(cmd_class: Type[HciCmdBasePacket]) -> None:
     opcode = cmd_class.OPCODE
     # print(f"Registering command {cmd_class.__name__} with opcode 0x{opcode:04X} in file {cmd_class.__module__}\r\n caller {__file__}")
     if opcode in _cmd_registry:
-        raise ValueError(f"Command with opcode 0x{opcode:04X} already registered as {_cmd_registry[opcode].__name__}")
+        raise ValueError(f"Command with opcode 0x{opcode:04X} already registered as {_cmd_registry[opcode].NAME}")
     
     _cmd_registry[opcode] = cmd_class
 

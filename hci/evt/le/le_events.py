@@ -442,6 +442,268 @@ class LeReadRemoteFeaturesCompleteEvent(HciEvtBasePacket):
             le_features=le_features
         )
 
+
+
+# Enhanced LE Event Classes with String Representation
+
+# class LeConnectionCompleteEvent(HciEvtBasePacket):
+#     """LE Connection Complete Event"""
+#     EVENT_CODE = HciEventCode.LE_META_EVENT
+#     SUB_EVENT_CODE = LeMetaEventSubCode.CONNECTION_COMPLETE
+#     NAME = "LE_Connection_Complete"
+    
+#     class Role(IntEnum):
+#         MASTER = 0x00
+#         SLAVE = 0x01
+    
+#     def __init__(self, status: Union[int, StatusCode], connection_handle: int,
+#                  role: Union[int, 'LeConnectionCompleteEvent.Role'], peer_address_type: int,
+#                  peer_address: bytes, conn_interval: int, conn_latency: int,
+#                  supervision_timeout: int, master_clock_accuracy: int):
+#         if isinstance(status, StatusCode):
+#             status = status.value
+#         if isinstance(role, self.Role):
+#             role = role.value
+        
+#         super().__init__(
+#             subevent_code=self.SUB_EVENT_CODE,
+#             status=status,
+#             connection_handle=connection_handle,
+#             role=role,
+#             peer_address_type=peer_address_type,
+#             peer_address=peer_address,
+#             conn_interval=conn_interval,
+#             conn_latency=conn_latency,
+#             supervision_timeout=supervision_timeout,
+#             master_clock_accuracy=master_clock_accuracy
+#         )
+    
+#     def _serialize_params(self) -> bytes:
+#         result = struct.pack("<BBHBB",
+#                            self.params['subevent_code'],
+#                            self.params['status'],
+#                            self.params['connection_handle'],
+#                            self.params['role'],
+#                            self.params['peer_address_type'])
+#         result += bytes(reversed(self.params['peer_address']))
+#         result += struct.pack("<HHHB",
+#                             self.params['conn_interval'],
+#                             self.params['conn_latency'],
+#                             self.params['supervision_timeout'],
+#                             self.params['master_clock_accuracy'])
+#         return result
+    
+#     @classmethod
+#     def from_bytes_sub_event(cls, data: bytes, sub_event_code: int) -> 'LeConnectionCompleteEvent':
+#         if len(data) < 19:
+#             raise ValueError(f"Invalid data length: {len(data)}, expected at least 19 bytes")
+        
+#         subevent_code, status, handle, role, addr_type = struct.unpack("<BBHBB", data[:6])
+#         peer_addr = bytes(reversed(data[6:12]))
+#         interval, latency, timeout, accuracy = struct.unpack("<HHHB", data[12:19])
+        
+#         return cls(status, handle, role, addr_type, peer_addr, interval, latency, timeout, accuracy)
+    
+#     @classmethod
+#     def from_bytes(cls, data: bytes, sub_event_code: Optional[int] = None) -> 'LeConnectionCompleteEvent':
+#         return cls.from_bytes_sub_event(data, sub_event_code or cls.SUB_EVENT_CODE)
+    
+#     def __str__(self) -> str:
+#         status_desc = get_status_description(self.params['status'])
+#         role_str = "Master" if self.params['role'] == 0 else "Slave"
+#         addr_str = ':'.join(f"{b:02X}" for b in self.params['peer_address'])
+#         addr_types = {0: "Public", 1: "Random", 2: "Public_Identity", 3: "Random_Identity"}
+#         addr_type_str = addr_types.get(self.params['peer_address_type'], f"Unknown({self.params['peer_address_type']})")
+        
+#         return (f"LE_Connection_Complete: "
+#                 f"Handle=0x{self.params['connection_handle']:04X}, "
+#                 f"Status={status_desc} (0x{self.params['status']:02X}), "
+#                 f"Role={role_str}, "
+#                 f"PeerAddr={addr_str} ({addr_type_str}), "
+#                 f"Interval={self.params['conn_interval']}, "
+#                 f"Latency={self.params['conn_latency']}, "
+#                 f"Timeout={self.params['supervision_timeout']}")
+
+
+# class LeAdvertisingReportEvent(HciEvtBasePacket):
+#     """LE Advertising Report Event"""
+#     EVENT_CODE = HciEventCode.LE_META_EVENT
+#     SUB_EVENT_CODE = LeMetaEventSubCode.ADVERTISING_REPORT
+#     NAME = "LE_Advertising_Report"
+    
+#     class EventType(IntEnum):
+#         ADV_IND = 0x00
+#         ADV_DIRECT_IND = 0x01
+#         ADV_SCAN_IND = 0x02
+#         ADV_NONCONN_IND = 0x03
+#         SCAN_RSP = 0x04
+    
+#     def __init__(self, num_reports: int, event_type: Union[int, 'LeAdvertisingReportEvent.EventType'],
+#                  address_type: int, address: bytes, data_length: int, data: bytes, rssi: int):
+#         if isinstance(event_type, self.EventType):
+#             event_type = event_type.value
+        
+#         super().__init__(
+#             subevent_code=self.SUB_EVENT_CODE,
+#             num_reports=num_reports,
+#             event_type=event_type,
+#             address_type=address_type,
+#             address=address,
+#             data_length=data_length,
+#             data=data,
+#             rssi=rssi
+#         )
+    
+#     def _serialize_params(self) -> bytes:
+#         result = struct.pack("<BBB",
+#                            self.params['subevent_code'],
+#                            self.params['num_reports'],
+#                            self.params['event_type'])
+#         result += struct.pack("<B", self.params['address_type'])
+#         result += bytes(reversed(self.params['address']))
+#         result += struct.pack("<B", self.params['data_length'])
+#         result += self.params['data']
+#         result += struct.pack("<b", self.params['rssi'])
+#         return result
+    
+#     @classmethod
+#     def from_bytes_sub_event(cls, data: bytes, sub_event_code: int) -> 'LeAdvertisingReportEvent':
+#         if len(data) < 12:
+#             raise ValueError(f"Invalid data length: {len(data)}, expected at least 12 bytes")
+        
+#         subevent_code, num_reports, event_type, addr_type = struct.unpack("<BBBB", data[:4])
+#         address = bytes(reversed(data[4:10]))
+#         data_length = data[10]
+        
+#         if len(data) < 12 + data_length:
+#             raise ValueError(f"Invalid data length: need {12 + data_length} bytes, got {len(data)}")
+        
+#         adv_data = data[11:11+data_length]
+#         rssi = struct.unpack("<b", data[11+data_length:12+data_length])[0]
+        
+#         return cls(num_reports, event_type, addr_type, address, data_length, adv_data, rssi)
+    
+#     @classmethod
+#     def from_bytes(cls, data: bytes, sub_event_code: Optional[int] = None) -> 'LeAdvertisingReportEvent':
+#         return cls.from_bytes_sub_event(data, sub_event_code or cls.SUB_EVENT_CODE)
+    
+#     def __str__(self) -> str:
+#         event_types = {
+#             0: "ADV_IND", 1: "ADV_DIRECT_IND", 2: "ADV_SCAN_IND", 
+#             3: "ADV_NONCONN_IND", 4: "SCAN_RSP"
+#         }
+#         event_type_str = event_types.get(self.params['event_type'], f"Unknown({self.params['event_type']})")
+#         addr_str = ':'.join(f"{b:02X}" for b in self.params['address'])
+#         addr_types = {0: "Public", 1: "Random", 2: "Public_Identity", 3: "Random_Identity"}
+#         addr_type_str = addr_types.get(self.params['address_type'], f"Unknown({self.params['address_type']})")
+        
+#         return (f"LE_Advertising_Report: "
+#                 f"Type={event_type_str}, "
+#                 f"Addr={addr_str} ({addr_type_str}), "
+#                 f"RSSI={self.params['rssi']}dBm, "
+#                 f"DataLen={self.params['data_length']}, "
+#                 f"Data={self.params['data'].hex().upper()}")
+
+
+# class LeConnectionUpdateCompleteEvent(HciEvtBasePacket):
+#     """LE Connection Update Complete Event"""
+#     EVENT_CODE = HciEventCode.LE_META_EVENT
+#     SUB_EVENT_CODE = LeMetaEventSubCode.CONNECTION_UPDATE_COMPLETE
+#     NAME = "LE_Connection_Update_Complete"
+    
+#     def __init__(self, status: Union[int, StatusCode], connection_handle: int,
+#                  conn_interval: int, conn_latency: int, supervision_timeout: int):
+#         if isinstance(status, StatusCode):
+#             status = status.value
+        
+#         super().__init__(
+#             subevent_code=self.SUB_EVENT_CODE,
+#             status=status,
+#             connection_handle=connection_handle,
+#             conn_interval=conn_interval,
+#             conn_latency=conn_latency,
+#             supervision_timeout=supervision_timeout
+#         )
+    
+#     def _serialize_params(self) -> bytes:
+#         return struct.pack("<BBHHHH",
+#                           self.params['subevent_code'],
+#                           self.params['status'],
+#                           self.params['connection_handle'],
+#                           self.params['conn_interval'],
+#                           self.params['conn_latency'],
+#                           self.params['supervision_timeout'])
+    
+#     @classmethod
+#     def from_bytes_sub_event(cls, data: bytes, sub_event_code: int) -> 'LeConnectionUpdateCompleteEvent':
+#         if len(data) < 9:
+#             raise ValueError(f"Invalid data length: {len(data)}, expected at least 9 bytes")
+        
+#         subevent_code, status, handle, interval, latency, timeout = struct.unpack("<BBHHHH", data[:9])
+#         return cls(status, handle, interval, latency, timeout)
+    
+#     @classmethod
+#     def from_bytes(cls, data: bytes, sub_event_code: Optional[int] = None) -> 'LeConnectionUpdateCompleteEvent':
+#         return cls.from_bytes_sub_event(data, sub_event_code or cls.SUB_EVENT_CODE)
+    
+#     def __str__(self) -> str:
+#         status_desc = get_status_description(self.params['status'])
+#         return (f"LE_Connection_Update_Complete: "
+#                 f"Handle=0x{self.params['connection_handle']:04X}, "
+#                 f"Status={status_desc} (0x{self.params['status']:02X}), "
+#                 f"Interval={self.params['conn_interval']}, "
+#                 f"Latency={self.params['conn_latency']}, "
+#                 f"Timeout={self.params['supervision_timeout']}")
+
+
+# class LeReadRemoteFeaturesCompleteEvent(HciEvtBasePacket):
+#     """LE Read Remote Features Complete Event"""
+#     EVENT_CODE = HciEventCode.LE_META_EVENT
+#     SUB_EVENT_CODE = LeMetaEventSubCode.READ_REMOTE_FEATURES_COMPLETE
+#     NAME = "LE_Read_Remote_Features_Complete"
+    
+#     def __init__(self, status: Union[int, StatusCode], connection_handle: int, le_features: bytes):
+#         if isinstance(status, StatusCode):
+#             status = status.value
+        
+#         super().__init__(
+#             subevent_code=self.SUB_EVENT_CODE,
+#             status=status,
+#             connection_handle=connection_handle,
+#             le_features=le_features
+#         )
+    
+#     def _serialize_params(self) -> bytes:
+#         result = struct.pack("<BBH",
+#                            self.params['subevent_code'],
+#                            self.params['status'],
+#                            self.params['connection_handle'])
+#         result += self.params['le_features']
+#         return result
+    
+#     @classmethod
+#     def from_bytes_sub_event(cls, data: bytes, sub_event_code: int) -> 'LeReadRemoteFeaturesCompleteEvent':
+#         if len(data) < 12:
+#             raise ValueError(f"Invalid data length: {len(data)}, expected at least 12 bytes")
+        
+#         subevent_code, status, handle = struct.unpack("<BBH", data[:4])
+#         le_features = data[4:12]
+#         return cls(status, handle, le_features)
+    
+#     @classmethod
+#     def from_bytes(cls, data: bytes, sub_event_code: Optional[int] = None) -> 'LeReadRemoteFeaturesCompleteEvent':
+#         return cls.from_bytes_sub_event(data, sub_event_code or cls.SUB_EVENT_CODE)
+    
+#     def __str__(self) -> str:
+#         status_desc = get_status_description(self.params['status'])
+#         features_str = self.params['le_features'].hex().upper()
+#         return (f"LE_Read_Remote_Features_Complete: "
+#                 f"Handle=0x{self.params['connection_handle']:04X}, "
+#                 f"Status={status_desc} (0x{self.params['status']:02X}), "
+#                 f"Features=0x{features_str}")
+
+
+
 # Register all event classes
 register_event(LeConnectionCompleteEvent)
 register_event(LeAdvertisingReportEvent)

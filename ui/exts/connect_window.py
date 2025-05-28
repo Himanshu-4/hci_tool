@@ -217,7 +217,7 @@ class ConnectionDialog(QDialog):
         # Store UART widgets for easy access
         self.uart_widgets = [
             self.name_label, self.name_input,
-            self.uart_port_label, self.uart_port_combo,
+            self.uart_port_label, self.uart_port_combo,self.refresh_button,
             self.uart_baud_label, self.uart_baud_combo,
             self.uart_data_bits_label, self.uart_data_bits_combo,
             self.uart_stop_bits_label, self.uart_stop_bits_combo,

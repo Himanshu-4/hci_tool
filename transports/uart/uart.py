@@ -439,7 +439,7 @@ class UARTTransport(TransportInterface):
                         'parameters': params
                     }
                     self._trigger_callbacks('read', packet)
-                    
+                    return b''
                 else:
                     # Discard other packet types for now
                     print(f"Received non-event packet type: {pkt_type[0]}")
