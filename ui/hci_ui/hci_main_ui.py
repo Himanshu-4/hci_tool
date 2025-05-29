@@ -437,17 +437,17 @@ class HciCommandManager:
             cmd_window = self._cmd_factory.create_command_window(cmd_opcode)
             if  cmd_window == None:
                 # If the command doesn't need a UI, try to execute it directly
-                self.execute_simple_command(cmd_opcode)
+                self.execute_simple_command(cmd_opcode, category=category, command=command)
                 
         except Exception as e:
             print(f"Error opening command UI: {e} ")
             # also point where the error happened
             traceback.print_exc()
     
-    def execute_simple_command(self, cmd_opcode : int):
+    def execute_simple_command(self, cmd_opcode : int, **cmd_params):
         """Execute a simple command that doesn't need a UI"""
         # Try to find a function for this command
-        self._cmd_factory.execute_command(cmd_opcode)
+        self._cmd_factory.execute_command(cmd_opcode, **cmd_params)
     
     def close_all_windows(self):
         """Close all command windows"""

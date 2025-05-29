@@ -4,7 +4,8 @@ Base packet structure for HCI commands
 from abc import abstractmethod
 from typing import Type, Dict, Any, ClassVar, Optional, Tuple
 import struct
-
+import weakref
+from .cmd_opcodes import OPCODE_TO_NAME
 from ..hci_packet import HciCommandPacket
 
 class HciCmdBasePacket(HciCommandPacket):
@@ -18,6 +19,13 @@ class HciCmdBasePacket(HciCommandPacket):
     def __init__(self, **kwargs):
         """Initialize command with parameters"""
         super().__init__(**kwargs)
+        print(f"Initializing command {self.__class__.__name__} with params {self.params}")
+        if self.params.get('opcode'):
+            self.OPCODE =  self.params.get('opcode')
+        if self.params.get('name'):
+            self.NAME =  self.params.get('name')
+        if self.params.get('params'):
+            self.PARAMS =  self.params.get('params')
     
     def to_bytes(self) -> bytes:
         """Convert command to bytes, including header"""
@@ -29,27 +37,62 @@ class HciCmdBasePacket(HciCommandPacket):
         if params:
             param_bytes += params
         
-        opcode = getattr(self.__class__, 'OPCODE', 0)
-        name = getattr(self.__class__, 'NAME', 'Unknown')
+
+        opcode = getattr(self.__class__, 'OPCODE', self.params.get('opcode', 0))
         packet_type = getattr(self.__class__, 'PACKET_TYPE')
+        name = getattr(self.__class__, 'NAME', OPCODE_TO_NAME.get(opcode, 'UNKNOWN'))
         
-        length = len(param_bytes)
+        length = len(param_bytes) if param_bytes else 0
         
         # HCI Command packet format:
         # - 1 byte: HCI Packet Type
         # - 2 bytes: Opcode (OGF:6 bits, OCF:10 bits)
         # - 1 byte: Parameter Total Length
         # - N bytes: Parameters
-        print(f" {packet_type} and {packet_type.value} Serializing command {self.__class__.NAME} with opcode 0x{opcode} and params length {length}")
+        print(f" {packet_type} and {packet_type.value} Serializing command {name} with opcode 0x{opcode} and params length {length}")
         header = struct.pack("<BHB", packet_type.value, opcode, length)
-        return header + param_bytes
+        return header + param_bytes if param_bytes else header
     
-    @abstractmethod
+    def __str__(self) -> str:
+        """String representation of the command packet"""
+        # Get name with clear fallback
+        name = getattr(self.__class__, 'NAME', None)
+        if not name and hasattr(self, 'params') and self.params:
+            name = self.params.get('name')
+            if not name:
+                name = OPCODE_TO_NAME.get(self.params.get('opcode', 0), 'UNKNOWN')
+        
+        # Get opcode  
+        opcode = getattr(self.__class__, 'OPCODE', None)
+        if not opcode and hasattr(self, 'params') and self.params:
+            opcode = self.params.get('opcode', 0)
+        
+        # Use opcode lookup as final fallback for name
+        if not name and opcode:
+            name = OPCODE_TO_NAME.get(opcode, 'UNKNOWN')
+        
+        # Defaults
+        name = name or 'UNKNOWN'
+        opcode = opcode or 0
+        
+        return f"{name} : 0x{opcode:04X}"
+        
     def _serialize_params(self) -> bytes:
         """Serialize parameters to bytes"""
         pass
     
+
+    def _validate_params(self) -> None:
+        """Validate command parameters"""
+        # Call the derived class to validate the parameters
+        pass
     
+    @classmethod
+    def from_bytes(cls, data: bytes) -> 'HciCmdBasePacket':
+        """Create command from parameter bytes (excluding header)"""
+        # Call the derived class to create the command from bytes
+        pass
+        
     @staticmethod
     def get_opcode_bytes(opcode: int) -> Tuple[int, int]:
         """Split opcode into OGF and OCF values"""
@@ -58,9 +101,8 @@ class HciCmdBasePacket(HciCommandPacket):
         return ogf, ocf
     
     @staticmethod
-    def create_cmd_packet(ogf: int, ocf: int, params: bytes, name : Optional[str]) -> 'HciCmdBasePacket':
-        """Create command packet from OGF, OCF, and parameters"""
-        opcode = HciCmdBasePacket.create_opcode(ogf, ocf)
+    def create_cmd_packet(opcode: int, params: Optional[bytes] = None, name : Optional[str] = None) -> 'HciCmdBasePacket':
+        """Create command packet from opcode and parameters"""
         return HciCmdBasePacket(opcode=opcode, params=params, name=name)
     
     @staticmethod

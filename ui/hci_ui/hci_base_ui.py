@@ -293,6 +293,7 @@ class HCICmdBaseUI(HciBaseUI):
         if self._is_destroyed:
             return
         ret = None
+        byte_data = b''
         try:
             if not self.validate_parameters():
                 return
@@ -306,7 +307,7 @@ class HCICmdBaseUI(HciBaseUI):
         try:
             self.close()
             if ret:
-                self.command_sent.emit(ret)
+                self.command_sent.emit(byte_data)
         except RuntimeError:
             # Window already destroyed
             pass

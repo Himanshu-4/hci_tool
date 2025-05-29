@@ -33,7 +33,7 @@ from PyQt5.QtWidgets import (QMdiSubWindow)
 
 # import the hci event for processing
 from hci.evt import get_event_class
-from hci.evt.evt_codes import HciEventCode, LeMetaEventSubCode
+from hci.evt import hci_evt_parse_from_bytes, HciEvtBasePacket
 from hci.evt.event_types import EventCategory, EVENT_CODE_TO_CATEGORY
 
 from .evts import get_event_ui_class
@@ -55,7 +55,10 @@ class HCIEventFactory:
         self._is_destroyed = False
         # create a dictionary to track event windows and structure as {event_code: HCIEvtUI}
         self.event_windows : dict[int, HCIEvtUI] = {}
-
+        # add the process_hci_evt_packet method to the transport's event handler
+        if self.transport:
+            transport.add_callback('read', lambda data: self.process_hci_evt_packet(data))
+            
     def __del__(self):  
         """Destructor to ensure all event windows are closed"""
         if not self._is_destroyed:
@@ -223,7 +226,7 @@ class HCIEventFactory:
             self.close_event_window(event_code)
         self.event_windows.clear()
 
-    def process_hci_packet(self, packet_data : Optional[bytearray]):
+    def process_hci_evt_packet(self, packet_data : Optional[bytes]):
         """
         Process an HCI event packet and route it to the appropriate event manager.
         
@@ -233,107 +236,25 @@ class HCIEventFactory:
         Returns:
             True if the packet was successfully processed, False otherwise
         """
-        if not packet_data or len(packet_data) < 3:
-            print("Invalid HCI packet: too short")
-            return False
-        
-        # Check if this is an HCI event packet (type = 0x04)
-        if packet_data[0] != 0x04:
-            print(f"Not an HCI event packet (type = 0x{packet_data[0]:02X})")
-            return False
-        
-        # Extract event code and parameter length
-        event_code = packet_data[1]
-        param_length = packet_data[2]
-        
-        # Check if the packet length is correct
-        if len(packet_data) < param_length + 3:
-            print("Invalid HCI packet: data length mismatch")
-            return False
-        
-        # Extract event parameters
-        event_data = packet_data[3:3+param_length]
-        
-        print(f"Processing HCI event: 0x{event_code:02X}, length: {param_length}")
-        
-        # Route the event to the appropriate manager
-        # if event_code in self.event_managers:
-        #     manager = self.event_managers[event_code]
-        #     manager.process_event(event_code, event_data)
-        #     return True
-        # else:
-        #     print(f"No handler for event code 0x{event_code:02X}")
-        #     return False
-        
-        if not packet_data or len(packet_data) < 3:
-            print("Invalid HCI packet: too short")
-            return False
-        
-        # Check if this is an HCI event packet (type = 0x04)
-        if packet_data[0] != 0x04:
-            print(f"Not an HCI event packet (type = 0x{packet_data[0]:02X})")
-            return False
-        
-        # Extract event code and parameter length
-        event_code = packet_data[1]
-        param_length = packet_data[2]
-        
-        # Check if the packet length is correct
-        if len(packet_data) < param_length + 3:
-            print("Invalid HCI packet: data length mismatch")
-            return False
-        
-        # Extract event parameters
-        event_data = packet_data[3:3+param_length]
-        
-        print(f"Processing HCI event: 0x{event_code:02X}, length: {param_length}")
-        
-        # Parse the event using the HCI event system
         try:
-            # For LE Meta Events, we need to extract the sub-event code
-            sub_event_code = None
-            if event_code == HciEventCode.LE_META_EVENT and len(event_data) > 0:
-                sub_event_code = event_data[0]
-            
-            # Get the event class and parse the packet
-            event_class = get_event_class(event_code, sub_event_code)
-            if event_class:
-                # Parse the event from the raw data (excluding HCI header)
-                parsed_event = event_class.from_bytes(event_data)
-                
-                # Route to the appropriate UI window if it exists
-                window_event_code = sub_event_code if sub_event_code else event_code
-                if window_event_code in self.event_windows:
-                    window = self.event_windows[window_event_code]
-                    window.process_event(parsed_event)
-                    return True
-                else:
-                    print(f"No UI window for event code 0x{window_event_code:02X}")
-                    # Optionally auto-create window for the event
-                    # self.create_event_window(window_event_code)
-                    return True
-            else:
-                print(f"No handler for event code 0x{event_code:02X}")
-                return False
-                
+            cmd_class = hci_evt_parse_from_bytes(packet_data)
+            print(str(cmd_class.from_bytes(packet_data)))
         except Exception as e:
-            print(f"Error processing event 0x{event_code:02X}: {e}")
-            return False
-    
-    def simulate_event(self, event_code, event_data):
-        """
-        Simulate an HCI event for testing purposes.
-        
+            print(f"Error processing event 0x{e}")
+
+    def default_base_event_handler(self, event_code: int, event_data: Optional[bytearray] = None) -> bool:
+        """Default base event handler
+        This method handles base events based on the event code and event data.
         Args:
-            event_code: The HCI event code
-            event_data: The event parameters as bytes or bytearray
-        
+            event_code (int): The event code of the base event to handle.
+            event_data (Optional[bytearray]): Additional data for the event.
         Returns:
-            True if the event was successfully processed, False otherwise
+            bool: True if the event was handled successfully, False otherwise.
         """
-        # Create a full HCI event packet
-        packet_data = bytearray([0x04, event_code, len(event_data)]) + event_data
-        return self.process_hci_packet(packet_data)
+        raise NotImplementedError(
+            "Default base event handler not implemented. "
+            "Please implement this method in the subclass."
+        )
 
     def default_link_control_event_handler(self, event_code: int, event_data: Optional[bytearray] = None) -> bool:
         """Default link control event handler

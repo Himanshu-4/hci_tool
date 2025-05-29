@@ -21,6 +21,7 @@ from .connect_window import ConnectionDialog
 
 
 
+
 class HCIControl(QWidget):
     """
         A singleton class to manage the HCI Control UI and its instances.
@@ -84,7 +85,6 @@ class HCIControl(QWidget):
         name = transport.name
         # add the read callback to print the data
         transport.add_callback('write',lambda _ : transport.read(4))
-        transport.add_callback('read', lambda data: print(f"[HCIControl] Data received: {data}"))
         instance = HCIControlUI(HCIControl._main_window, transport, name)
         instance.register_destroy(lambda: HCIControl.remove_instance(instance))
         HCIControl.hci_window_instance.append(instance)

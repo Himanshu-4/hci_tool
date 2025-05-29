@@ -31,10 +31,13 @@ from PyQt5.QtWidgets import  (QMdiSubWindow)
 
 # import the hci command for execution
 from hci.cmd import get_command_class, split_opcode, OGF
+from hci.cmd import hci_create_cmd_packet
 
 from .cmds import get_cmd_ui_class
 from .cmds import HCICmdUI
 
+#@todo : here for temp purpose only
+from ui.exts.log_window import LogWindow
 
 from transports.transport import Transport
 from typing import ClassVar, Optional, Dict, Type
@@ -236,7 +239,7 @@ class HCICommandFactory:
                 del self.command_windows[cmd_opcode]
 
 
-    def deafualt_base_cmd_executor(self, opcode : int  , command_data: Optional[dict] = None) -> bool:
+    def deafualt_base_cmd_executor(self, opcode : int  , **kwargs) -> bool:
         """Default command executor for HCI commands
         This method executes a command based on the opcode and command data.
         It retrieves the command class from the hci.cmds module and executes it.
@@ -246,22 +249,14 @@ class HCICommandFactory:
         Returns:
             bool: True if the command was executed successfully, False otherwise.
         """
-        if command_data is None:
-            command_data = {}
-        
         # execute the command based on the opcode
-        # if command is registered command in hci.cmds 
-        cmd_class  = get_command_class(opcode)
-        if cmd_class is None:
-            print(f"Command with opcode {opcode} not found.")
-            # @todo: when no class found we can just directly  send the packet with 0 len
-            return False
-        
+        cmd_instance = get_command_class(opcode)(**kwargs) if get_command_class(opcode) else hci_create_cmd_packet(opcode, params=kwargs.get('params', None), name=kwargs.get('name', None))
         # Create an instance of the command class
-        cmd_instance = cmd_class(**command_data)
+        # log to window
+        LogWindow.info(f"{self.transport.name}->" + str(cmd_instance))
         return self.transport.write(cmd_instance.to_bytes())
 
-    def deafult_controller_baseband_cmd_executor(self, opcode: int, command_data: Optional[dict] = None) -> bool:
+    def deafult_controller_baseband_cmd_executor(self, opcode: int, **kwargs) -> bool:
         """Default controller and baseband command executor
         This method executes a controller and baseband command based on the opcode and command data.
         It retrieves the command class from the hci.cmds module and executes it.
@@ -271,9 +266,9 @@ class HCICommandFactory:
         Returns:
             bool: True if the command was executed successfully, False otherwise.
         """
-        return self.deafualt_base_cmd_executor(opcode, command_data)
+        return self.deafualt_base_cmd_executor(opcode, **kwargs)
     
-    def default_link_control_cmd_executor(self, opcode: int, command_data: Optional[dict] = None) -> bool:
+    def default_link_control_cmd_executor(self, opcode: int, **kwargs) -> bool:
         """Default link control command executor
         This method executes a link control command based on the opcode and command data.
         It retrieves the command class from the hci.cmds module and executes it.
@@ -283,9 +278,9 @@ class HCICommandFactory:
         Returns:
             bool: True if the command was executed successfully, False otherwise.
         """
-        return self.deafualt_base_cmd_executor(opcode, command_data)
+        return self.deafualt_base_cmd_executor(opcode, **kwargs)
     
-    def default_link_policy_cmd_executor(self, opcode: int, command_data: Optional[dict] = None) -> bool:
+    def default_link_policy_cmd_executor(self, opcode: int, **kwargs) -> bool:
         """Default link policy command executor
         This method executes a link policy command based on the opcode and command data.
         It retrieves the command class from the hci.cmds module and executes it.
@@ -295,9 +290,9 @@ class HCICommandFactory:
         Returns:
             bool: True if the command was executed successfully, False otherwise.
         """
-        return self.deafualt_base_cmd_executor(opcode, command_data)
+        return self.deafualt_base_cmd_executor(opcode, **kwargs)
     
-    def default_le_cmd_executor(self, opcode: int, command_data: Optional[dict] = None) -> bool:
+    def default_le_cmd_executor(self, opcode: int, **kwargs) -> bool:
         """Default LE command executor
         This method executes a LE command based on the opcode and command data.
         It retrieves the command class from the hci.cmds module and executes it.
@@ -307,9 +302,9 @@ class HCICommandFactory:
         Returns:
             bool: True if the command was executed successfully, False otherwise.
         """
-        return self.deafualt_base_cmd_executor(opcode, command_data)
+        return self.deafualt_base_cmd_executor(opcode, **kwargs)
     
-    def default_info_cmd_executor(self, opcode: int, command_data: Optional[dict] = None) -> bool:
+    def default_info_cmd_executor(self, opcode: int, **kwargs) -> bool:
         """Default information command executor
         This method executes an information command based on the opcode and command data.
         It retrieves the command class from the hci.cmds module and executes it.
@@ -319,9 +314,9 @@ class HCICommandFactory:
         Returns:
             bool: True if the command was executed successfully, False otherwise.
         """
-        return self.deafualt_base_cmd_executor(opcode, command_data)
+        return self.deafualt_base_cmd_executor(opcode, **kwargs)
     
-    def default_status_cmd_executor(self, opcode: int, command_data: Optional[dict] = None) -> bool:
+    def default_status_cmd_executor(self, opcode: int, **kwargs) -> bool:
         """Default status command executor
         This method executes a status command based on the opcode and command data.
         It retrieves the command class from the hci.cmds module and executes it.
@@ -331,9 +326,9 @@ class HCICommandFactory:
         Returns:
             bool: True if the command was executed successfully, False otherwise.
         """
-        return self.deafualt_base_cmd_executor(opcode, command_data)
+        return self.deafualt_base_cmd_executor(opcode, **kwargs)
     
-    def default_testing_cmd_executor(self, opcode: int, command_data: Optional[dict] = None) -> bool:
+    def default_testing_cmd_executor(self, opcode: int, **kwargs) -> bool:
         """Default testing command executor
         This method executes a testing command based on the opcode and command data.
         It retrieves the command class from the hci.cmds module and executes it.
@@ -343,9 +338,9 @@ class HCICommandFactory:
         Returns:
             bool: True if the command was executed successfully, False otherwise.
         """
-        return self.deafualt_base_cmd_executor(opcode, command_data)
+        return self.deafualt_base_cmd_executor(opcode, **kwargs)
     
-    def default_vendor_cmd_executor(self, opcode: int, command_data: Optional[dict] = None) -> bool:
+    def default_vendor_cmd_executor(self, opcode: int, **kwargs) -> bool:
         """Default vendor command executor
         This method executes a vendor-specific command based on the opcode and command data.
         It retrieves the command class from the hci.cmds module and executes it.
@@ -355,9 +350,9 @@ class HCICommandFactory:
         Returns:
             bool: True if the command was executed successfully, False otherwise.
         """
-        return self.deafualt_base_cmd_executor(opcode, command_data)
+        return self.deafualt_base_cmd_executor(opcode, **kwargs)
     
-    def execute_command(self, cmd_opcode: int, command_data: Optional[dict] = None) -> bool:
+    def execute_command(self, cmd_opcode: int, **kwargs) -> bool:
         """ first fetch the command type and based on that select the executor
         Args:
             cmd_opcode (int): The opcode of the command to execute.
@@ -369,21 +364,21 @@ class HCICommandFactory:
         
         #execute the command based on the OGF and OCF values
         if ogf == OGF.CONTROLLER_BASEBAND:
-            return self.deafualt_base_cmd_executor(cmd_opcode, command_data)
+            return self.deafualt_base_cmd_executor(cmd_opcode, **kwargs)
         elif ogf == OGF.LINK_CONTROL:
-            return self.default_link_control_cmd_executor(cmd_opcode, command_data)
+            return self.default_link_control_cmd_executor(cmd_opcode, **kwargs)
         elif ogf == OGF.LINK_POLICY:
-            return self.default_link_policy_cmd_executor(cmd_opcode, command_data)
+            return self.default_link_policy_cmd_executor(cmd_opcode, **kwargs)
         elif ogf == OGF.LE_CONTROLLER:
-            return self.default_le_cmd_executor(cmd_opcode, command_data)
+            return self.default_le_cmd_executor(cmd_opcode, **kwargs)
         elif ogf == OGF.INFORMATION_PARAMS:
-            return self.default_info_cmd_executor(cmd_opcode, command_data)
+            return self.default_info_cmd_executor(cmd_opcode, **kwargs)
         elif ogf == OGF.STATUS_PARAMS:
-            return self.default_status_cmd_executor(cmd_opcode, command_data)
+            return self.default_status_cmd_executor(cmd_opcode, **kwargs)
         elif ogf == OGF.TESTING:
-            return self.default_testing_cmd_executor(cmd_opcode, command_data)
+            return self.default_testing_cmd_executor(cmd_opcode, **kwargs)
         elif ogf == OGF.VENDOR_SPECIFIC:
-            return self.default_vendor_cmd_executor(cmd_opcode, command_data)
+            return self.default_vendor_cmd_executor(cmd_opcode, **kwargs)
         else:
             print(f"Unknown OGF {ogf} for opcode {cmd_opcode}")
             return False

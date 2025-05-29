@@ -10,19 +10,18 @@ from enum import IntEnum
 
 from ...cmd.cmd_opcodes import StatusOCF,OGF,create_opcode
 
-from ..evt_base_packet import HciEvtBasePacket
+from ..base_events import CommandCompleteEvent
 from ..evt_codes import HciEventCode
 from ..event_types import StatusEventType
 from ..error_codes import StatusCode, get_status_description
 from .. import register_event
 
-class ReadRssiCompleteEvent(HciEvtBasePacket):
+class ReadRssiCompleteEvent(CommandCompleteEvent):
     """Read RSSI Complete Event"""
     OPCODE = create_opcode(OGF.STATUS_PARAMS, StatusOCF.READ_RSSI) 
-    EVENT_CODE = HciEventCode.COMMAND_COMPLETE  # This is a Command Complete event
     NAME = "Read_RSSI_Complete"
     
-    def __init__(self, status: Union[int, StatusCode], connection_handle: int, rssi: int):
+    def __init__(self, num_hci_command_packets: int, opcode: int, status: Union[int, StatusCode],connection_handle: int, rssi: int):
         """
         Initialize Read RSSI Complete Event
         
@@ -40,14 +39,12 @@ class ReadRssiCompleteEvent(HciEvtBasePacket):
         # - Status (1 byte)
         # - Connection_Handle (2 bytes)
         # - RSSI (1 byte, signed)
-        return_parameters = struct.pack("<BHb", status, connection_handle, rssi)
         
         super().__init__(
-            num_hci_command_packets=1,  # Always set to 1
-            command_opcode=0x1405,      # Read RSSI opcode (OGF=0x05, OCF=0x05)
-            return_parameters=return_parameters,
-            # Store the actual parameters for easier access
+            num_hci_command_packets=num_hci_command_packets,  # Always set to 1
+            opcode=self.OPCODE,      # Read RSSI opcode (OGF=0x05, OCF=0x05)
             status=status,
+            # Store the actual parameters for easier access
             connection_handle=connection_handle,
             rssi=rssi
         )
@@ -60,7 +57,7 @@ class ReadRssiCompleteEvent(HciEvtBasePacket):
             raise ValueError(f"Invalid num_hci_command_packets: {self.params['num_hci_command_packets']}, must be between 0 and 0xFF")
         
         # Validate command opcode
-        if not (0 <= self.params['command_opcode'] <= 0xFFFF):
+        if not (0 <= self.params['opcode'] <= 0xFFFF):
             raise ValueError(f"Invalid command_opcode: {self.params['command_opcode']}, must be between 0 and 0xFFFF")
         
         # Validate status
@@ -77,37 +74,34 @@ class ReadRssiCompleteEvent(HciEvtBasePacket):
     
     def _serialize_params(self) -> bytes:
         """Serialize parameters to bytes"""
-        # Command Complete event format:
-        # - 1 byte: Number of HCI Command Packets
-        # - 2 bytes: Command Opcode
-        # - N bytes: Return Parameters
-        return struct.pack("<BH", 
-                         self.params['num_hci_command_packets'],
-                         self.params['command_opcode']) + self.params['return_parameters']
+        return super()._serialize_params() + struct.pack("<HB",
+            self.params['connection_handle'],
+            self.params['rssi']
+        )
     
     @classmethod
     def from_bytes(cls, data: bytes) -> 'ReadRssiCompleteEvent':
         """Create event from parameter bytes (excluding header)"""
         if len(data) < 7:  # Num_HCI_Command_Packets(1) + Command_Opcode(2) + Status(1) + Connection_Handle(2) + RSSI(1)
-            raise ValueError(f"Invalid data length: {len(data)}, expected at least 7 bytes")
-        
-        # Parse the Command Complete event parameters
-        num_cmd_pkts, cmd_opcode = struct.unpack("<BH", data[:3])
-        
-        # Check if this is a Read RSSI command
-        if cmd_opcode != 0x1405:  # Read RSSI opcode
-            raise ValueError(f"Invalid command opcode: 0x{cmd_opcode:04X}, expected 0x1405 (Read RSSI)")
-        
+            raise ValueError(f"Invalid data length: {len(data)}, expected at least 6 bytes")
+        num_hci_command_packets, opcode, status, rem_data = cls.get_basic_event_data(data)
         # Parse the Read RSSI return parameters
-        status, connection_handle, rssi = struct.unpack("<BHb", data[3:7])
+        connection_handle, rssi = struct.unpack("<Hb", rem_data)
         
         return cls(
+            num_hci_command_packets=num_hci_command_packets,
+            opcode=opcode,
             status=status,
             connection_handle=connection_handle,
             rssi=rssi
         )
 
-class ReadLinkQualityCompleteEvent(HciEvtBasePacket):
+    def __str__(self) -> str:
+        """ string representation of the event packet"""
+        return super().__str__() + f"connection_handle=0x{self.params['connection_handle']:04X}, " \
+               f"rssi={self.params['rssi']} (0x{self.params['rssi']:02X})\r\n"
+
+class ReadLinkQualityCompleteEvent(CommandCompleteEvent):
     """Read Link Quality Complete Event"""
     OPCODE = create_opcode(OGF.STATUS_PARAMS, StatusOCF.READ_LINK_QUALITY)
     EVENT_CODE = HciEventCode.COMMAND_COMPLETE  # This is a Command Complete event
@@ -197,7 +191,7 @@ class ReadLinkQualityCompleteEvent(HciEvtBasePacket):
             link_quality=link_quality
         )
 
-class ReadAFHChannelMapCompleteEvent(HciEvtBasePacket):
+class ReadAFHChannelMapCompleteEvent(CommandCompleteEvent):
     """Read AFH Channel Map Complete Event"""
     OPCODE = create_opcode(OGF.STATUS_PARAMS, StatusOCF.READ_AFH_CHANNEL_MAP)
     EVENT_CODE = HciEventCode.COMMAND_COMPLETE  # This is a Command Complete event
@@ -297,7 +291,7 @@ class ReadAFHChannelMapCompleteEvent(HciEvtBasePacket):
             afh_channel_map=afh_channel_map
         )
 
-class ReadClockCompleteEvent(HciEvtBasePacket):
+class ReadClockCompleteEvent(CommandCompleteEvent):
     """Read Clock Complete Event"""
     OPCODE = create_opcode(OGF.STATUS_PARAMS, StatusOCF.READ_CLOCK)
     EVENT_CODE = HciEventCode.COMMAND_COMPLETE  # This is a Command Complete event
@@ -397,47 +391,6 @@ class ReadClockCompleteEvent(HciEvtBasePacket):
         )
         
 
-class CommandStatusEvent(HciEvtBasePacket):
-    """Command Status Event"""
-    OPCODE = create_opcode(OGF.STATUS_PARAMS, 0x00)
-    EVENT_CODE = HciEventCode.COMMAND_STATUS
-    NAME = "Command_Status"
-    
-    def __init__(self, status: Union[int, StatusCode], num_hci_command_packets: int, command_opcode: int):
-        if isinstance(status, StatusCode):
-            status = status.value
-        
-        super().__init__(
-            status=status,
-            num_hci_command_packets=num_hci_command_packets,
-            command_opcode=command_opcode
-        )
-    
-    def _serialize_params(self) -> bytes:
-        return struct.pack("<BBH",
-                          self.params['status'],
-                          self.params['num_hci_command_packets'],
-                          self.params['command_opcode'])
-    
-    @classmethod
-    def from_bytes(cls, data: bytes, sub_event_code: Optional[int] = None) -> 'CommandStatusEvent':
-        if len(data) < 4:
-            raise ValueError(f"Invalid data length: {len(data)}, expected 4 bytes")
-        
-        status, num_packets, opcode = struct.unpack("<BBH", data[:4])
-        return cls(status, num_packets, opcode)
-    
-    @classmethod
-    def from_bytes_sub_event(cls, data: bytes, sub_event_code: int) -> 'CommandStatusEvent':
-        return cls.from_bytes(data, sub_event_code)
-    
-    def __str__(self) -> str:
-        status_desc = get_status_description(self.params['status'])
-        return (f"Command_Status: "
-                f"Opcode=0x{self.params['command_opcode']:04X}, "
-                f"Status={status_desc} (0x{self.params['status']:02X}), "
-                f"NumPackets={self.params['num_hci_command_packets']}")
-
 
 # Register all event classes
 register_event(ReadRssiCompleteEvent)
@@ -491,6 +444,7 @@ __all__ = [
     'read_link_quality_complete',
     'read_afh_channel_map_complete',
     'read_clock_complete',
+    'CommandStatusEvent',
     'ReadRssiCompleteEvent',
     'ReadLinkQualityCompleteEvent',
     'ReadAFHChannelMapCompleteEvent',

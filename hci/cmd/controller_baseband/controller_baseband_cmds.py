@@ -12,28 +12,7 @@ from ..cmd_base_packet import HciCmdBasePacket
 from ..cmd_opcodes import HciOpcode, create_opcode, OGF, ControllerBasebandOCF
 from .. import register_command
 
-class Reset(HciCmdBasePacket):
-    """Reset Command"""
-    
-    OPCODE = create_opcode(OGF.CONTROLLER_BASEBAND, ControllerBasebandOCF.RESET)
-    NAME = "Reset"
-    
-    def __init__(self, **kwargs: Optional[Any]):
-        """Initialize Reset Command (no parameters)"""
-        super().__init__(**kwargs)
-    
-    def _validate_params(self) -> None:
-        """Validate command parameters (none for Reset)"""
-        pass
-    
-    def _serialize_params(self) -> bytes:
-        """Serialize parameters to bytes (no parameters)"""
-        return b''
-    
-    @classmethod
-    def from_bytes(cls, data: bytes) -> 'Reset':
-        """Create command from parameter bytes (excluding header)"""
-        return cls()
+
 
 class SetEventMask(HciCmdBasePacket):
     """Set Event Mask Command"""
@@ -69,6 +48,10 @@ class SetEventMask(HciCmdBasePacket):
         event_mask = struct.unpack("<Q", data[:8])[0]
         
         return cls(event_mask=event_mask)
+    
+    def __str__(self) -> str:
+        """String representation of the command packet"""
+        return super().__str__() + f"Event Mask: 0x{self.params['event_mask']:016X}\r\n"
 
 class WriteLocalName(HciCmdBasePacket):
     """Write Local Name Command"""
@@ -110,34 +93,14 @@ class WriteLocalName(HciCmdBasePacket):
         local_name = data[:248].rstrip(b'\x00')
         
         return cls(local_name=local_name)
+    
+    def __str__(self) -> str:
+        """String representation of the command packet"""
+        local_name_str = self.params['local_name'].decode('utf-8', errors='replace')
+        return super().__str__() + f"\r\nLocal Name: {local_name_str}"
 
-class ReadLocalName(HciCmdBasePacket):
-    """Read Local Name Command"""
-    
-    OPCODE = create_opcode(OGF.CONTROLLER_BASEBAND, ControllerBasebandOCF.READ_LOCAL_NAME)
-    NAME = "Read_Local_Name"
-    
-    def __init__(self, **kwargs: Optional[Any]):
-        """Initialize Read Local Name Command (no parameters)"""
-        super().__init__(**kwargs)
-    
-    def _validate_params(self) -> None:
-        """Validate command parameters (none for Read Local Name)"""
-        pass
-    
-    def _serialize_params(self) -> bytes:
-        """Serialize parameters to bytes (no parameters)"""
-        return b''
-    
-    @classmethod
-    def from_bytes(cls, data: bytes) -> 'ReadLocalName':
-        """Create command from parameter bytes (excluding header)"""
-        return cls()
 
-# Function wrappers for easier access
-def reset() -> Reset:
-    """Create Reset Command"""
-    return Reset()
+
 
 def set_event_mask(event_mask: int = 0x00001FFFFFFFFFFF) -> SetEventMask:
     """Create Set Event Mask Command"""
@@ -147,24 +110,16 @@ def write_local_name(local_name: str) -> WriteLocalName:
     """Create Write Local Name Command"""
     return WriteLocalName(local_name=local_name)
 
-def read_local_name() -> ReadLocalName:
-    """Create Read Local Name Command"""
-    return ReadLocalName()
 
 # Register all command classes
-register_command(Reset)
 register_command(SetEventMask)
 register_command(WriteLocalName)
-register_command(ReadLocalName)
 
 # Export public functions and classes
 __all__ = [
-    'reset',
+
     'set_event_mask',
     'write_local_name',
-    'read_local_name',
-    'Reset',
     'SetEventMask',
     'WriteLocalName',
-    'ReadLocalName',
 ]

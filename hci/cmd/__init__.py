@@ -72,6 +72,20 @@ def cmd_from_bytes(data: bytes) -> Optional[HciCmdBasePacket]:
     
     return cmd_class.from_bytes(data[3:])
 
+def hci_create_cmd_packet(opcode :int, params: Optional[bytes]= None, name: Optional[str] = None) -> Optional[Type[HciCmdBasePacket]]:
+    """
+    Create a command packet with the given OGF, OCF, and parameters.
+    
+    Args:
+        opcode: Command opcode (2 bytes)
+        params: Command parameters as bytes
+        name: Optional human-readable name for the command
+    
+    Returns:
+        An instance of HciCmdBasePacket with the specified opcode and parameters
+    """
+    return HciCmdBasePacket.create_cmd_packet(opcode, params, name)
+
 def _initialize_modules():
     """Import all submodules to register commands"""
     # global link_policy, link_controller, status, le_cmds, controller_baseband, information, testing, vs_specific
@@ -79,7 +93,13 @@ def _initialize_modules():
     try:
         # Import all command modules dynamically
         package = Path(__file__).parent
-        
+        # can use importlib to import all submodules
+        for _, module_name, _ in pkgutil.walk_packages([str(package)]):
+            if module_name.startswith('hci.cmd.') and not module_name.endswith('__init__'):
+                try:
+                    importlib.import_module(module_name)
+                except ImportError as e:
+                    print(f"Warning: Unable to import {module_name}: {e}")
         # Make submodule command functions available at the top level
         # This enables usage like: import hci.cmd as hci_cmd; hci_cmd.le_cmds.le_set_adv_params(...)
         # instead of: from hci.cmd.le_cmds import le_set_adv_params; le_set_adv_params(...)
@@ -114,6 +134,7 @@ __all__ = [
     'register_command',
     'get_command_class',
     'cmd_from_bytes',
+    'hci_create_cmd_packet',
     'hci_cmd_parse_from_bytes',
     'HciCmdBasePacket',
     'link_policy',

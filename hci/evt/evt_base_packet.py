@@ -19,13 +19,22 @@ class HciEvtBasePacket(HciEventPacket):
     def __init__(self, **kwargs):
         """Initialize event with parameters"""
         super().__init__(**kwargs)
-        self.__validate_params()
+        if self.params.get('opcode'):
+            self.OPCODE =  self.params.get('opcode')
+        if self.params.get('event_code'):
+            self.EVENT_CODE =  self.params.get('event_code')
+        if self.params.get('sub_event_code'):
+            self.SUB_EVENT_CODE =  self.params.get('sub_event_code')
+        if self.params.get('name'):
+            self.NAME =  self.params.get('name')
+        # validate the parameters
+        self._validate_params()
         
-    def __validate_params(self) -> None:
+    @abstractmethod
+    def _validate_params(self) -> None:
         # call the derived class to validate the parameters
         """Validate event packet parameters"""
-        if hasattr(self.__class__, '_validate_params'):
-            self.__class__._validate_params(self)
+        pass # This can be overridden by subclasses to validate specific parameters
     
     def to_bytes(self) -> bytes:
         """Convert event to bytes, including header"""
@@ -47,6 +56,6 @@ class HciEvtBasePacket(HciEventPacket):
     
     @classmethod
     @abstractmethod
-    def from_bytes(cls, data: bytes, sub_event_code : Optional[int] = None) -> 'HciEvtBasePacket':
+    def from_bytes(cls, data: bytes) -> 'HciEvtBasePacket':
         """Create event from parameter bytes (excluding header)"""
         pass

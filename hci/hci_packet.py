@@ -42,9 +42,10 @@ class HciPacket(ABC):
         """Create a packet from bytes"""
         pass
     
+    @abstractmethod
     def __str__(self) -> str:
         """String representation of the packet"""
-        return f"{self.__class__.__name__}: {self.params}"
+        pass
 
 class HciCommandPacket(HciPacket):
     """Base class for HCI Command packets"""
@@ -64,17 +65,15 @@ class HciCommandPacket(HciPacket):
             params: Command parameters
         """
         super().__init__(**kwargs)
-        if not self.params.get('opcode'):
-            self.OPCODE =  self.params.get('opcode')
-        if not self.params.get('name'):
-            self.NAME =  self.params.get('name')
-        if not self.params.get('params'):
-            self.PARAMS =  self.params.get('params')
-        
-    def __str__(self) -> str:
-        """String representation of the command packet"""
-        return f"{self.NAME} (0x{self.OPCODE:04X}): {self.params}"
 
+        
+    @abstractmethod
+    def _validate_params(self) -> None:
+        """Validate command parameters"""
+        # This method should be implemented by subclasses to validate specific command parameters
+        pass
+    
+    
 class HciEventPacket(HciPacket):
     """Base class for HCI Event packets"""
     PACKET_TYPE = HciPacketType.EVENT
@@ -83,11 +82,7 @@ class HciEventPacket(HciPacket):
     EVENT_CODE: ClassVar[int]  # Event code
     SUB_EVENT_CODE: ClassVar[int]  # Sub-event code (if applicable)
     NAME: ClassVar[str]        # Event name
-    
-    def __str__(self):
-        """String representation of the event packet"""
-        return f"{self.NAME} (0x{self.EVENT_CODE:02X} | {self.SUB_EVENT_CODE}): {self.params}"
-
+  
     def __init__(self, **kwargs):
         """
         Initialize HCI Event packet
@@ -98,12 +93,12 @@ class HciEventPacket(HciPacket):
             params: Event parameters
         """
         super().__init__(**kwargs)
-        if not self.params.get('event_code'):
-            self.EVENT_CODE =  self.params.get('event_code')
-        if not self.params.get('sub_event_code'):
-            self.SUB_EVENT_CODE =  self.params.get('sub_event_code')
-        if not self.params.get('name'):
-            self.NAME =  self.params.get('name')
+
+    @abstractmethod
+    def _validate_params(self) -> None:
+        """Validate event parameters"""
+        # This method should be implemented by subclasses to validate specific event parameters
+        pass
 
 
 class HciAclDataPacket(HciPacket):
