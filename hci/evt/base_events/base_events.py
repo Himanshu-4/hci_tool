@@ -64,8 +64,6 @@ class CommandCompleteEvent(HciEvtBasePacket):
             opcode: Command opcode (2 bytes)
             status: Status code (1 byte), can be an integer or StatusCode enum
         """
-        if ret_params is None:
-            ret_params = b''
         if not isinstance(num_hci_command_packets, int) or num_hci_command_packets < 0:
             raise ValueError(f"Invalid num_hci_command_packets: {num_hci_command_packets}, must be a non-negative integer")
         if isinstance(status, StatusCode):
@@ -85,6 +83,9 @@ class CommandCompleteEvent(HciEvtBasePacket):
                             self.params['status'] if self.params.get('status') is not None else 0x00
                           )
     
+    def _validate_params(self) -> None:
+       pass  # No specific validation needed for this event
+   
     @classmethod
     def from_bytes(cls, data: bytes) -> 'CommandCompleteEvent':
         """Create Command Complete Event from parameter bytes (excluding header)"""
@@ -95,10 +96,10 @@ class CommandCompleteEvent(HciEvtBasePacket):
         return cls(num_hci_command_packets, opcode, status)
     
     @classmethod
-    def get_basic_event_data(cls, data: bytes) -> tuple:
+    def get_basic_event_data(cls, data: bytes) -> tuple[int, int, int, bytes]:
         """Get basic event data from bytes"""
-        if len(bytes) < 4:
-            raise ValueError(f"Invalid data length: {len(bytes)}, expected at least 4 bytes")
+        if len(data) < 4:
+            raise ValueError(f"Invalid data length: {len(data)}, expected at least 4 bytes")
         
         num_hci_command_packets, opcode, status = struct.unpack("<BHB", data[:4])
         return num_hci_command_packets, opcode, status, data[4:]
@@ -108,7 +109,7 @@ class CommandCompleteEvent(HciEvtBasePacket):
         """String representation of the command complete event"""
         status_desc = get_status_description(self.params['status']) if self.params.get('status') is not None else "Unknown"
         name = getattr(self.__class__, 'NAME', OPCODE_TO_NAME.get(self.params['opcode'], 'UNKNOWN'))
-        return (f"Command_Complete: {self.EVENT_CODE} \r\n"
+        return (f"Command_Complete: 0x{(self.EVENT_CODE or 0xFF):02X} \r\n"
                 f"{name}->0x{self.params['opcode']:04X}, \r\n"
                 f"NumPackets={self.params['num_hci_command_packets']}, \r\n"
                 f"Status={status_desc} (0x{self.params['status']:02X}), \r\n")

@@ -36,9 +36,6 @@ from hci.cmd import hci_create_cmd_packet
 from .cmds import get_cmd_ui_class
 from .cmds import HCICmdUI
 
-#@todo : here for temp purpose only
-from ui.exts.log_window import LogWindow
-
 from transports.transport import Transport
 from typing import ClassVar, Optional, Dict, Type
 
@@ -251,9 +248,6 @@ class HCICommandFactory:
         """
         # execute the command based on the opcode
         cmd_instance = get_command_class(opcode)(**kwargs) if get_command_class(opcode) else hci_create_cmd_packet(opcode, params=kwargs.get('params', None), name=kwargs.get('name', None))
-        # Create an instance of the command class
-        # log to window
-        LogWindow.info(f"{self.transport.name}->" + str(cmd_instance))
         return self.transport.write(cmd_instance.to_bytes())
 
     def deafult_controller_baseband_cmd_executor(self, opcode: int, **kwargs) -> bool:

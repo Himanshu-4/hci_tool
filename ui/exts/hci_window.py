@@ -20,6 +20,10 @@ from utils.Exceptions import *
 from .connect_window import ConnectionDialog
 
 
+# @todo method to log window need to shift to logger only 
+from ui.exts.log_window import LogWindow
+from hci.cmd.cmd_parser import hci_cmd_parse_from_bytes
+
 
 
 class HCIControl(QWidget):
@@ -76,6 +80,15 @@ class HCIControl(QWidget):
         """ 
         Create a new instance of HCIControlUI with the provided transport
         """
+        def log_window(data : bytes) -> None:
+            try:
+                print(f"[ConnectWindow] log_window {data}")
+                LogWindow.info(f"{transport.name}->" + str(hci_cmd_parse_from_bytes(data)))
+            except Exception as e:
+                LogWindow.error(f"Error parsing HCI command: {e}")
+                import traceback
+                print(traceback.format_exc())
+            
         print(f"[ConnectWindow] create_new_instance {transport} name {transport.name}")
         if HCIControl._main_window is None:
             raise ValueError("Main window must be set before creating a new instance.")
@@ -84,7 +97,7 @@ class HCIControl(QWidget):
         # Ensure the main window is set before creating an instance
         name = transport.name
         # add the read callback to print the data
-        transport.add_callback('write',lambda _ : transport.read(4))
+        transport.add_callback('write',lambda data : (log_window(data),transport.read(200)))
         instance = HCIControlUI(HCIControl._main_window, transport, name)
         instance.register_destroy(lambda: HCIControl.remove_instance(instance))
         HCIControl.hci_window_instance.append(instance)

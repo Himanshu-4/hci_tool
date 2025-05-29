@@ -48,30 +48,6 @@ def get_command_class(opcode: int) -> Optional[Type[HciCmdBasePacket]]:
     """Get command class from opcode"""
     return _cmd_registry.get(opcode)
 
-def cmd_from_bytes(data: bytes) -> Optional[HciCmdBasePacket]:
-    """
-    Parse HCI command from complete command bytes
-    
-    Args:
-        data: Complete command bytes including header
-        
-    Returns:
-        Parsed command object or None if parsing failed
-    """
-    if len(data) < 3:  # Need at least opcode (2 bytes) and length (1 byte)
-        return None
-    
-    opcode, length = struct.unpack("<HB", data[:3])
-    cmd_class = get_command_class(opcode)
-    
-    if cmd_class is None:
-        ogf = (opcode >> 10) & 0x3F
-        ocf = opcode & 0x03FF
-        print(f"Unknown command with opcode 0x{opcode:04X} (OGF=0x{ogf:02X}, OCF=0x{ocf:04X})")
-        return None
-    
-    return cmd_class.from_bytes(data[3:])
-
 def hci_create_cmd_packet(opcode :int, params: Optional[bytes]= None, name: Optional[str] = None) -> Optional[Type[HciCmdBasePacket]]:
     """
     Create a command packet with the given OGF, OCF, and parameters.
@@ -133,7 +109,6 @@ __all__ = [
     'create_opcode',
     'register_command',
     'get_command_class',
-    'cmd_from_bytes',
     'hci_create_cmd_packet',
     'hci_cmd_parse_from_bytes',
     'HciCmdBasePacket',

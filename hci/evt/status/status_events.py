@@ -51,7 +51,6 @@ class ReadRssiCompleteEvent(CommandCompleteEvent):
     
     def _validate_params(self) -> None:
         """Validate event parameters"""
-        print("Read RSSI Complete Event parameters")
         # Validate num_hci_command_packets
         if not (0 <= self.params['num_hci_command_packets'] <= 0xFF):
             raise ValueError(f"Invalid num_hci_command_packets: {self.params['num_hci_command_packets']}, must be between 0 and 0xFF")
@@ -99,7 +98,7 @@ class ReadRssiCompleteEvent(CommandCompleteEvent):
     def __str__(self) -> str:
         """ string representation of the event packet"""
         return super().__str__() + f"connection_handle=0x{self.params['connection_handle']:04X}, " \
-               f"rssi={self.params['rssi']} (0x{self.params['rssi']:02X})\r\n"
+               f"rssi={self.params['rssi']} (0x{self.params['rssi']:02X})"
 
 class ReadLinkQualityCompleteEvent(CommandCompleteEvent):
     """Read Link Quality Complete Event"""

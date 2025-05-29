@@ -89,8 +89,7 @@ class HciCmdBasePacket(HciCommandPacket):
     
     @classmethod
     def from_bytes(cls, data: bytes) -> 'HciCmdBasePacket':
-        """Create command from parameter bytes (excluding header)"""
-        # Call the derived class to create the command from bytes
+        """Create command from parameter bytes (excluding header) only use opcode and params"""
         pass
         
     @staticmethod

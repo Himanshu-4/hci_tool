@@ -133,14 +133,10 @@ def evt_from_bytes(data: bytes) -> Optional[HciEvtBasePacket]:
     evt_class = get_event_class(event_code, sub_evnt_code=sub_event_code, opcode=opcode)
     
     if evt_class is None:
-        raise ValueError(f"Unknown event with code 0x{event_code:02X} and sub-event code 0x{sub_event_code:02X} (if applicable)")
-    
-    try:
-        # For regular events, just pass the data excluding the header [packet ID + Evt code + length]
-        return evt_class.from_bytes(data[3:])
-    except Exception as e:
-        print(f"Failed to parse event: {e}")
-        return None
+        raise ValueError(f"Unknown event with code 0x{event_code:02X} and sub-event code 0x{(sub_event_code or 0xFF):02X} (if applicable)")
+    # If we have a valid event class, create an instance from the remaining data
+    return evt_class.from_bytes(data[3:])
+ 
 
 def hci_evt_parse_from_bytes(data: bytes) -> Optional[HciEvtBasePacket]:
     """
@@ -170,6 +166,7 @@ from . import testing
 from . import status
 from . import le
 from . import vs_specific
+from . import base_events
 
 # Make submodule event functions available at the top level
 # This enables usage like: import hci.evt as hci_evt; hci_evt.le.le_set_adv_params(...)
@@ -201,4 +198,5 @@ __all__ = [
     'status',
     'le',
     'vs_specific',
+    'base_events',
 ]

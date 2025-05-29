@@ -42,6 +42,8 @@ from .evts import HCIEvtUI
 from transports.transport import Transport
 from typing import ClassVar, Optional, Dict, Type
 
+# @todo : move this to a separate module for logging the events 
+from ui.exts.log_window import LogWindow
 
 class HCIEventFactory:
     """
@@ -55,7 +57,8 @@ class HCIEventFactory:
         self._is_destroyed = False
         # create a dictionary to track event windows and structure as {event_code: HCIEvtUI}
         self.event_windows : dict[int, HCIEvtUI] = {}
-        # add the process_hci_evt_packet method to the transport's event handler
+        
+        # @todo: must be adding callbacks in hci_main_ui add the process_hci_evt_packet method to the transport's event handler
         if self.transport:
             transport.add_callback('read', lambda data: self.process_hci_evt_packet(data))
             
@@ -237,10 +240,11 @@ class HCIEventFactory:
             True if the packet was successfully processed, False otherwise
         """
         try:
-            cmd_class = hci_evt_parse_from_bytes(packet_data)
-            print(str(cmd_class.from_bytes(packet_data)))
+            print(str(hci_evt_parse_from_bytes(packet_data)))
+            LogWindow.warning(str(hci_evt_parse_from_bytes(packet_data)))
         except Exception as e:
-            print(f"Error processing event 0x{e}")
+            print(f"Error processing event {e}")
+            traceback.print_exc()
 
     def default_base_event_handler(self, event_code: int, event_data: Optional[bytearray] = None) -> bool:
         """Default base event handler

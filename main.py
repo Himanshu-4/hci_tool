@@ -1,15 +1,7 @@
 # -*- coding: utf-8 -*-
 import sys
 
-import subprocess
-import os
-
 from ui.main.app import start_app
-
-
-from utils.logger import LoggerManager, test_logger
-from utils.file_handler import test_file_handler 
-
 
 
 def main():

@@ -8,11 +8,15 @@ import struct
 from typing import List, Dict, Any, ClassVar, Optional, Tuple, Union
 from enum import IntEnum
 
+from ...cmd.cmd_opcodes import OGF, ControllerBasebandOCF, create_opcode
+
+from ..base_events import CommandCompleteEvent
 from ..evt_base_packet import HciEvtBasePacket
 from ..evt_codes import HciEventCode
 from ..event_types import ControllerBasebandEventType
 from ..error_codes import StatusCode
 from .. import register_event
+
 
 class FlushOccurredEvent(HciEvtBasePacket):
     """Flush Occurred Event"""
@@ -331,6 +335,76 @@ class PageScanRepetitionModeChangeEvent(HciEvtBasePacket):
             page_scan_repetition_mode=page_scan_repetition_mode
         )
 
+class ReadLocalNameCompleteEvent(CommandCompleteEvent):
+    """Read Local Name Complete Event"""
+    
+    NAME = "Read_Local_Name_Complete"
+    OPCODE = create_opcode(OGF.CONTROLLER_BASEBAND, ControllerBasebandOCF.READ_LOCAL_NAME)
+    
+    def __init__(self, num_hci_command_packets: int, opcode: int, status: Union[int, StatusCode], local_name: str):
+        """
+        Initialize Read Local Name Complete Event
+        
+        Args:
+            local_name: Local name of the device
+        """
+        super().__init__(num_hci_command_packets = num_hci_command_packets, opcode=self.OPCODE, 
+                         status = status, local_name=local_name)
+        self.local_name = local_name
+    
+    def _serialize_params(self) -> bytes:
+        """Serialize parameters to bytes"""
+        # Convert local name to bytes and pad to 248 bytes
+        local_name_bytes = self.local_name.encode('utf-8') + b'\x00' * (248 - len(self.local_name))
+        return struct.pack("<248s", local_name_bytes)
+    
+    @classmethod
+    def from_bytes(cls, data: bytes) -> 'ReadLocalNameCompleteEvent':
+        """Create event from parameter bytes (excluding header)"""
+        if len(data) < 248:
+            raise ValueError(f"Invalid data length: {len(data)}, expected at least 248 bytes")
+        num_hci_command_packets, opcode, status, rem_data = cls.get_basic_event_data(data)
+        local_name = rem_data[:248].decode('utf-8').rstrip('\x00')
+        
+        return cls(num_hci_command_packets=num_hci_command_packets,
+                   opcode=opcode, status=status, local_name=local_name)
+
+    def __str__(self) -> str:
+        """String representation of the Read Local Name Complete Event"""
+        return super().__str__() + f"Local Name: {self.local_name}\r\n"
+
+class ResetCompleteEvent(CommandCompleteEvent):
+    """Reset Complete Event"""
+    
+    NAME = "Reset_Complete"
+    OPCODE = create_opcode(OGF.CONTROLLER_BASEBAND, ControllerBasebandOCF.RESET)
+    
+    def __init__(self, num_hci_command_packets: int, opcode: int, status: Union[int, StatusCode]):
+        """
+        Initialize Reset Complete Event
+        
+        Args:
+            num_hci_command_packets: Number of HCI command packets
+            opcode: Opcode of the command
+            status: Status of the command execution
+        """
+        super().__init__(num_hci_command_packets=num_hci_command_packets, opcode=opcode, status=status)
+    
+    def _serialize_params(self) -> bytes:
+        """Serialize parameters to bytes"""
+        return b''  # No additional parameters for reset complete
+    
+    @classmethod
+    def from_bytes(cls, data: bytes) -> 'ResetCompleteEvent':
+        """Create event from parameter bytes (excluding header)"""
+        num_hci_command_packets, opcode, status, _ = cls.get_basic_event_data(data)
+        return cls(num_hci_command_packets=num_hci_command_packets,
+                   opcode=opcode, status=status)
+        
+    def __str__(self) -> str:
+        """String representation of the Reset Complete Event"""
+        return super().__str__()
+
 # Register all event classes
 register_event(FlushOccurredEvent)
 register_event(DataBufferOverflowEvent)
@@ -338,6 +412,8 @@ register_event(MaxSlotsChangeEvent)
 register_event(QosViolationEvent)
 register_event(NumberOfCompletedPacketsEvent)
 register_event(PageScanRepetitionModeChangeEvent)
+register_event(ReadLocalNameCompleteEvent)
+register_event(ResetCompleteEvent)
 
 # Function wrappers for easier access
 def flush_occurred(connection_handle: int) -> FlushOccurredEvent:

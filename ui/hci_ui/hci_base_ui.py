@@ -26,6 +26,7 @@ from transports.transport import Transport
 from abc import ABC, abstractmethod
 from typing import ClassVar, Type, Optional, Dict, Any, Union, Tuple
 
+
 # Import HCI library 
 import hci
 import hci.cmd as hci_cmd
@@ -389,6 +390,7 @@ class HCIEvtBaseUI(HciBaseUI):
 
     
     def process_event(self, event_bytes):
+        # @todo have to implement this properly
         """Process an event and update the UI"""
         if self._is_destroyed:
             return False
