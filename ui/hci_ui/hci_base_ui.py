@@ -28,7 +28,6 @@ from typing import ClassVar, Type, Optional, Dict, Any, Union, Tuple
 
 
 # Import HCI library 
-import hci
 import hci.cmd as hci_cmd
 import hci.evt as hci_evt
 

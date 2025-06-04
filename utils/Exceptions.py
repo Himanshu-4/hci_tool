@@ -28,7 +28,8 @@ class CustomException(Exception):
 ####################################################################################################
 ## Custom Exceptions for File Handling
 ####################################################################################################
-class FileError(CustomException):
+
+class CustomFileException(CustomException):
     """
     Base class for all file-related exceptions.
 
@@ -42,7 +43,7 @@ class FileError(CustomException):
         self.message = message
         super().__init__(f"{message} File: {filename}")
 
-class CustomFileNotFoundError(FileError):
+class CustomFileNotFoundError(CustomFileException):
     """
     Exception raised when a file is not found.
 
@@ -55,7 +56,7 @@ class CustomFileNotFoundError(FileError):
         self.message = "File not found."
         super().__init__(filename, self.message)
     
-class FileAlreadyExistsError(FileError):
+class FileAlreadyExistsError(CustomFileException):
     """
     Exception raised when a file already exists.
 
@@ -69,7 +70,7 @@ class FileAlreadyExistsError(FileError):
         self.message = message
         super().__init__(filename, message)
      
-class FileReadError(FileError):
+class FileReadError(CustomFileException):
     """
     Exception raised when a file cannot be read.
 
@@ -83,7 +84,7 @@ class FileReadError(FileError):
         self.message = message
         super().__init__(filename, message)
         
-class FileWriteError(FileError):
+class FileWriteError(CustomFileException):
     """
     Exception raised when a file cannot be written.
 
@@ -97,7 +98,7 @@ class FileWriteError(FileError):
         self.message = message
         super().__init__(filename, message)
 
-class FileProcessingError(FileError):
+class FileProcessingError(CustomFileException):
     """
     Exception raised when a file cannot be processed.
 
@@ -111,7 +112,7 @@ class FileProcessingError(FileError):
         self.message = message
         super().__init__(filename, message)
 
-class InvalidFileFormatError(FileError):
+class InvalidFileFormatError(CustomFileException):
     """
     Exception raised for invalid file format.
 
@@ -125,7 +126,7 @@ class InvalidFileFormatError(FileError):
         self.message = message
         super().__init__(filename, message)
         
-class PermissionDeniedError(FileError):
+class PermissionDeniedError(CustomFileException):
     """
     Exception raised when permission is denied for a file operation.
 
@@ -139,7 +140,7 @@ class PermissionDeniedError(FileError):
         self.message = message
         super().__init__(filename, message)
         
-class FileEncodingError(FileError):
+class FileEncodingError(CustomFileException):
     """
     Exception raised for encoding errors in file operations.
 

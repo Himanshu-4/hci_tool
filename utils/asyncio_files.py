@@ -6,6 +6,8 @@ It offers non-blocking file operations suitable for high-performance asyncio app
 """
 
 import asyncio
+
+from .Exceptions import *
 import os
 import io
 import functools
@@ -22,21 +24,6 @@ __all__ = [
     "FileWatcher"
 ]
 
-class AsyncFileError(Exception):
-    """Base exception for all AsyncioFiles errors."""
-    pass
-
-class FileNotFoundError(AsyncFileError):
-    """Raised when a file operation targets a non-existent file."""
-    pass
-
-class PermissionError(AsyncFileError):
-    """Raised when a file operation lacks required permissions."""
-    pass
-
-class FileExistsError(AsyncFileError):
-    """Raised when trying to create a file that already exists."""
-    pass
 
 class FileOperation:
     """Helper class to manage file operation callbacks."""
@@ -315,7 +302,7 @@ async def open_async(
     except Exception as e:
         # Map standard exceptions to our custom ones
         if isinstance(e, io.UnsupportedOperation):
-            raise AsyncFileError(f"Unsupported file operation: {str(e)}")
+            raise CustomFileException(f"Unsupported file operation: {str(e)}")
         elif isinstance(e, os.error):
             if e.errno == os.errno.ENOENT:  # No such file or directory
                 raise FileNotFoundError(f"File not found: {path}")
@@ -324,9 +311,9 @@ async def open_async(
             elif e.errno == os.errno.EEXIST:  # File exists
                 raise FileExistsError(f"File already exists: {path}")
             else:
-                raise AsyncFileError(f"File operation error: {str(e)}")
+                raise CustomFileException(f"File operation error: {str(e)}")
         else:
-            raise AsyncFileError(f"Unknown error: {str(e)}")
+            raise CustomFileException(f"Unknown error: {str(e)}")
 
 async def read_file(path: str, binary: bool = False, encoding: str = "utf-8") -> Union[str, bytes]:
     """

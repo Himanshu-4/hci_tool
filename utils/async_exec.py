@@ -1,330 +1,425 @@
-import threading
 import asyncio
-import time
-from collections import deque
-from concurrent.futures import ThreadPoolExecutor  # For running blocking callbacks
+import threading
+import atexit
+import signal
+import sys
+import weakref
+from typing import Any, Callable, Optional, Union, Coroutine, TypeVar, Set
+from concurrent.futures import ThreadPoolExecutor, Future
+from functools import wraps
+import logging
+
+logger = logging.getLogger(__name__)
+
+T = TypeVar('T')
 
 
-class SerialManager:
-    def __init__(self, loop=None):
-        self._is_loop_externally_managed = loop is not None
-        self._loop = loop or asyncio.new_event_loop()
-        self._loop_thread = None
-        self.serial_ports = {} # port_id: AsyncSerialPort
-
-        if not self._is_loop_externally_managed:
-            print("SerialManager: Managing internal asyncio event loop.")
-        else:
-            print("SerialManager: Using externally provided asyncio event loop.")
-
-    def start_event_loop(self):
-        """Starts the asyncio event loop in a background thread if managed internally."""
-        if self._is_loop_externally_managed:
-            print("SerialManager: Event loop is externally managed, cannot start/stop from here.")
-            return False
-        if self._loop_thread and self._loop_thread.is_alive():
-            print("SerialManager: Event loop thread already running.")
-            return True
-        
-        self._loop_thread = threading.Thread(target=self._run_loop, daemon=True, name="SerialAsyncioLoop")
-        self._loop_thread.start()
-        # Add a small delay or a mechanism to ensure the loop is running before returning
-        # For simplicity, we assume it starts quickly. A future/event could be used.
-        print("SerialManager: Event loop thread started.")
-        return True
-
-    def _run_loop(self):
-        print("SerialManager: Asyncio event loop starting in background thread.")
-        asyncio.set_event_loop(self._loop)
-        try:
-            self._loop.run_forever()
-        finally:
-            print("SerialManager: Asyncio event loop in background thread has stopped.")
-            # Ensure cleanup of pending tasks if loop stops unexpectedly
-            if self._loop.is_running(): # Should not happen if run_forever exited normally
-                self._loop.call_soon_threadsafe(self._loop.stop) 
-            # Gather remaining tasks
-            pending = asyncio.all_tasks(loop=self._loop)
-            if pending:
-                print(f"SerialManager: Gathering {len(pending)} pending tasks before closing loop...")
-                self._loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
-            print("SerialManager: Closing asyncio loop.")
-            self._loop.close()
-
-
-    def stop_event_loop(self, timeout=5):
-        """Stops the internally managed asyncio event loop and associated serial ports."""
-        if self._is_loop_externally_managed:
-            print("SerialManager: Event loop is externally managed, cannot start/stop from here.")
+class ManagedTask:
+    """Wrapper for tasks with lifecycle management"""
+    
+    def __init__(self, task: asyncio.Task, destroy_callback: Optional[Callable] = None):
+        self.task = task
+        self.destroy_callback = destroy_callback
+        self._destroyed = False
+    
+    async def destroy(self):
+        """Destroy the task gracefully"""
+        if self._destroyed:
             return
-        if not self._loop_thread or not self._loop_thread.is_alive() or not self._loop.is_running():
-            print("SerialManager: Event loop thread not running or loop not active.")
-            return
-
-        print("SerialManager: Initiating shutdown of all serial ports...")
-        # Disconnect all ports
-        futs = []
-        for port_id in list(self.serial_ports.keys()): # list keys because dict might change if disconnect removes port
-            port = self.serial_ports.get(port_id)
-            if port and port.is_connected:
-                # Schedule disconnect on the loop
-                fut = asyncio.run_coroutine_threadsafe(port._disconnect_async(reason="Manager shutdown"), self._loop)
-                futs.append(fut)
+            
+        self._destroyed = True
         
-        # Wait for disconnect futures to complete
-        if futs:
-            print(f"SerialManager: Waiting for {len(futs)} ports to disconnect...")
-            for fut in futs:
-                try:
-                    fut.result(timeout=timeout/len(futs) if len(futs)>0 else timeout) 
-                except Exception as e:
-                    print(f"SerialManager: Error waiting for port disconnect future: {e}")
+        if self.destroy_callback:
+            try:
+                if asyncio.iscoroutinefunction(self.destroy_callback):
+                    await self.destroy_callback()
+                else:
+                    self.destroy_callback()
+            except Exception as e:
+                logger.error(f"Error in task destroy callback: {e}")
         
-        print("SerialManager: Stopping event loop...")
-        if self._loop.is_running():
-            self._loop.call_soon_threadsafe(self._loop.stop)
-        
-        self._loop_thread.join(timeout=timeout)
-        if self._loop_thread.is_alive():
-            print("SerialManager: Event loop thread did not terminate gracefully.")
-        else:
-            print("SerialManager: Event loop thread stopped.")
-        self._loop_thread = None
-
-
-    def add_port(self, port_id, port_url, baudrate, 
-                 start_byte=None, stop_byte=None, include_delimiters=False,
-                 max_frame_length=4096, read_buffer_size=1024, **kwargs):
-        if not self._loop.is_running() and not self._is_loop_externally_managed and (not self._loop_thread or not self._loop_thread.is_alive()):
-             print("Warning: Adding port but internal event loop is not running. Call start_event_loop().")
-
-        if port_id in self.serial_ports:
-            print(f"SerialManager: Port ID {port_id} already exists.")
-            return self.serial_ports[port_id]
-        
-        port = AsyncSerialPort(port_id, port_url, baudrate, self._loop,
-                               start_byte, stop_byte, include_delimiters,
-                               max_frame_length, read_buffer_size, **kwargs)
-        self.serial_ports[port_id] = port
-        print(f"SerialManager: Added port {port_id} for {port_url}")
-        return port
-
-    def connect_port(self, port_id: str):
-        """Initiates connection for a port. Non-blocking. Result via callback."""
-        if not self._loop.is_running():
-            print(f"SerialManager: Cannot connect port {port_id}, event loop not running.")
-            # Optionally, directly call the on_connect_cb with failure here if desired for sync feedback
-            port = self.serial_ports.get(port_id)
-            if port and port.on_connect_cb:
-                # This direct call would be from the calling thread, not asyncio thread.
-                # Consider consistency vs immediate feedback.
-                # For now, let the async path handle it if loop starts later.
+        if not self.task.done():
+            self.task.cancel()
+            try:
+                await self.task
+            except asyncio.CancelledError:
                 pass
-            return None 
 
-        port = self.serial_ports.get(port_id)
-        if not port:
-            print(f"SerialManager: Port ID {port_id} not found.")
-            return None
-        
-        future = asyncio.run_coroutine_threadsafe(port._connect_async(), self._loop)
-        return future # Caller can optionally wait on this future, but UI shouldn't.
 
-    def disconnect_port(self, port_id: str, reason="User initiated"):
-        """Initiates disconnection for a port. Non-blocking. Result via callback."""
-        if not self._loop.is_running():
-            print(f"SerialManager: Cannot disconnect port {port_id}, event loop not running.")
-            return None
-
-        port = self.serial_ports.get(port_id)
-        if not port:
-            print(f"SerialManager: Port ID {port_id} not found.")
-            return None
-        
-        future = asyncio.run_coroutine_threadsafe(port._disconnect_async(reason=reason), self._loop)
-        return future
-
-    def set_port_callbacks(self, port_id, on_connect=None, on_disconnect=None, on_data_received=None, on_data_sent=None):
-        port = self.serial_ports.get(port_id)
-        if port:
-            port.set_callbacks(on_connect, on_disconnect, on_data_received, on_data_sent)
-        else:
-            print(f"SerialManager: Port ID {port_id} not found for setting callbacks.")
-
-    def get_received_frame(self, port_id: str, timeout:float =0):
-        port = self.serial_ports.get(port_id)
-        if port:
-            return port.get_queued_frame(timeout) # timeout currently not fully supported for >0
-        print(f"SerialManager: Port ID {port_id} not found for reading frame.")
-        return None
-
-    def send_data_to_port(self, port_id: str, data: bytes):
-        port = self.serial_ports.get(port_id)
-        if port:
-            return port.send_data(data)
-        print(f"SerialManager: Port ID {port_id} not found for sending data.")
-        return False
-
-    def get_port_status(self, port_id: str):
-        port = self.serial_ports.get(port_id)
-        if port:
-            return port.get_status()
-        return None
+class EventLoopManager:
+    """
+    Thread-safe event loop manager that runs in a separate thread.
     
-    def get_all_statuses(self):
-        return {pid: p.get_status() for pid, p in self.serial_ports.items()}
+    Usage:
+        loop_manager = EventLoopManager()
+        loop_manager.start()
+        
+        # Add tasks
+        task = loop_manager.add_task(some_coroutine())
+        
+        # Run and wait for result
+        result = loop_manager.run_and_wait(some_coroutine())
+        
+        # Cleanup (also called automatically on exit)
+        loop_manager.destroy()
+    """
+    
+    _instances = {}
+    _lock = threading.Lock()
+    
+    @classmethod
+    def create_instance(cls, name:str ) -> 'EventLoopManager':
+        """Create a new instance of EventLoopManager"""
+        with cls._lock:
+            if name in cls._instances:
+                return cls._instances[name]
+            instance = cls(name)
+            cls._instances[name] = instance
+        return instance 
 
-
-class EventLoop:
-    def __init__(self):
-        self._loop = asyncio.new_event_loop()
-        self._thread = threading.Thread(target=self.__run_loop, daemon=True)
-        self._tasks = {}  # Store tasks by name
-        self._callbacks_soon = deque()
-        self._executor = ThreadPoolExecutor() # For running callbacks in a thread
-        self._is_running = False
-        self._thread.start()
-
-    def __del__(self):
-        print("Stopping event loop...")
-        # if self._is_running:
-        #     self.stop()
-        # if self._thread.is_alive():
-        #     self._thread.join()
-        if self._loop.is_running():
-            self._loop.stop()
-        self._executor.shutdown(wait=True)
-        print("Event loop stopped.")
-
-    def __run_loop(self):
-        asyncio.set_event_loop(self._loop)
-        self._is_running = True
-        self._loop.run_forever()
-        self._is_running = False
-
-    def create_task(self, task_name, coro):
-        if task_name in self._tasks:
-            raise ValueError(f"Task with name '{task_name}' already exists.")
-        if not asyncio.iscoroutine(coro):
-            raise TypeError("Expected a coroutine for create_task.")
-        task = self._loop.create_task(coro)
-        self._tasks[task_name] = task
-        return task
-
-    def run_callback_soon(self, callback, *args, **kwargs):
-        if not callable(callback):
-            raise TypeError("Expected a callable for run_callback_soon.")
-        self._loop.call_soon_threadsafe(self._invoke_callback, callback, *args, **kwargs)
-
-    def run_callback_in_thread(self, callback, *args, **kwargs):
-        if not callable(callback):
-            raise TypeError("Expected a callable for run_callback_in_thread.")
-        return asyncio.run_coroutine_threadsafe(self._run_in_executor(callback, *args, **kwargs), self._loop)
-
-    async def _run_in_executor(self, func, *args, **kwargs):
-        return await self._loop.run_in_executor(self._executor, func, *args, **kwargs)
-
-    def call_soon(self, callback, *args, **kwargs):
-        if not callable(callback):
-            raise TypeError("Expected a callable for call_soon.")
-        self._loop.call_soon(callback, *args, **kwargs)
-
-    def call_later(self, delay, callback, *args, **kwargs):
-        if not callable(callback):
-            raise TypeError("Expected a callable for call_later.")
-        return self._loop.call_later(delay, callback, *args, **kwargs)
-
-    def get_task(self, task_name):
-        return self._tasks.get(task_name)
-
-    def cancel_task(self, task_name):
-        task = self.get_task(task_name)
-        if task:
-            task.cancel()
-            return True
-        return False
-
-    def stop(self):
-        if self._is_running:
-            # for task in self._tasks.values():
-            #     if not task.done():
-            #         task.cancel()
-            # Gather all pending tasks and wait for them to finish (or be cancelled)
-            pending = asyncio.all_tasks(loop=self._loop)
-            for task in pending:
-                if not task.done():
-                    task.cancel()
-            # asyncio.run_coroutine_threadsafe(asyncio.gather(*pending), self._loop)
-            self._loop.call_soon(*pending)
-            self._loop.stop()
-
-    def is_running(self):
-        return self._is_running
-
-    def _invoke_callback(self, callback, *args, **kwargs):
+    def __init__(self, name : Optional[str] = None):
+        """Initialize the event loop manager"""
+        if hasattr(self, '_initialized'):
+            return
+            
+        self._initialized = True
+        self._name = name or "EventLoopManager"
+        self._loop: Optional[asyncio.AbstractEventLoop] = None
+        self._thread: Optional[threading.Thread] = None
+        self._started = threading.Event()
+        self._stopping = False
+        self._task_list: Set[ManagedTask] = set()
+        self._task_lock = threading.Lock()
+        self._executor = ThreadPoolExecutor(max_workers=10)
+        self._destroy_callbacks: list[Callable] = []
+        
+        # Register cleanup handlers
+        atexit.register(self._cleanup)
+        signal.signal(signal.SIGINT, self._signal_handler)
+        signal.signal(signal.SIGTERM, self._signal_handler)
+    
+    def _signal_handler(self, signum, frame):
+        """Handle system signals for graceful shutdown"""
+        logger.info(f"Received signal {signum}, initiating graceful shutdown")
+        self.destroy()
+        sys.exit(0)
+    
+    def _run_loop(self):
+        """Run the event loop in a separate thread"""
         try:
-            callback(*args, **kwargs)
+            self._loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(self._loop)
+            self._started.set()
+            self._loop.run_forever()
         except Exception as e:
-            print(f"Error in callback: {e}")
+            logger.error(f"Event loop error: {e}")
+        finally:
+            self._loop.close()
+            self._loop = None
+    
+    def start(self):
+        """Start the event loop in a separate thread"""
+        if self._thread and self._thread.is_alive():
+            return
+        
+        self._thread = threading.Thread(target=self._run_loop, daemon=True)
+        self._thread.start()
+        self._started.wait()  # Wait for loop to be ready
+        logger.info("Event loop started")
+    
+    def create(self):
+        """Alias for start() to match requested API"""
+        self.start()
+    
+    def _ensure_started(self):
+        """Ensure the event loop is running"""
+        if not self._thread or not self._thread.is_alive():
+            self.start()
+    
+    def add_task(self, coro: Coroutine[Any, Any, T], 
+                 destroy_callback: Optional[Callable] = None) -> asyncio.Task[T]:
+        """
+        Add a coroutine as a task to the event loop
+        
+        Args:
+            coro: Coroutine to run
+            destroy_callback: Optional callback to run when task is destroyed
+            
+        Returns:
+            The created asyncio.Task
+        """
+        self._ensure_started()
+        
+        future = asyncio.run_coroutine_threadsafe(
+            self._create_managed_task(coro, destroy_callback), 
+            self._loop
+        )
+        return future.result()
+    
+    async def _create_managed_task(self, coro: Coroutine[Any, Any, T], 
+                                   destroy_callback: Optional[Callable] = None) -> asyncio.Task[T]:
+        """Create and track a managed task"""
+        task = asyncio.create_task(coro)
+        managed_task = ManagedTask(task, destroy_callback)
+        
+        with self._task_lock:
+            self._task_list.add(managed_task)
+        
+        # Remove from tracking when done
+        def cleanup(_):
+            with self._task_lock:
+                self._task_list.discard(managed_task)
+        
+        task.add_done_callback(cleanup)
+        return task
+    
+    def add_coroutine(self, coro: Coroutine[Any, Any, T]) -> asyncio.Task[T]:
+        """Alias for add_task() to match requested API"""
+        return self.add_task(coro)
+    
+    def run_task(self, coro: Coroutine[Any, Any, T]) -> Future[T]:
+        """
+        Run a coroutine and return a Future
+        
+        Args:
+            coro: Coroutine to run
+            
+        Returns:
+            concurrent.futures.Future that will contain the result
+        """
+        self._ensure_started()
+        return asyncio.run_coroutine_threadsafe(coro, self._loop)
+    
+    def run_and_wait(self, coro: Coroutine[Any, Any, T], timeout: Optional[float] = None) -> T:
+        """
+        Run a coroutine and wait for its result
+        
+        Args:
+            coro: Coroutine to run
+            timeout: Optional timeout in seconds
+            
+        Returns:
+            The result of the coroutine
+        """
+        future = self.run_task(coro)
+        return future.result(timeout=timeout)
+    
+    def w4_result(self, coro: Coroutine[Any, Any, T], timeout: Optional[float] = None) -> T:
+        """Alias for run_and_wait() to match requested API"""
+        return self.run_and_wait(coro, timeout)
+    
+    def run_in_executor(self, func: Callable[..., T], *args, **kwargs) -> Future[T]:
+        """
+        Run a synchronous function in the thread pool executor
+        
+        Args:
+            func: Function to run
+            *args, **kwargs: Arguments to pass to the function
+            
+        Returns:
+            concurrent.futures.Future that will contain the result
+        """
+        self._ensure_started()
+        
+        async def executor_wrapper():
+            return await self._loop.run_in_executor(
+                self._executor, func, *args
+            )
+        
+        return self.run_task(executor_wrapper())
+    
+    def add_callback(self, callback: Callable, *args, **kwargs):
+        """
+        Schedule a callback to run in the event loop
+        
+        Args:
+            callback: Function to call
+            *args, **kwargs: Arguments to pass to the callback
+        """
+        self._ensure_started()
+        self._loop.call_soon_threadsafe(callback, *args)
+    
+    def add_task_destroy_callback(self, callback: Callable):
+        """
+        Add a callback to be called when destroying all tasks
+        
+        Args:
+            callback: Function to call during task destruction
+        """
+        self._destroy_callbacks.append(callback)
+    
+    def stop(self):
+        """Stop the event loop (can be restarted)"""
+        if self._loop and self._loop.is_running():
+            self._loop.call_soon_threadsafe(self._loop.stop)
+            logger.info("Event loop stopped")
+    
+    def close(self):
+        """Close the event loop (cannot be restarted without creating new loop)"""
+        self.stop()
+        if self._thread and self._thread.is_alive():
+            self._thread.join(timeout=5)
+        logger.info("Event loop closed")
+    
+    async def _destroy_all_tasks(self):
+        """Destroy all managed tasks gracefully"""
+        # Call destroy callbacks
+        for callback in self._destroy_callbacks:
+            try:
+                if asyncio.iscoroutinefunction(callback):
+                    await callback()
+                else:
+                    callback()
+            except Exception as e:
+                logger.error(f"Error in destroy callback: {e}")
+        
+        # Destroy all tasks
+        with self._task_lock:
+            tasks = list(self._task_list)
+        
+        if tasks:
+            logger.info(f"Destroying {len(tasks)} tasks...")
+            destroy_tasks = [task.destroy() for task in tasks]
+            await asyncio.gather(*destroy_tasks, return_exceptions=True)
+        
+        # Cancel any remaining tasks
+        pending = [t for t in asyncio.all_tasks(self._loop) 
+                  if not t.done() and t != asyncio.current_task()]
+        
+        if pending:
+            logger.info(f"Cancelling {len(pending)} remaining tasks...")
+            for task in pending:
+                task.cancel()
+            await asyncio.gather(*pending, return_exceptions=True)
+    
+    def destroy(self):
+        """
+        Gracefully destroy the event loop manager
+        
+        This will:
+        1. Call destroy callbacks
+        2. Destroy all managed tasks
+        3. Stop and close the event loop
+        """
+        if self._stopping:
+            return
+            
+        self._stopping = True
+        logger.info("Destroying event loop manager...")
+        
+        if self._loop and self._loop.is_running():
+            # Schedule task destruction in the event loop
+            future = asyncio.run_coroutine_threadsafe(
+                self._destroy_all_tasks(),
+                self._loop
+            )
+            
+            try:
+                future.result(timeout=10)
+            except Exception as e:
+                logger.error(f"Error during task destruction: {e}")
+        
+        # Close executor
+        self._executor.shutdown(wait=True)
+        
+        # Stop and close loop
+        self.close()
+        
+        logger.info("Event loop manager destroyed")
+    
+    def _cleanup(self):
+        """Cleanup handler for atexit"""
+        if not self._stopping:
+            self.destroy()
+    
+    @property
+    def is_running(self) -> bool:
+        """Check if the event loop is running"""
+        return (self._loop is not None and 
+                self._loop.is_running() and 
+                self._thread is not None and 
+                self._thread.is_alive())
+    
+    @property
+    def loop(self) -> Optional[asyncio.AbstractEventLoop]:
+        """Get the event loop (use with caution)"""
+        return self._loop
 
 
-def test_executor():
+# Global instance for convenience
+_default_manager: Optional[EventLoopManager] = None
+
+
+def get_event_loop_manager() -> EventLoopManager:
+    """Get or create the default event loop manager"""
+    global _default_manager
+    if _default_manager is None:
+        _default_manager = EventLoopManager()
+        _default_manager.start()
+    return _default_manager
+
+
+# Decorator for async functions to run in the event loop
+def run_async(func: Callable[..., Coroutine[Any, Any, T]]) -> Callable[..., T]:
     """
-    Test the ThreadPoolExecutor functionality.
+    Decorator to automatically run async functions in the event loop
+    
+    Usage:
+        @run_async
+        async def my_async_function():
+            await asyncio.sleep(1)
+            return "done"
+        
+        # Can now call directly without await
+        result = my_async_function()
     """
-    def blocking_io():
-        print("Starting blocking IO...")
-        time.sleep(5)
-        print("Blocking IO finished.")
-        return "IO Result"
-
-    loop = EventLoop()
-    future = loop.run_callback_in_thread(blocking_io)
-    result = future.result()  # Wait for the result
-    print(f"Result from blocking IO: {result}")
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        manager = get_event_loop_manager()
+        return manager.run_and_wait(func(*args, **kwargs))
     
-    
-    
-    
-    async def my_coroutine():
-        print("Coroutine started...")
-        await asyncio.sleep(5)
-        print("Coroutine finished!")
-        return "Coroutine result"
+    return wrapper
 
-    def my_callback(message):
-        print(f"Callback executed: {message}")
-
-    def blocking_io():
-        print("Starting blocking IO...")
-        time.sleep(5)
-        print("Blocking IO finished.")
-        return "IO Result"
-
-    loop = EventLoop()
-
-    task1 = loop.create_task("my_task", my_coroutine())
-    loop.run_callback_soon(my_callback, "Hello from run_callback_soon!")
-    future = loop.run_callback_in_thread(blocking_io)
-    loop.call_later(1, my_callback, "Hello from call_later!")
-    loop.call_soon(my_callback, "Hello from call_soon!")
-
-    time.sleep(3)
-    print(f"Is loop running? {loop.is_running()}")
-    loop.cancel_task("my_task")
-    loop.__del__()
-    # Keep the main thread alive for a bit to see the loop in action
-    try:
-        time.sleep(5)
-    except KeyboardInterrupt:
-        pass
-
-    # The __del__ method will be called when the 'loop' object is garbage collected
-    del loop
-    
-    
-
-    
-# Example usage:
+# Example usage and testing
 if __name__ == "__main__":
-    test_executor()
+    import time
+    
+    # Configure logging
+    logging.basicConfig(level=logging.INFO)
+    
+    # Create manager
+    manager = EventLoopManager()
+    manager.start()
+    
+    # Example coroutine
+    async def example_task(name: str, duration: float):
+        print(f"Task {name} started")
+        await asyncio.sleep(duration)
+        print(f"Task {name} completed")
+        return f"Result from {name}"
+    
+    # Example destroy callback
+    def task_destroy_callback():
+        print("Task is being destroyed!")
+    
+    # Add tasks
+    task1 = manager.add_task(example_task("Task1", 2), task_destroy_callback)
+    task2 = manager.add_task(example_task("Task2", 3))
+    
+    # Run and wait for result
+    result = manager.run_and_wait(example_task("Task3", 1))
+    print(f"Task3 result: {result}")
+    
+    # Run in executor
+    def sync_function(x, y):
+        time.sleep(0.5)
+        return x + y
+    
+    future = manager.run_in_executor(sync_function, 5, 3)
+    print(f"Executor result: {future.result()}")
+    
+    # Wait a bit
+    time.sleep(1)
+    
+    # Destroy manager (also happens automatically on exit)
+    manager.destroy()
