@@ -11,10 +11,20 @@
 
 from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QGroupBox,QLineEdit,
                              QRadioButton, QLabel, QComboBox, QCheckBox, QPushButton,
-                             QButtonGroup, QGridLayout, QSpinBox, QSizePolicy)
+                             QButtonGroup, QGridLayout, QSpinBox, QSizePolicy,
+                             QMessageBox)
 from PyQt5.QtCore import Qt, pyqtSignal
 import serial.tools.list_ports
 from transports.transport import Transport
+
+from enum  import StrEnum
+
+class msg_type(StrEnum):
+    info = "info"
+    error = "error"
+    warning = "warning"
+    critical = "critical"
+    exception = "exception"
 
 class ConnectionDialog(QDialog):
     
@@ -332,7 +342,7 @@ class ConnectionDialog(QDialog):
         """Test the connection with current parameters"""
         try:
             interface = self.get_selected_interface()
-            transport = Transport(self._name)
+            transport = Transport.get_instance(self._name)
             transport.select_interface(interface)
             
             if interface == "UART":
@@ -340,36 +350,36 @@ class ConnectionDialog(QDialog):
                 transport.configure(config)
             
             if transport.connect():
-                self.show_message("Connection test successful!")
+                self.show_message("Connection test successful!", msg_type.info)
                 transport.disconnect()
             else:
-                self.show_message("Connection test failed!")
+                self.show_message("Connection test failed!", msg_type.error)
                 
         except Exception as e:
-            self.show_message(f"Connection test error: {str(e)}")
+            self.show_message(f"Connection test error: {str(e)}", msg_type.exception)
     
     def accept_connection(self):
         """Accept the connection and create transport instance"""
         try:
             interface = self.get_selected_interface()
-            self.transport = Transport(self.name_input.text() or self._name)
+            self.transport = Transport.get_instance(self.name_input.text() or self._name)
             self.transport.select_interface(interface)
             
             if interface == "UART":
                 config = self.get_uart_config()
                 if not config['port']:
-                    self.show_message("Please select a COM port!")
+                    self.show_message("Please select a COM port!",msg_type.error)
                     return
                 self.transport.configure(config)
             elif interface in ["SDIO", "USB"]:
-                self.show_message(f"{interface} interface is not yet implemented!")
+                self.show_message(f"{interface} interface is not yet implemented!",msg_type.warning)
                 return
             
             if self.transport.connect():
                 self.connection_done_signal.emit(self.transport)
                 self.accept()
             else:
-                self.show_message("Failed to establish connection!")
+                self.show_message("Failed to establish connection!", msg_type.error)
                 
         except Exception as e:
             self.show_message(f"Connection error: {str(e)}")
@@ -379,6 +389,19 @@ class ConnectionDialog(QDialog):
         """Return the configured transport instance"""
         return self.transport
     
-    def show_message(self, message):
+    def show_message(self,msg :str, type: msg_type = msg_type.info):
         """Show a simple message (could be enhanced with QMessageBox)"""
-        print(f"Connection Dialog: {message}")  # For now, just print
+        # In a real application, you might want to use QMessageBox
+        if type == "info":
+            QMessageBox.information(self, "Info", msg)
+        elif type == "error":
+            QMessageBox.critical(self, "Error", msg)
+        elif type == "warning":
+            QMessageBox.warning(self, "Warning", msg)
+        elif type == "critical":
+            QMessageBox.critical(self, "Critical", msg)
+        elif type == "exception":
+            QMessageBox.critical(self, "Exception", msg)
+        print(f"[ConnectionDialog].show_message [{type}]: {msg}")
+        
+        

@@ -1,4 +1,4 @@
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Union
 from .base_lib import TransportInterface, ConnectionStatus, TransportError
 from .UART.uart import UARTTransport
 from .SDIO.sdio import SDIOTransport
@@ -8,6 +8,51 @@ from .USB.usb import USBTransport
 class Transport:
     """Main transport class that manages different transport interfaces"""
     
+    _transport_instances = {}
+    
+    @classmethod
+    def get_instance(cls, name: str = "DefaultTransport") -> 'Transport':
+        """
+        Get or create a transport instance by name
+        Args:
+            name: Name of the transport instance
+        Returns:
+            Transport instance
+        """
+        if name not in cls._transport_instances:
+            cls._transport_instances[name] = cls(name)
+        
+        return cls._transport_instances[name]
+    
+    @classmethod
+    def clear_instances(cls):
+        """Clear all transport instances"""
+        cls._transport_instances.clear()
+        
+    @classmethod
+    def remove_instance(cls, name: Union[str, 'Transport']):
+        """
+        Remove a transport instance by name
+        Args:
+            name: Name or transport object  of the transport instance to remove
+        """
+        if isinstance(name, Transport):
+            name = name.name
+        
+        if name in cls._transport_instances:
+            del cls._transport_instances[name]
+        else:
+            raise TransportError(f"Transport instance '{name}' not found.")
+        
+    @classmethod
+    def list_instances(cls) -> Dict[str, 'Transport']:
+        """
+        List all transport instances
+        Returns:
+            Dictionary of transport instances by name
+        """
+        return cls._transport_instances.copy()
+        
     def __init__(self, name: str = "DefaultTransport"):
         self.name = name
         self.interface_type = None
@@ -32,9 +77,6 @@ class Transport:
                 raise TransportError(f"Interface '{interface_type}' not available. "
                                    f"Available interfaces: {list(self.available_interfaces.keys())}")
             
-            # Disconnect current interface if connected
-            if self.transport_instance and self.transport_instance.is_connected():
-                self.transport_instance.disconnect()
             
             # Create new interface instance
             interface_class = self.available_interfaces[interface_type]

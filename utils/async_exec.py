@@ -133,32 +133,39 @@ class EventLoopManager:
     
     def _ensure_started(self):
         """Ensure the event loop is running"""
-        if not self._thread or not self._thread.is_alive():
+        if self._stopping:
+            raise RuntimeError("Event loop manager is stopping, cannot add tasks")
+        if self._loop and not self._loop.is_running():
+            raise RuntimeError("Event loop is not running, call start() first")
+        # If the thread is not alive, restart it
+        if self._thread and not self._thread.is_alive():
             self.start()
     
     def add_task(self, coro: Coroutine[Any, Any, T], 
                  destroy_callback: Optional[Callable] = None) -> asyncio.Task[T]:
         """
-        Add a coroutine as a task to the event loop
+        Add a coroutine to event loop and track it
         
         Args:
             coro: Coroutine to run
             destroy_callback: Optional callback to run when task is destroyed
             
         Returns:
-            The created asyncio.Task
+            Coro future that will contain the result of the coroutine
         """
         self._ensure_started()
-        
-        future = asyncio.run_coroutine_threadsafe(
-            self._create_managed_task(coro, destroy_callback), 
+        # Ensure the coroutine is a valid asyncio coroutine
+        return asyncio.run_coroutine_threadsafe(
+            self._create_managed_task(coro, destroy_callback),
             self._loop
-        )
-        return future.result()
+        ).result()
+        
     
-    async def _create_managed_task(self, coro: Coroutine[Any, Any, T], 
+    def _create_managed_task(self, coro: Coroutine[Any, Any, T], 
                                    destroy_callback: Optional[Callable] = None) -> asyncio.Task[T]:
         """Create and track a managed task"""
+        if not asyncio.iscoroutine(coro):
+            raise ValueError("Provided object is not a coroutine")
         task = asyncio.create_task(coro)
         managed_task = ManagedTask(task, destroy_callback)
         
@@ -175,7 +182,7 @@ class EventLoopManager:
     
     def add_coroutine(self, coro: Coroutine[Any, Any, T]) -> asyncio.Task[T]:
         """Alias for add_task() to match requested API"""
-        return self.add_task(coro)
+        return self._create_managed_task(coro)
     
     def run_task(self, coro: Coroutine[Any, Any, T]) -> Future[T]:
         """
@@ -411,12 +418,13 @@ if __name__ == "__main__":
     print(f"Task3 result: {result}")
     
     # Run in executor
-    def sync_function(x, y):
-        time.sleep(0.5)
+    @run_async
+    async def sync_function(x, y):
+        await asyncio.sleep(2.5)
         return x + y
     
-    future = manager.run_in_executor(sync_function, 5, 3)
-    print(f"Executor result: {future.result()}")
+    res = sync_function(5, 10)
+    print(f"Executor result: {res}")
     
     # Wait a bit
     time.sleep(1)
