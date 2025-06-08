@@ -112,7 +112,11 @@ class HciCommandSelector(QWidget):
         super().__init__()
         self.categories = []
         self.commands = {}
+        # filtered commands and results for navigation
         self.filtered_commands = {}
+        self.filtered_results = []  # Store filtered results for navigation
+        self.current_match_index = -1  # Track current match index
+        
         self._is_destroyed = False  # Flag to track if the instance is destroyed
         self.init_ui()
         self.load_commands()
@@ -171,6 +175,7 @@ class HciCommandSelector(QWidget):
         
         self.search_box = QLineEdit()
         self.search_box.setPlaceholderText("Search commands...")
+        # filter commands when text is changed
         self.search_box.textChanged.connect(self.filter_commands)
         self.search_box.setClearButtonEnabled(True)  # Enable clear button
         self.search_box.installEventFilter(self)  # Install event filter for keyboard handling
@@ -194,28 +199,20 @@ class HciCommandSelector(QWidget):
         
         
     def eventFilter(self, source, event):
-        # print(f"eventFilter: {source}, {event}")
-        if source == self.commands_list and event.type() == event.KeyPress:
-            if event.key() == Qt.Key_Return or event.key() == Qt.Key_Enter:
-                current_item = self.commands_list.currentItem()
-                if current_item:
-                    self._on_command_cliked(current_item)
-                return True  # Event handled
-        return super().eventFilter(source, event)
-    
-    def eventFilter(self, source, event):
         """Handle keyboard events for regex search navigation"""
         if event.type() == event.KeyPress:
             if source == self.search_box:
                 if event.key() == Qt.Key_Return or event.key() == Qt.Key_Enter:
-                    # Navigate to next match or execute command
-                    self._handle_enter_navigation()
+                    # Execute selected command
+                    if self.commands_list.currentItem():
+                        self._on_command_cliked(self.commands_list.currentItem())
                     return True
                 elif event.key() == Qt.Key_Down:
-                    # Move focus to command list
+                    # Move focus to command list and select first item
                     if self.commands_list.count() > 0:
                         self.commands_list.setFocus()
                         self.commands_list.setCurrentRow(0)
+                        self.commands_list.scrollToItem(self.commands_list.item(0))
                     return True
                 elif event.key() == Qt.Key_Escape:
                     # Clear search
@@ -228,6 +225,23 @@ class HciCommandSelector(QWidget):
                     current_item = self.commands_list.currentItem()
                     if current_item:
                         self._on_command_cliked(current_item)
+                    return True
+                elif event.key() == Qt.Key_Up:
+                    # Move up in the list
+                    current_row = self.commands_list.currentRow()
+                    if current_row > 0:
+                        self.commands_list.setCurrentRow(current_row - 1)
+                        self.commands_list.scrollToItem(self.commands_list.currentItem())
+                    else:
+                        # If at top, move focus to search box
+                        self.search_box.setFocus()
+                    return True
+                elif event.key() == Qt.Key_Down:
+                    # Move down in the list
+                    current_row = self.commands_list.currentRow()
+                    if current_row < self.commands_list.count() - 1:
+                        self.commands_list.setCurrentRow(current_row + 1)
+                        self.commands_list.scrollToItem(self.commands_list.currentItem())
                     return True
                 elif event.key() == Qt.Key_Escape:
                     # Return focus to search box
@@ -270,89 +284,63 @@ class HciCommandSelector(QWidget):
         self.command_type_combo.setEnabled(is_enabled)
         self.search_box.setEnabled(is_enabled)
     
-    def _handle_enter_navigation(self):
-        """Handle Enter key in search box - navigate through matches"""
-        # if not self.filtered_results:
-        #     return
-            
-        # if len(self.filtered_results) == 1:
-        #     # Only one match - execute it directly
-        #     command = self.filtered_results[0]['command']
-        #     self._execute_selected_command(command)
-        # else:
-        #     # Multiple matches - navigate through them
-        #     self.current_match_index = (self.current_match_index + 1) % len(self.filtered_results)
-            
-        #     # Find the item in the list and select it
-        #     target_command = self.filtered_results[self.current_match_index]['command']
-        #     for i in range(self.commands_list.count()):
-        #         item = self.commands_list.item(i)
-        #         if item.text() == target_command:
-        #             self.commands_list.setCurrentRow(i)
-        #             self.commands_list.scrollToItem(item)
-        #             break
-            
-        #     # Update status to show navigation
-        #     current = self.current_match_index + 1
-        #     total = len(self.filtered_results)
-        #     print(f"Navigating to match {current}/{total}: {target_command}")
-        self.commands_list.setCurrentRow(5)  # Reset to first item
-        print("Enter key pressed in search box - navigating through matches")    
-        
+    
     def filter_commands(self):
         """Filter commands by type and search text"""
         search_text = self.search_box.text().lower()
         
         # Get the selected command type
         selected_type_index = self.command_type_combo.currentIndex()
+        selected_category = self.command_type_combo.currentText()
 
         # Initialize empty filtered commands
         self.filtered_commands = {}
+        self.filtered_results = []  # Clear previous results
+        self.current_match_index = -1  # Reset match index
         
-        # Filter by command type
-        if selected_type_index == 0:  # All Commands
-            # Include all categories
-            categories_to_include = self.categories
-        else:
-            # Include only the selected category
-            for category, index in self.category_to_index.items():
-                if index == selected_type_index:
-                    categories_to_include = [category]
-                    break
-            else:
-                categories_to_include = []
-        
-        # Apply category filter
-        for category in categories_to_include:
+        # Only filter within the selected category
+        if selected_category in self.commands:
             # Filter commands by search text
             if search_text:
-                self.filtered_commands[category] = [
-                    cmd for cmd in self.commands.get(category, [])
+                filtered_cmds = [
+                    cmd for cmd in self.commands[selected_category]
                     if search_text in cmd.lower()
                 ]
+                self.filtered_commands[selected_category] = filtered_cmds
+                # Add to flat list of results for navigation
+                for cmd in filtered_cmds:
+                    self.filtered_results.append({'category': selected_category, 'command': cmd})
             else:
-                self.filtered_commands[category] = list(self.commands.get(category, []))
+                self.filtered_commands[selected_category] = list(self.commands[selected_category])
         
-        # Update the categories list
-        for category in categories_to_include:
-            if category in self.filtered_commands and self.filtered_commands[category]:
-                self.commands_list.addItem(category)
+        # Update the commands list
+        self.commands_list.clear()
+        if selected_category in self.filtered_commands:
+            for cmd in self.filtered_commands[selected_category]:
+                self.commands_list.addItem(cmd)
         
-        # If a category is selected, update the commands list
-        # if self.commands_list.currentItem():
-        #     self._on_category_selected(self.commands_list.currentItem(), None)
+        # Select first match if there are results
+        if self.filtered_results:
+            self.current_match_index = 0
+            self.commands_list.setCurrentRow(0)
+            self.commands_list.scrollToItem(self.commands_list.item(0))
     
-    def _on_category_selected(self, current : None ):
+    def _on_category_selected(self, current : Optional[str] = None ):
         """Handle selection of a command category"""
         if current is None:
-            return
-            
+            return 
+        
+        current_category = self.command_type_combo.currentText()
         # Load commands for the selected category
         self.commands_list.clear()
-        for command in self.commands.get(self.command_type_combo.currentText(), []):
+        for command in self.commands.get(current_category, []):
             self.commands_list.addItem(command)
+        # select the first command
+        if self.commands_list.count() > 0:
+            self.commands_list.setCurrentRow(0)
+            self.commands_list.scrollToItem(self.commands_list.item(0))
     
-    def _on_command_cliked(self, current):
+    def _on_command_cliked(self, current : Optional[QListWidgetItem] = None):
         """Handle selection of a specific command"""
         if current is None or self.commands_list.currentItem() is None:
             return

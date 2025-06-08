@@ -18,7 +18,7 @@ from transports.transport import Transport
 
 from hci.cmd.cmd_opcodes import create_opcode, OGF, LEControllerOCF
 import hci.cmd.le_cmds as le_cmds
-from hci.cmd.cmd_parser import bd_addr_str_to_bytes
+from hci import bd_addr_str_to_bytes
 
 from ..cmd_baseui import HCICmdUI
 from .. import register_command_ui

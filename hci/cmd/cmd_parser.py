@@ -69,16 +69,9 @@ def hci_cmd_serialize(cmd: HciCmdBasePacket) -> bytes:
     """
     return cmd.to_bytes()
 
-def bd_addr_str_to_bytes(bd_addr_str : str):
-            """Convert BD_ADDR string to bytes"""
-            try:
-                return bytes.fromhex(bd_addr_str.replace(':', ''))
-            except ValueError:
-                raise ValueError("Invalid BD_ADDR format. Use XX:XX:XX:XX:XX:XX")
 # Export public functions
 __all__ = [
     'parse_command_header',
     'hci_cmd_parse_from_bytes',
     'hci_cmd_serialize',
-    'bd_addr_str_to_bytes'
 ]

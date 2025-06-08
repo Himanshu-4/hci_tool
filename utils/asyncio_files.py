@@ -14,7 +14,7 @@ import functools
 from typing import Optional, Union, List, Dict, Any, Callable, AsyncIterator, Tuple, BinaryIO, TextIO
 from contextlib import asynccontextmanager
 
-__version__ = "0.1.0"
+
 __all__ = [
     "open_async", "AsyncFile", "AsyncTextFile", "AsyncBinaryFile",
     "read_file", "write_file", "append_to_file", "copy_file",

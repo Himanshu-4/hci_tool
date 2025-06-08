@@ -4,6 +4,7 @@ from PyQt5.QtWidgets import (
 
 from PyQt5.QtGui import (QTextCursor, QIntValidator)
 
+from logging import Handler as loggingHandler
 from PyQt5.QtCore import Qt
 import time
 
@@ -251,6 +252,19 @@ def logToWindow(module_name: str, message: str):
     # log_window.activateWindow()
     # log_window.setFocus()
     # log_window.show()
+
+class GuiLogHandler(loggingHandler):
+    """GUI log handler (kept for compatibility)"""
+    def __init__(self, module_name):
+        super().__init__()
+        self.module_name = module_name
+
+    def emit(self, record):
+        msg = self.format(record)
+        try:
+            logToWindow(self.module_name, msg)
+        except Exception as e:
+            print(f"Failed to log to GUI window: {e}")
 
 
 def test_log_window():

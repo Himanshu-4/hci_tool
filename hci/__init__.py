@@ -6,6 +6,7 @@ This is the main package entry point for the HCI library.
 
 # Import base HCI packet module
 from .hci_packet import *
+from .hci_util import *
 
 # Import submodules to make them available
 from . import cmd

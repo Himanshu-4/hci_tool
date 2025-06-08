@@ -104,6 +104,16 @@ class EventLoopManager:
         self.destroy()
         sys.exit(0)
     
+    @property
+    def is_running(self) -> bool:
+        """Check if the event loop is running"""
+        return self._loop is not None and self._loop.is_running()
+    
+    @property
+    def is_stopped(self) -> bool:
+        """Check if the event loop is stopped"""
+        return self._loop is None or not self._loop.is_running()
+    
     def _run_loop(self):
         """Run the event loop in a separate thread"""
         try:
@@ -155,17 +165,19 @@ class EventLoopManager:
         """
         self._ensure_started()
         # Ensure the coroutine is a valid asyncio coroutine
-        return asyncio.run_coroutine_threadsafe(
+        fut=  asyncio.run_coroutine_threadsafe(
             self._create_managed_task(coro, destroy_callback),
             self._loop
-        ).result()
+        )
+        return fut.result()  # Wait for task to be created and return the task object
         
     
-    def _create_managed_task(self, coro: Coroutine[Any, Any, T], 
+    async def _create_managed_task(self, coro: Coroutine[Any, Any, T], 
                                    destroy_callback: Optional[Callable] = None) -> asyncio.Task[T]:
         """Create and track a managed task"""
         if not asyncio.iscoroutine(coro):
             raise ValueError("Provided object is not a coroutine")
+        
         task = asyncio.create_task(coro)
         managed_task = ManagedTask(task, destroy_callback)
         
@@ -182,7 +194,10 @@ class EventLoopManager:
     
     def add_coroutine(self, coro: Coroutine[Any, Any, T]) -> asyncio.Task[T]:
         """Alias for add_task() to match requested API"""
-        return self._create_managed_task(coro)
+        self._ensure_started()
+        return asyncio.run_coroutine_threadsafe(
+            coro, 
+            self._loop)
     
     def run_task(self, coro: Coroutine[Any, Any, T]) -> Future[T]:
         """
@@ -367,25 +382,34 @@ def get_event_loop_manager() -> EventLoopManager:
 
 
 # Decorator for async functions to run in the event loop
-def run_async(func: Callable[..., Coroutine[Any, Any, T]]) -> Callable[..., T]:
+def run_async(func: Callable[..., Coroutine[Any, Any, T]] = None, *, manager: Optional[EventLoopManager] = None) -> Callable[..., T]:
     """
     Decorator to automatically run async functions in the event loop
-    
+
     Usage:
         @run_async
         async def my_async_function():
             await asyncio.sleep(1)
             return "done"
-        
+
+        # Or with a specific manager:
+        @run_async(manager=my_manager)
+        async def my_async_function():
+            ...
+
         # Can now call directly without await
         result = my_async_function()
     """
-    @wraps(func)
-    def wrapper(*args, **kwargs):
-        manager = get_event_loop_manager()
-        return manager.run_and_wait(func(*args, **kwargs))
-    
-    return wrapper
+    def decorator(f):
+        @wraps(f)
+        def wrapper(*args, **kwargs):
+            mgr = manager or get_event_loop_manager()
+            return mgr.run_and_wait(f(*args, **kwargs))
+        return wrapper
+
+    if func is not None:
+        return decorator(func)
+    return decorator
 
 # Example usage and testing
 if __name__ == "__main__":
@@ -418,7 +442,7 @@ if __name__ == "__main__":
     print(f"Task3 result: {result}")
     
     # Run in executor
-    @run_async
+    @run_async(manager= manager)
     async def sync_function(x, y):
         await asyncio.sleep(2.5)
         return x + y
