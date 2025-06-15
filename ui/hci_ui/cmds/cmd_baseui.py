@@ -20,7 +20,7 @@ class HCICmdUI(HCICmdBaseUI):
         super().__init__(title, parent, transport)
         self.title = title
         self.transport = transport
-    
+
     def setup_ui(self):
         """Initialize the command UI"""
         super().setup_ui()
@@ -44,6 +44,11 @@ class HCICmdUI(HCICmdBaseUI):
         self.content_layout.addWidget(self.param_group)
         
 
+    # define validate params as abstract to pass 1 by default
+    @abstractmethod
+    def validate_parameters(self) -> bool:
+        """Validate parameters before sending by the command"""
+        return True
     
     @abstractmethod
     def pre_send_func(self):

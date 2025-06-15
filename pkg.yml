@@ -1,0 +1,66 @@
+# Package-specific logger configurations
+# Defines logging for different packages/modules
+
+packages:
+  # Core Bluetooth package
+  bluetooth.core:
+    logger_name: "BT_Core"
+    level: INFO
+    handlers:
+      - file
+      - syslog
+    
+  # HCI (Host Controller Interface) package
+  bluetooth.hci:
+    logger_name: "HCI"
+    inherits: bluetooth.core
+    level: DEBUG
+    additional_handlers:
+      - log_window
+    filters:
+      - type: regex
+        pattern: "HCI_(COMMAND|EVENT)"
+        action: include
+  
+  # L2CAP package
+  bluetooth.l2cap:
+    logger_name: "L2CAP"
+    level: INFO
+    handlers:
+      file:
+        filename: ${LOG_DIR}/l2cap.log
+        rotation: time  # Time-based rotation
+        when: midnight
+        interval: 1
+        backup_count: 7
+  
+  # RFCOMM package
+  bluetooth.rfcomm:
+    logger_name: "RFCOMM"
+    inherits: bluetooth.core
+    handlers:
+      file:
+        filename: ${LOG_DIR}/rfcomm.log
+      console:
+        enabled: ${DEBUG_RFCOMM:false}
+  
+  # Application layer
+  app:
+    logger_name: "App"
+    level: INFO
+    handlers:
+      - console
+      - file
+      - log_window
+    format: "[%(asctime)s] [APP] %(message)s"
+    
+  # UI package
+  ui:
+    logger_name: "UI"
+    level: WARNING
+    handlers:
+      log_window:
+        enabled: true
+        rate_limit: 200  # Higher rate for UI events
+      file:
+        enabled: false  # No file logging for UI

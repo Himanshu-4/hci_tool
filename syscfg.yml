@@ -1,0 +1,43 @@
+# System-wide configuration file
+# Defines paths, modules, and global application settings
+
+application:
+  name: "Bluetooth Stack Logger"
+  version: "1.0.0"
+  environment: ${APP_ENV:development}
+
+paths:
+  base_dir: ${APP_BASE_DIR:.}
+  log_dir: ${base_dir}/logs
+  config_dir: ${base_dir}/config
+  data_dir: ${base_dir}/data
+
+modules:
+  logging:
+    config_file: ${config_dir}/logger.yml
+    auto_reload: true
+    reload_interval: 300  # 5 minutes
+    
+  file_handler:
+    base_dir: ${data_dir}
+    max_file_size: 104857600  # 100 MB
+    cleanup_on_exit: true
+
+# Environment-specific overrides
+environments:
+  development:
+    logging:
+      default_level: DEBUG
+      console_enabled: true
+      
+  production:
+    logging:
+      default_level: INFO
+      console_enabled: false
+      syslog_enabled: true
+      
+  testing:
+    logging:
+      default_level: DEBUG
+      file_enabled: false
+      console_format: "%(name)s - %(message)s"

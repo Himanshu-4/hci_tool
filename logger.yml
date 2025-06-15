@@ -1,0 +1,100 @@
+# Main logger configuration file
+# This file defines global settings and default configurations
+
+global:
+  # Global settings applied to all loggers
+  log_dir: ${LOG_DIR:./logs}  # Support environment variables with defaults
+  max_file_size: 10485760     # 10 MB default
+  max_files: 5
+  date_format: "%Y-%m-%d %H:%M:%S"
+  root_level: WARNING         # Root logger level
+
+# Default configuration for all loggers
+default_logger:
+  level: INFO
+  propagate: false
+  
+  handlers:
+    console:
+      enabled: true
+      level: INFO
+      stream: stdout
+      format: "[%(asctime)s] [%(name)s] [%(levelname)s] %(message)s"
+    
+    file:
+      enabled: true
+      level: DEBUG
+      filename: ${LOG_DIR}/${logger_name}.log
+      mode: a
+      encoding: utf-8
+      max_size: ${max_file_size}
+      backup_count: ${max_files}
+      use_fileio: true      # Use async FileIO handler
+      async: true
+      buffer_size: 100
+      flush_interval: 2.0
+    
+    log_window:
+      enabled: false
+      level: INFO
+      buffer_size: 100
+      flush_interval: 0.1
+      rate_limit: 100      # Max messages per second
+      colors: true
+      timestamp_format: "%H:%M:%S.%f"
+  
+  format: "[%(asctime)s] [%(threadName)s] [%(name)s:%(lineno)d] [%(levelname)s] %(message)s"
+  
+  filters:
+    - type: module
+      name: ""
+      enabled: true
+
+# Specific logger configurations
+loggers:
+  # System logger
+  system:
+    level: WARNING
+    handlers:
+      file:
+        filename: ${LOG_DIR}/system.log
+        max_size: 20971520  # 20 MB
+      syslog:
+        enabled: true
+        address: /dev/log
+        facility: local0
+  
+  # Pattern matching - all test modules
+  "test_*":
+    level: DEBUG
+    handlers:
+      console:
+        level: DEBUG
+        format: "[TEST] %(name)s - %(message)s"
+      file:
+        filename: ${LOG_DIR}/tests.log
+  
+
+  # hci logger configuration
+  hci_command_logger:
+    include: hci_command_logger.yml
+
+  # acl logger configuration
+  hci_acl_logger:
+    include: hci_acl_logger.yml
+
+
+  # A2DP logger configuration
+  hci_a2dp_logger:
+    include: hci_a2dp_logger.yml
+  
+  # HFP logger configuration  
+  hci_hfp_logger:
+    inherits: hci_acl_logger.yml
+    level: INFO
+    handlers:
+      file:
+        filename: ${LOG_DIR}/hfp.log
+      log_window:
+        enabled: true
+        module_name: "HFP"

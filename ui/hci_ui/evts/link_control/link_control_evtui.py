@@ -4,25 +4,14 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtGui import QTextCursor
 from PyQt5.QtCore import Qt, pyqtSignal
+from hci import bd_addr_bytes_to_str
+
+from ..evt_baseui import HCIEvtUI
 
 import struct
-from ...hci_base_ui import HciEventUI
 
 
-def bd_addr_bytes_to_str(addr_bytes):
-    """Convert a BD_ADDR bytes (little-endian) to a string representation"""
-    if len(addr_bytes) != 6:
-        return "Invalid BD_ADDR"
-    
-    # Reverse for proper display order (Bluetooth addresses are little-endian)
-    addr = list(addr_bytes)
-    addr.reverse()
-    
-    # Format as a string with colons
-    return ':'.join('{:02X}'.format(b) for b in addr)
-
-
-class ConnectionCompleteEventUI(HciEventUI):
+class ConnectionCompleteEventUI(HCIEvtUI):
     """UI for HCI Connection Complete Event"""
     
     def __init__(self):
@@ -79,7 +68,7 @@ class ConnectionCompleteEventUI(HciEventUI):
             "Enabled" if encryption_enabled == 1 else "Disabled"))
 
 
-class ConnectionRequestEventUI(HciEventUI):
+class ConnectionRequestEventUI(HCIEvtUI):
     """UI for HCI Connection Request Event"""
     
     def __init__(self):
@@ -123,7 +112,7 @@ class ConnectionRequestEventUI(HciEventUI):
         self.log("  Link Type: {}".format(link_type_str))
 
 
-class DisconnectionCompleteEventUI(HciEventUI):
+class DisconnectionCompleteEventUI(HCIEvtUI):
     """UI for HCI Disconnection Complete Event"""
     
     def __init__(self):
@@ -178,7 +167,7 @@ class DisconnectionCompleteEventUI(HciEventUI):
         self.log("  Reason: 0x{:02X} ({})".format(reason, reason_str))
 
 
-class RemoteNameRequestCompleteEventUI(HciEventUI):
+class RemoteNameRequestCompleteEventUI(HCIEvtUI):
     """UI for HCI Remote Name Request Complete Event"""
     
     def __init__(self):
@@ -227,7 +216,7 @@ class RemoteNameRequestCompleteEventUI(HciEventUI):
         self.log("  Remote Name: {}".format(remote_name))
 
 
-class InquiryCompleteEventUI(HciEventUI):
+class InquiryCompleteEventUI(HCIEvtUI):
     """UI for HCI Inquiry Complete Event"""
     
     def __init__(self):
@@ -259,7 +248,7 @@ class InquiryCompleteEventUI(HciEventUI):
             status, "Success" if status == 0 else "Error"))
 
 
-class InquiryResultEventUI(HciEventUI):
+class InquiryResultEventUI(HCIEvtUI):
     """UI for HCI Inquiry Result Event"""
     
     def __init__(self):
@@ -342,7 +331,7 @@ class InquiryResultEventUI(HciEventUI):
             self.log("    Clock Offset: 0x{:04X}".format(clock_offset))
 
 
-class InquiryResultWithRSSIEventUI(HciEventUI):
+class InquiryResultWithRSSIEventUI(HCIEvtUI):
     """UI for HCI Inquiry Result with RSSI Event"""
     
     def __init__(self):
@@ -429,57 +418,3 @@ class InquiryResultWithRSSIEventUI(HciEventUI):
             self.log("    Clock Offset: 0x{:04X}".format(clock_offset))
             self.log("    RSSI: {} dBm".format(rssi))
 
-
-class HCIEventManager:
-    """Manager class for HCI events and their UIs"""
-    
-    def __init__(self, mdi_area):
-        self.mdi_area = mdi_area
-        self.open_windows = {}  # Keep track of open windows by event code
-        
-        # Define mapping of event codes to UI classes
-        self.event_ui_map = {
-            0x03: ConnectionCompleteEventUI,
-            0x04: ConnectionRequestEventUI,
-            0x05: DisconnectionCompleteEventUI,
-            0x07: RemoteNameRequestCompleteEventUI,
-            0x01: InquiryCompleteEventUI,
-            0x02: InquiryResultEventUI,
-            0x22: InquiryResultWithRSSIEventUI
-        }
-        
-    def process_event(self, event_code, event_data):
-        """Process an HCI event and open or update the appropriate UI"""
-        if event_code in self.event_ui_map:
-            # Check if there's already an open window for this event
-            if event_code in self.open_windows:
-                # Update the existing window
-                self.open_windows[event_code].widget().process_event(event_data)
-                # Bring the window to the front
-                self.open_windows[event_code].raise_()
-                self.open_windows[event_code].activateWindow()
-            else:
-                # Create a new window for this event
-                event_ui_class = self.event_ui_map[event_code]
-                event_ui = event_ui_class()
-                
-                # Create a subwindow for the event UI
-                sub_window = HCISubWindow(event_ui, event_ui.title)
-                sub_window.closed.connect(lambda title: self.on_window_closed(event_code))
-                
-                # Add the subwindow to the MDI area
-                self.mdi_area.addSubWindow(sub_window)
-                sub_window.show()
-                
-                # Process the event data
-                event_ui.process_event(event_data)
-                
-                # Store the window reference
-                self.open_windows[event_code] = sub_window
-        else:
-            print(f"No UI handler for event code 0x{event_code:02X}")
-    
-    def on_window_closed(self, event_code):
-        """Handle closing of an event window"""
-        if event_code in self.open_windows:
-            del self.open_windows[event_code]

@@ -39,7 +39,7 @@ from hci.evt.event_types import EventCategory, EVENT_CODE_TO_CATEGORY
 from .evts import get_event_ui_class
 from .evts import HCIEvtUI
 
-from transports.transport import Transport
+from transports.transport import Transport, TransportEvent
 from typing import ClassVar, Optional, Dict, Type
 
 # @todo : move this to a separate module for logging the events 
@@ -60,7 +60,7 @@ class HCIEventFactory:
         
         # @todo: must be adding callbacks in hci_main_ui add the process_hci_evt_packet method to the transport's event handler
         if self.transport:
-            transport.add_callback('read', lambda data: self.process_hci_evt_packet(data))
+            self.transport.add_callback(TransportEvent.READ, lambda data: self.process_hci_evt_packet(data))
             
     def __del__(self):  
         """Destructor to ensure all event windows are closed"""
@@ -240,8 +240,11 @@ class HCIEventFactory:
             True if the packet was successfully processed, False otherwise
         """
         try:
-            print(str(hci_evt_parse_from_bytes(packet_data)))
-            LogWindow.warning(str(hci_evt_parse_from_bytes(packet_data)))
+            event = hci_evt_parse_from_bytes(packet_data)
+            if event:
+                LogWindow.warning(self.transport.name + "->" + str(event))
+            else:
+                LogWindow.warning(self.transport.name + "->" + "Error parsing event")
         except Exception as e:
             print(f"Error processing event {e}")
             traceback.print_exc()

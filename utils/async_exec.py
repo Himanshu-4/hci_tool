@@ -212,17 +212,18 @@ class EventLoopManager:
         self._ensure_started()
         return asyncio.run_coroutine_threadsafe(coro, self._loop)
     
-    def run_and_wait(self, coro: Coroutine[Any, Any, T], timeout: Optional[float] = None) -> T:
+    def run_and_wait(self, coro: Coroutine[Any, Any, T], timeout: Optional[float]) -> T:
         """
         Run a coroutine and wait for its result
         
         Args:
             coro: Coroutine to run
-            timeout: Optional timeout in seconds
+            timeout: Optional timeout in seconds, default is 1 second
             
         Returns:
             The result of the coroutine
         """
+        timeout = timeout or 1.0 # default timeout is 1 second
         future = self.run_task(coro)
         return future.result(timeout=timeout)
     

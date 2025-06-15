@@ -96,7 +96,7 @@ class WriteLocalNameUI(HCICmdUI):
         count = len(self.local_name_input.text())
         self.char_count_label.setText(f"{count} / 248 characters")
     
-    def validate_parameters(self):
+    def validate_parameters(self) -> bool:
         """Validate parameters before sending by the WritelocalName command"""
         try:
             cb_cmds.WriteLocalName(self.local_name_input.text().strip())._validate_params()

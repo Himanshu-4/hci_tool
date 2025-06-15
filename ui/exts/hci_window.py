@@ -13,7 +13,7 @@ from ui.hci_ui import HCIControlUI
 
 # from ui.cmds import (cmds)
 
-from transports.transport import Transport
+from transports.transport import Transport, TransportEvent
 
 from utils.Exceptions import *
 
@@ -147,7 +147,7 @@ class HCIControl(QWidget):
             HCIControl.get_HCIControlUI(transport).show_window()
         else :
         # add the read callback to print the data
-            transport.add_callback('write',lambda data : (log_window(data),transport.read(200)))
+            transport.add_callback(TransportEvent.WRITE,lambda data : (log_window(data),transport.read(200)))
             instance = HCIControlUI(HCIControl._main_window, transport, name)
             instance.register_destroy(lambda: HCIControl.remove_instance(instance))
             HCIControl.hci_window_instance.append(instance)

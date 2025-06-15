@@ -110,6 +110,7 @@ class HciBaseUI(QDialog):
         self._error_label.setAlignment(Qt.AlignLeft)
         self._error_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
         self._error_label.setStyleSheet("color: red;")  # Set error label color to red
+        self._error_label.setWordWrap(True)  # Enable word wrapping
         self._error_label.setVisible(False)  # Initially hidden
         
         # add a layout for holding the ok and cancel buttons
@@ -302,7 +303,8 @@ class HCICmdBaseUI(HciBaseUI):
                 ret = self.transport.write(byte_data)
             
         except Exception as e:
-            self.log(f"Error creating command: {str(e)}")
+            self.log(f"Error OK btn: {str(e)}")
+            self.log_error(f"Error : {str(e)}")
             return None
         try:
             self.close()
@@ -332,6 +334,9 @@ class HCICmdBaseUI(HciBaseUI):
         """Get values from input fields"""
         # This is a placeholder - subclasses should implement this
         pass
+
+
+
 
 class HCIEvtBaseUI(HciBaseUI):
     """Base class for HCI event UI components"""

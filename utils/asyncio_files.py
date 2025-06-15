@@ -16,7 +16,7 @@ from contextlib import asynccontextmanager
 
 
 __all__ = [
-    "open_async", "AsyncFile", "AsyncTextFile", "AsyncBinaryFile",
+    "open_async_file_wait", "open_async", "AsyncFile", "AsyncTextFile", "AsyncBinaryFile",
     "read_file", "write_file", "append_to_file", "copy_file",
     "move_file", "delete_file", "create_directory", "directory_exists",
     "file_exists", "list_directory", "get_file_size", "get_file_stats",
@@ -62,7 +62,7 @@ class FileOperation:
 class AsyncFile:
     """Base class for asynchronous file operations."""
     
-    def __init__(self, file_obj, path: str, mode: str):
+    def __init__(self, file_obj : io.IOBase, path: str, mode: str):
         self._file = file_obj
         self.path = path
         self.mode = mode
@@ -80,7 +80,11 @@ class AsyncFile:
         if not self.closed:
             await self._loop.run_in_executor(None, self._file.close)
             self.closed = True
-            
+    
+    @property
+    def is_open(self):
+        return not self._file.closed
+    
     def __repr__(self) -> str:
         status = "closed" if self.closed else "open"
         return f"{self.__class__.__name__}(path='{self.path}', mode='{self.mode}', status='{status}')"
@@ -88,7 +92,7 @@ class AsyncFile:
 class AsyncTextFile(AsyncFile):
     """Class for asynchronous text file operations."""
     
-    def __init__(self, file_obj, path: str, mode: str, encoding: str = "utf-8"):
+    def __init__(self, file_obj : io.IOBase, path: str, mode: str, encoding: str = "utf-8"):
         super().__init__(file_obj, path, mode)
         self.encoding = encoding
         
@@ -138,7 +142,7 @@ class AsyncTextFile(AsyncFile):
 class AsyncBinaryFile(AsyncFile):
     """Class for asynchronous binary file operations."""
     
-    def __init__(self, file_obj, path: str, mode: str):
+    def __init__(self, file_obj : io.IOBase, path: str, mode: str):
         super().__init__(file_obj, path, mode)
         
     async def read(self, size: Optional[int] = None) -> bytes:
@@ -314,6 +318,78 @@ async def open_async(
                 raise CustomFileException(f"File operation error: {str(e)}")
         else:
             raise CustomFileException(f"Unknown error: {str(e)}")
+
+
+async def open_async_file_wait(
+    path: str, 
+    mode: str = "r", 
+    buffering: int = -1, 
+    encoding: Optional[str] = None, 
+    errors: Optional[str] = None, 
+    newline: Optional[str] = None, 
+    closefd: bool = True,
+) -> AsyncIterator[Union[AsyncTextFile, AsyncBinaryFile]]:
+    """
+    Open a file asynchronously, returning an async file object.
+    
+    Args:
+        path: Path to the file
+        mode: Mode in which the file is opened
+        buffering: Buffering policy
+        encoding: Text encoding
+        errors: How encoding errors are handled
+        newline: Newline character handling
+        closefd: Whether to close the file descriptor
+        
+    Returns:
+        Either AsyncTextFile or AsyncBinaryFile depending on mode
+        
+    Raises:
+        FileNotFoundError: If file doesn't exist in read mode
+        PermissionError: If file can't be accessed with requested permissions
+    """
+    loop = asyncio.get_event_loop()
+    
+    try:
+        # Use run_in_executor to perform blocking file open in a separate thread
+        file_obj = await loop.run_in_executor(
+            None,
+            functools.partial(
+                open,
+                path, 
+                mode=mode, 
+                buffering=buffering, 
+                encoding=encoding, 
+                errors=errors, 
+                newline=newline, 
+                closefd=closefd
+            )
+        )
+        
+        # Return the appropriate async file class
+        if "b" in mode:
+            async_file = AsyncBinaryFile(file_obj, path, mode)
+        else:
+            async_file = AsyncTextFile(file_obj, path, mode, encoding=encoding or "utf-8")
+            
+        return async_file
+            
+    except Exception as e:
+        # Map standard exceptions to our custom ones
+        if isinstance(e, io.UnsupportedOperation):
+            raise CustomFileException(f"Unsupported file operation: {str(e)}")
+        elif isinstance(e, os.error):
+            if e.errno == os.errno.ENOENT:  # No such file or directory
+                raise FileNotFoundError(f"File not found: {path}")
+            elif e.errno == os.errno.EACCES:  # Permission denied
+                raise PermissionError(f"Permission denied: {path}")
+            elif e.errno == os.errno.EEXIST:  # File exists
+                raise FileExistsError(f"File already exists: {path}")
+            else:
+                raise CustomFileException(f"File operation error: {str(e)}")
+        else:
+            raise CustomFileException(f"Unknown error: {str(e)}")
+
 
 async def read_file(path: str, binary: bool = False, encoding: str = "utf-8") -> Union[str, bytes]:
     """

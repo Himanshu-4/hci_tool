@@ -1,13 +1,30 @@
 from abc import ABC, abstractmethod
 from typing import Dict, Any, Callable, Optional
-from enum import StrEnum
+from enum import StrEnum, Enum
 
-class ConnectionStatus(StrEnum):
+class ConnectionStatus(StrEnum):    
     """Enumeration for connection status"""
     DISCONNECTED = "disconnected"
     CONNECTING = "connecting" 
     CONNECTED = "connected"
     ERROR = "error"
+    
+
+class TransportState(Enum):
+    """Transport state"""
+    INITIALIZED = 0
+    DISCONNECTED = 1
+    CONNECTED = 2
+    ERROR = 3
+
+class TransportEvent(Enum):
+    """Transport event"""
+    READ = 0
+    WRITE = 1
+    CONNECT = 2
+    DISCONNECT = 3
+    ERROR = 4
+    FLOW_CONTROL_UPDATE = 5
 
 class TransportInterface(ABC):
     """Abstract base class for all transport interfaces"""
@@ -16,10 +33,11 @@ class TransportInterface(ABC):
         self.status = ConnectionStatus.DISCONNECTED
         self.config = {}
         self.callbacks = {
-            'read': [],
-            'write': [],
-            'connect': [],
-            'disconnect': []
+            TransportEvent.READ: [],
+            TransportEvent.WRITE: [],
+            TransportEvent.CONNECT: [],
+            TransportEvent.DISCONNECT: [],
+            TransportEvent.ERROR: []
         }
     
     @abstractmethod
@@ -75,7 +93,7 @@ class TransportInterface(ABC):
             event_type: Type of event ('read', 'write', 'connect', 'disconnect')
             callback: Function to call when event occurs
         """
-        if event_type in self.callbacks:
+        if event_type in self.callbacks.keys():
             self.callbacks[event_type].append(callback)
         else:
             raise ValueError(f"Invalid event type: {event_type}")
@@ -87,7 +105,7 @@ class TransportInterface(ABC):
             event_type: Type of event
             callback: Function to remove
         """
-        if event_type in self.callbacks and callback in self.callbacks[event_type]:
+        if event_type in self.callbacks.keys() and callback in self.callbacks[event_type]:
             self.callbacks[event_type].remove(callback)
     
     def _trigger_callbacks(self, event_type: str, *args, **kwargs):
@@ -111,9 +129,10 @@ class TransportInterface(ABC):
         """Check if currently connected"""
         return self.status == ConnectionStatus.CONNECTED
     
+    @property
     def get_config(self) -> Dict[str, Any]:
         """Get current configuration"""
-        return self.config.copy()
+        return self.config.__dict__
 
 class TransportError(Exception):
     """Custom exception for transport-related errors"""

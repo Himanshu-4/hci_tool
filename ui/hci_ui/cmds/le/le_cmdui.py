@@ -102,7 +102,20 @@ class LeSetAdvParamsUI(HCICmdUI):
         self.filter_policy_input.addItem("Process scan and connection requests only from White List", 0x03)
         self.form_layout.addRow("Advertising Filter Policy:", self.filter_policy_input)
     
-    def get_parameter_values(self):
+    def validate_parameters(self) -> bool:
+        """Validate parameters before sending by the LE Set Advertising Parameters command"""
+        try:
+            le_cmds.LeSetAdvParams(self.min_interval_input.value(), self.max_interval_input.value(),
+                                   self.adv_type_input.currentData(), self.own_addr_type_input.currentData(),
+                                   self.peer_addr_type_input.currentData(), self.peer_addr_input.text().strip(),
+                                   self.channel_37_check.isChecked(), self.channel_38_check.isChecked(),
+                                   self.channel_39_check.isChecked(), self.filter_policy_input.currentData())._validate_params()
+        except ValueError as e:
+            self.log_error(f"Validation error: {str(e)}")
+            return False
+        return True
+    
+    def get_data_bytes(self) -> Optional[bytes]:
         """Get parameter values"""
         # Calculate channel map
         channel_map = 0
@@ -192,7 +205,7 @@ class LeSetAdvDataUI(HCICmdUI):
         """Set an example advertising data value"""
         self.adv_data_input.setText(example_hex)
     
-    def get_parameter_values(self):
+    def get_data_bytes(self) -> Optional[bytes]:
         """Get parameter values"""
         # Get advertising data from hex string
         hex_str = self.adv_data_input.text().strip()
@@ -254,7 +267,7 @@ class LeSetScanParametersUI(HCICmdUI):
         self.filter_policy_input.addItem("Accept only from White List (use extended scan_request filtering)", 0x03)
         self.form_layout.addRow("Scanning Filter Policy:", self.filter_policy_input)
     
-    def get_parameter_values(self):
+    def get_data_bytes(self) -> Optional[bytes]:
         """Get parameter values"""
         return {
             'scan_type': self.scan_type_input.currentData(),
@@ -284,7 +297,7 @@ class LeSetScanEnableUI(HCICmdUI):
         self.filter_duplicates_input.setChecked(True)
         self.form_layout.addRow("Filter Duplicates:", self.filter_duplicates_input)
     
-    def get_parameter_values(self):
+    def get_data_bytes(self):
         """Get parameter values"""
         return {
             'scan_enable': self.scan_enable_input.isChecked(),

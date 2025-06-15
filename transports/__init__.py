@@ -41,7 +41,7 @@ Usage Example:
 """
 
 from .transport import Transport
-from .base_lib import TransportInterface, ConnectionStatus, TransportError, ConfigurationError, ConnectionError
+from .base_lib import TransportInterface, ConnectionStatus, TransportError, ConfigurationError, ConnectionError, TransportState, TransportEvent
 from .UART.uart import UARTTransport
 from .SDIO.sdio import SDIOTransport  
 from .USB.usb import USBTransport
@@ -58,5 +58,7 @@ __all__ = [
     'ConnectionError',
     'UARTTransport',
     'SDIOTransport',
-    'USBTransport'
+    'USBTransport',
+    'TransportState',
+    'TransportEvent'
 ]

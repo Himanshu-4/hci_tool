@@ -27,7 +27,7 @@ from hci.cmd.cmd_opcodes import  (
     VendorSpecificOCF
     )
 
-from transports.transport import Transport
+from transports.transport import Transport, TransportEvent, UARTTransport
 
 # Import the base UI classes
 from .cmd_factory import HCICommandFactory
@@ -107,8 +107,9 @@ class HciCommandSelector(QWidget):
     """Widget for selecting HCI commands from a hierarchical structure"""
     
     command_selected = pyqtSignal(str, str)  # Signal emitted when a command is selected (category, command)
+    transport_state_changed = pyqtSignal(bool)  # Signal emitted when transport state changes
     
-    def __init__(self):
+    def __init__(self, transport: Transport):
         super().__init__()
         self.categories = []
         self.commands = {}
@@ -116,10 +117,33 @@ class HciCommandSelector(QWidget):
         self.filtered_commands = {}
         self.filtered_results = []  # Store filtered results for navigation
         self.current_match_index = -1  # Track current match index
+
+        # transport instance
+        self.transport = transport
+        # add the callbacks to enable and disable the Ui's elements
+        self.transport.add_callback(TransportEvent.CONNECT, self._on_device_connected)
+        self.transport.add_callback(TransportEvent.DISCONNECT, self._on_device_disconnected)
         
-        self._is_destroyed = False  # Flag to track if the instance is destroyed
+        # flag to track if the instance is destroyed
+        self._is_destroyed = False  
+        # initialize the UI
         self.init_ui()
+        # load the commands
         self.load_commands()
+
+    def __del__(self):
+        """Destructor to ensure all command windows are closed"""
+        if not self._is_destroyed:
+            self.cleanup()
+    
+    def cleanup(self):
+        """Explicit cleanup method"""
+        if self._is_destroyed:
+            return
+        self._is_destroyed = True
+        # Qt elements are automatically deleted when the parent is deleted
+        # so we don't need to do anything here
+        pass
 
     def init_ui(self):
         """Initialize the UI components"""
@@ -136,7 +160,7 @@ class HciCommandSelector(QWidget):
         control_layout = QHBoxLayout()
         
         # Enable checkbox
-        self.enable_checkbox = QCheckBox("Enable Commands")
+        self.enable_checkbox = QCheckBox("Enable Device")
         self.enable_checkbox.setChecked(True)
         self.enable_checkbox.stateChanged.connect(self.on_enable_changed)
         control_layout.addWidget(self.enable_checkbox)
@@ -144,7 +168,7 @@ class HciCommandSelector(QWidget):
         control_layout.addStretch(1)
         
         # Baudrate display
-        self.baudrate_label = QLabel("Baudrate: 115200")
+        self.baudrate_label = QLabel(f"Baudrate: {self.transport.transport_instance.get_config.get('baudrate', "No Baudrate")}")
         self.baudrate_label.setStyleSheet("font-weight: bold;")
         control_layout.addWidget(self.baudrate_label)
         
@@ -280,11 +304,27 @@ class HciCommandSelector(QWidget):
     def on_enable_changed(self, state):
         """Handle enable checkbox state change"""
         is_enabled = (state == Qt.Checked)
-        self.commands_list.setEnabled(is_enabled)
-        self.command_type_combo.setEnabled(is_enabled)
-        self.search_box.setEnabled(is_enabled)
-    
-    
+        if is_enabled:
+            self.transport.connect()
+        else:
+            self.transport.disconnect()
+
+    def _on_device_connected(self, trans_instance : Optional[UARTTransport] = None):
+        """Update UI based on transport connection state"""
+        # update the enable checkbox
+        self.enable_checkbox.setChecked(True)
+        self.commands_list.setEnabled(True)
+        self.command_type_combo.setEnabled(True)
+        self.search_box.setEnabled(True)
+        
+    def _on_device_disconnected(self, trans_instance : Optional[UARTTransport] = None):
+        """Update UI based on transport connection state"""
+        # update the enable checkbox
+        self.enable_checkbox.setChecked(False)
+        self.commands_list.setEnabled(False)
+        self.command_type_combo.setEnabled(False)
+        self.search_box.setEnabled(False)
+        
     def filter_commands(self):
         """Filter commands by type and search text"""
         search_text = self.search_box.text().lower()
@@ -349,9 +389,6 @@ class HciCommandSelector(QWidget):
         command = current.text()
         self.command_selected.emit( self.command_type_combo.currentText(),command)
     
-    def set_baudrate(self, baudrate):
-        """Update the displayed baudrate"""
-        self.baudrate_label.setText(f"Baudrate: {baudrate}")
 
 
 """Manager class for HCI commands and their UIs"""
@@ -365,6 +402,11 @@ class HciCommandManager:
         # Keep track of open windows by command
         self._cmd_factory = HCICommandFactory(title, parent_window, transport)
         self._evt_factory = HCIEventFactory(title, parent_window, transport)
+        
+        # add the transport callbacks to cleanup the command factory and evt factory windows
+        self.transport =transport
+        self.transport.add_callback(TransportEvent.DISCONNECT, lambda _ : self.cleanup())
+        
     
     def __del__(self):
         """Destructor to ensure all command windows are closed"""
@@ -622,7 +664,7 @@ class HciMainUI(QWidget):
         # title_layout.addStretch(1)
         # main_layout.addLayout(title_layout)
              # Command selector
-        self.command_selector = HciCommandSelector()
+        self.command_selector = HciCommandSelector(self.transport)
         self.command_selector.command_selected.connect(self.on_command_selected)
         # command selector will set the widget properly
         main_layout.addWidget(self.command_selector)
