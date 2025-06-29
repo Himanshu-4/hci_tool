@@ -12,10 +12,11 @@ from typing import Union, Optional, Dict, Any
 from enum import Enum
 
 # import the GuiLogHandler
-from ui.exts.log_window import GuiLogHandler
 
 # Import the new FileIO components
-from .file_handler import FileIO, FileIOLogger, FileIOEvent, FileIOCallbackData, FileIOMode
+from .file_handler import FileIO, FileIOEvent, FileIOCallbackData, FileIOMode
+# Remove the problematic import to avoid circular dependency
+# from ui.exts.log_to_window import LogToWindowHandler, setup_log_to_window
 
 class LogLevel(Enum):
     DEBUG = logging.DEBUG
@@ -116,6 +117,7 @@ class LoggerManager:
             # Optional: Hook for GUI log window
             if to_log_window:
                 try:
+                    from ui.exts.log_to_window import GuiLogHandler
                     gh = GuiLogHandler(module_name)
                     gh.setFormatter(formatter)
                     logger.addHandler(gh)
@@ -259,8 +261,9 @@ import atexit
 
 # Import custom components
 from .yaml_config_parser import YAMLConfigParser
-from .fileio_log_handler import FileIOLogHandler, AsyncRotatingFileHandler
-from .log_to_window_handler import LogToWindowHandler
+from .file_log_handler import FileIOLogHandler, AsyncRotatingFileHandler
+# Remove the problematic import to avoid circular dependency
+# from ui.exts.log_to_window import LogToWindowHandler
 from .file_handler import init_module as init_file_handler
 
 

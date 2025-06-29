@@ -639,7 +639,7 @@ def __init_base_module():
     print("[FileHandler] Initializing base module...")
     
     # Set the base directory and log path
-    _BASE_PATH = _BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    _BASE_PATH = _BASE_DIR = os.environ.get("BASE_DIR", os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     _BASE_PATH = os.path.join(os.path.abspath(_BASE_PATH), "app_data")
     _LOG_PATH = os.path.join(_BASE_PATH, "logs")
     

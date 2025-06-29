@@ -30,5 +30,19 @@
 
 
 @Feature implementation & pending 
-1. implement the search filter methods to highlight the cmd in cmd list
 2. implement more event UI and regisgter the event UI with respoect to the Evt_class as a object 
+
+
+
+
+@pending things in  v1.0-alpha (date -> 30 June)
+1. Yaml config parser include and inheritance not working have to check at last should create a final config based on all files
+2. File logger have to check and FileIO logger should work properly, means have to check file io ops and rate(multiple io reqs handle properly)
+3. Log_window logger should work perfectly with rate limiter and _handlers of loggers 
+4. logger module check thoroughly and also logging  againts diffrent configurations and rate's 
+5. transport layer should be completed with respect to async support with reader and writer asyncally and transport handles all method with a bounded latency.
+6. check the transport auto disconnect feature and handling of connection, disconnect, read, write, etc.
+7. transport connection and UI window handling read callback should emit evt_factory signal for handling of UI events with respect to evt application thread.
+8. File saver and logger with respect to events, commands, logs, etc.
+9. make throughput window UI with respect to TX/RX
+10. complete the throughput test feature  with HCI/acl module and integrate with the throughput window 

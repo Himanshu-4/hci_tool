@@ -28,7 +28,7 @@ def register_command_ui(cmd_class: Type[HCICmdUI]) -> None:
         Register a command class with its opcode
         Args: cmd_class: Command class to register
     """
-    print(f"Registering command {cmd_class.__name__} with opcode 0x{cmd_class.OPCODE:04X} in file {cmd_class.__module__}")
+    # print(f"Registering command {cmd_class.__name__} with opcode 0x{cmd_class.OPCODE:04X} in file {cmd_class.__module__}")
     if not hasattr(cmd_class, 'OPCODE'):
         raise ValueError(f"Command class {cmd_class.__name__} has no OPCODE defined")
     

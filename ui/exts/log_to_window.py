@@ -1,271 +1,41 @@
 """
-Enhanced Log to Window Handler
-This module provides an improved handler for logging to the GUI window
-with better integration and configuration support.
+Enhanced Log to Window Module
+Thread-safe logging to Qt GUI window using Qt's signal-slot mechanism
 """
 
 import logging
 import threading
 import time
-from typing import Optional, List, Dict, Any, Callable
+from typing import Optional, List, Dict, Any
 from queue import Queue, Empty
 from datetime import datetime
 import weakref
 
-# Import the LogWindow class (from your log_window module)
+from PyQt5.QtCore import QObject, pyqtSignal, QTimer, QThread
+from PyQt5.QtWidgets import QApplication
+
+
+# Import your existing LogWindow class
 from ui.exts.log_window import LogWindow
+from dataclasses import dataclass
 
 
-class LogToWindowHandler(logging.Handler):
-    """
-    Enhanced handler for logging to a GUI window
-    
-    Features:
-    - Thread-safe logging to GUI
-    - Buffering for performance
-    - Rate limiting to prevent GUI flooding
-    - Automatic cleanup on window close
-    - Color coding by log level
-    - Filtering capabilities
-    """
-    
-    # Class-level registry of all handlers
-    _handlers: weakref.WeakSet = weakref.WeakSet()
-    
-    def __init__(self, module_name: str,
-                 max_buffer_size: int = 100,
-                 flush_interval: float = 0.1,
-                 rate_limit: int = 100,  # Max messages per second
-                 enable_colors: bool = True,
-                 timestamp_format: Optional[str] = None):
-        """
-        Initialize the log window handler
-        
-        Args:
-            module_name: Name of the module for identification
-            max_buffer_size: Maximum number of messages to buffer
-            flush_interval: Interval for flushing buffer to GUI
-            rate_limit: Maximum messages per second to prevent flooding
-            enable_colors: Whether to enable color coding
-            timestamp_format: Custom timestamp format
-        """
-        super().__init__()
-        
-        self.module_name = module_name
-        self.max_buffer_size = max_buffer_size
-        self.flush_interval = flush_interval
-        self.rate_limit = rate_limit
-        self.enable_colors = enable_colors
-        self.timestamp_format = timestamp_format or "%H:%M:%S.%f"[:-3]
-        
-        # Message buffer
-        self._buffer: Queue[Dict[str, Any]] = Queue(maxsize=max_buffer_size)
-        self._buffer_lock = threading.Lock()
-        
-        # Rate limiting
-        self._rate_limiter = RateLimiter(rate_limit)
-        
-        # Statistics
-        self._stats = {
-            'messages_logged': 0,
-            'messages_displayed': 0,
-            'messages_dropped': 0,
-            'flushes': 0
-        }
-        
-        # Flusher thread
-        self._flusher_thread: Optional[threading.Thread] = None
-        self._stop_flusher = threading.Event()
-        self._start_flusher_thread()
-        
-        # Register this handler
-        LogToWindowHandler._handlers.add(self)
-        
-        # Color map for log levels
-        self.color_map = {
-            logging.DEBUG: "blue",
-            logging.INFO: "green",
-            logging.WARNING: "orange",
-            logging.ERROR: "red",
-            logging.CRITICAL: "darkred"
-        }
-    
-    def emit(self, record: logging.LogRecord):
-        """
-        Emit a record to the log window
-        
-        Args:
-            record: LogRecord to emit
-        """
-        try:
-            # Check if window is available
-            if not LogWindow.is_inited():
-                return
-            
-            # Rate limiting check
-            if not self._rate_limiter.allow():
-                self._stats['messages_dropped'] += 1
-                return
-            
-            # Format the record
-            msg = self.format(record)
-            
-            # Create message data
-            message_data = {
-                'timestamp': datetime.now(),
-                'level': record.levelno,
-                'level_name': record.levelname,
-                'module': self.module_name,
-                'message': msg,
-                'color': self.color_map.get(record.levelno, "black") if self.enable_colors else None,
-                'record': record
-            }
-            
-            # Add to buffer
-            try:
-                self._buffer.put_nowait(message_data)
-                self._stats['messages_logged'] += 1
-            except:
-                # Buffer full, drop oldest message
-                try:
-                    self._buffer.get_nowait()
-                    self._buffer.put_nowait(message_data)
-                    self._stats['messages_dropped'] += 1
-                except:
-                    pass
-                    
-        except Exception:
-            self.handleError(record)
-    
-    def _start_flusher_thread(self):
-        """Start the background flusher thread"""
-        self._flusher_thread = threading.Thread(
-            target=self._flusher_worker,
-            name=f"LogWindowHandler-{self.module_name}",
-            daemon=True
-        )
-        self._flusher_thread.start()
-    
-    def _flusher_worker(self):
-        """Background worker for flushing messages to GUI"""
-        while not self._stop_flusher.is_set():
-            try:
-                # Wait for interval or stop signal
-                if self._stop_flusher.wait(self.flush_interval):
-                    break
-                
-                # Flush messages
-                self._flush_messages()
-                
-            except Exception as e:
-                print(f"[LogToWindowHandler] Flusher error: {e}")
-    
-    def _flush_messages(self):
-        """Flush buffered messages to the GUI"""
-        if not LogWindow.is_inited():
-            return
-        
-        messages = []
-        
-        # Collect all buffered messages
-        while not self._buffer.empty() and len(messages) < 50:  # Batch limit
-            try:
-                messages.append(self._buffer.get_nowait())
-            except Empty:
-                break
-        
-        if not messages:
-            return
-        
-        # Send to GUI
-        try:
-            log_window = LogWindow.get_instance()
-            if log_window and hasattr(log_window, 'append_log_batch'):
-                # Batch append if available
-                log_window.append_log_batch(messages)
-            else:
-                # Individual append
-                for msg_data in messages:
-                    self._append_to_window(msg_data)
-            
-            self._stats['messages_displayed'] += len(messages)
-            self._stats['flushes'] += 1
-            
-        except Exception as e:
-            print(f"[LogToWindowHandler] Error flushing to window: {e}")
-    
-    def _append_to_window(self, msg_data: Dict[str, Any]):
-        """Append a single message to the log window"""
-        try:
-            log_window = LogWindow.get_instance()
-            if not log_window:
-                return
-            
-            # Format timestamp
-            timestamp = msg_data['timestamp'].strftime(self.timestamp_format)
-            
-            # Format message with module name
-            formatted_msg = f"[{self.module_name}] {msg_data['message']}"
-            
-            # Append to window
-            log_window.append_log(formatted_msg, msg_data['level_name'])
-            
-        except Exception as e:
-            print(f"[LogToWindowHandler] Error appending message: {e}")
-    
-    def flush(self):
-        """Flush the handler"""
-        self._flush_messages()
-    
-    def close(self):
-        """Close the handler"""
-        # Stop flusher thread
-        self._stop_flusher.set()
-        if self._flusher_thread and self._flusher_thread.is_alive():
-            self._flusher_thread.join(timeout=1.0)
-        
-        # Final flush
-        self.flush()
-        
-        # Remove from registry
-        LogToWindowHandler._handlers.discard(self)
-        
-        # Print statistics
-        print(f"[LogToWindowHandler-{self.module_name}] Stats: {self._stats}")
-        
-        super().close()
-    
-    def get_statistics(self) -> Dict[str, Any]:
-        """Get handler statistics"""
-        return self._stats.copy()
-    
-    def reset_statistics(self):
-        """Reset handler statistics"""
-        for key in self._stats:
-            self._stats[key] = 0
-    
-    @classmethod
-    def flush_all_handlers(cls):
-        """Flush all registered window handlers"""
-        for handler in cls._handlers:
-            try:
-                handler.flush()
-            except:
-                pass
-    
-    @classmethod
-    def close_all_handlers(cls):
-        """Close all registered window handlers"""
-        handlers = list(cls._handlers)
-        for handler in handlers:
-            try:
-                handler.close()
-            except:
-                pass
+@dataclass  
+class LogMessage:
+    """Data class for log messages"""
+    level: int
+    level_name: str
+    module: str
+    message: str
+    color: Optional[str] = None
+    record: Optional[logging.LogRecord] = None
+    timestamp: datetime = None
 
+    def __post_init__(self):
+        self.timestamp = datetime.now()
 
 class RateLimiter:
-    """Simple rate limiter for preventing GUI flooding"""
+    """Thread-safe rate limiter for preventing GUI flooding"""
     
     def __init__(self, max_per_second: int):
         self.max_per_second = max_per_second
@@ -289,85 +59,344 @@ class RateLimiter:
             return False
 
 
-class EnhancedLogWindow(LogWindow):
+class LogWindowBridge(QObject):
     """
-    Enhanced LogWindow with batch operations and better performance
-    
-    This extends the existing LogWindow class with additional features
+    Qt Bridge for thread-safe logging to GUI
+    This class runs on the main thread and receives signals from worker threads
     """
     
-    def __init__(self, main_wind=None):
-        super().__init__(main_wind)
+    # Signals for thread-safe communication
+    log_message_signal = pyqtSignal(object)  # Single message
+    log_batch_signal = pyqtSignal(list)      # Batch of messages
+    
+    def __init__(self):
+        super().__init__()
         
-        # Batch operation support
-        self._batch_timer = None
-        self._pending_messages = []
-        self._batch_lock = threading.Lock()
+        # Connect signals to slots
+        self.log_message_signal.connect(self._handle_single_message)
+        self.log_batch_signal.connect(self._handle_batch_messages)
     
-    def append_log_batch(self, messages: List[Dict[str, Any]]):
+    def _handle_single_message(self, log_msg: LogMessage):
+        """Handle a single log message (runs on main thread)"""
+        if not LogWindow.is_inited():
+            return
+            
+        try:
+            log_window = LogWindow.get_instance()
+            if log_window:
+                formatted_msg = f"[{log_msg.module}] {log_msg.message}"
+                log_window.append_log(formatted_msg, log_msg.level_name)
+        except Exception as e:
+            print(f"[LogWindowBridge] Error handling message: {e}")
+    
+    def _handle_batch_messages(self, messages: List[LogMessage]):
+        """Handle batch of log messages (runs on main thread)"""
+        if not LogWindow.is_inited():
+            return
+            
+        try:
+            log_window = LogWindow.get_instance()
+            if not log_window:
+                return
+                
+            # Process batch efficiently
+            for log_msg in messages:
+                formatted_msg = f"[{log_msg.module}] {log_msg.message}"
+                log_window.append_log(formatted_msg, log_msg.level_name)
+                
+        except Exception as e:
+            print(f"[LogWindowBridge] Error handling batch: {e}")
+
+
+class LogProcessor(QThread):
+    """
+    Background thread for processing log messages
+    Uses Qt's QThread for better integration with Qt event system
+    """
+    
+    def __init__(self, bridge: LogWindowBridge, flush_interval: float = 0.1, 
+                 batch_size: int = 50):
+        super().__init__()
+        self.bridge = bridge
+        self.flush_interval = flush_interval
+        self.batch_size = batch_size
+        
+        # Message queue
+        self.message_queue: Queue[LogMessage] = Queue()
+        self.running = False
+        
+        # Statistics
+        self.stats = {
+            'messages_processed': 0,
+            'batches_sent': 0,
+            'messages_dropped': 0
+        }
+    
+    def add_message(self, log_msg: LogMessage):
+        """Add a message to the processing queue"""
+        try:
+            self.message_queue.put_nowait(log_msg)
+        except:
+            # Queue full, drop message
+            self.stats['messages_dropped'] += 1
+    
+    def run(self):
+        """Main processing loop (runs in background thread)"""
+        self.running = True
+        
+        while self.running:
+            try:
+                messages = []
+                
+                # Collect messages for batch processing
+                end_time = time.time() + self.flush_interval
+                
+                while len(messages) < self.batch_size and time.time() < end_time:
+                    try:
+                        # Wait for message with timeout
+                        remaining_time = max(0.001, end_time - time.time())
+                        msg = self.message_queue.get(timeout=remaining_time)
+                        messages.append(msg)
+                        # self.message_queue.task_done() # no need to do this
+                        
+                    except Empty:
+                        break
+                
+                # Send messages to GUI thread if we have any
+                if messages:
+                    if len(messages) == 1:
+                        # Single message - use single signal
+                        self.bridge.log_message_signal.emit(messages[0])
+                    else:
+                        # Multiple messages - use batch signal
+                        self.bridge.log_batch_signal.emit(messages)
+                    
+                    self.stats['messages_processed'] += len(messages)
+                    self.stats['batches_sent'] += 1
+                
+                # Small sleep to prevent busy waiting
+                else:
+                    self.msleep(10)  # QThread's msleep method
+                    
+            except Exception as e:
+                print(f"[LogProcessor] Error in processing loop: {e}")
+    
+    def stop(self):
+        """Stop the processing thread"""
+        self.running = False
+        self.wait(1000)  # Wait up to 1 second for thread to finish
+    
+    def get_stats(self) -> Dict[str, Any]:
+        """Get processing statistics"""
+        return self.stats.copy()
+
+
+class LogToWindowHandler(logging.Handler):
+    """
+    Enhanced logging handler that uses Qt's signal-slot mechanism
+    for thread-safe GUI updates
+    """
+    
+    # Shared components (singleton pattern)
+    _bridge: Optional[LogWindowBridge] = None
+    _processor: Optional[LogProcessor] = None
+    _handlers: weakref.WeakSet = weakref.WeakSet()
+    _lock = threading.Lock()
+    # Color mapping
+    _color_map = {
+            logging.DEBUG: "blue",
+            logging.INFO: "green", 
+            logging.WARNING: "orange",
+            logging.ERROR: "red",
+            logging.CRITICAL: "darkred"
+        }
+        
+    def __init__(self, module_name: str,
+                 rate_limit: int = 100,
+                 enable_colors: bool = True,
+                 max_queue_size: int = 1000):
         """
-        Append multiple log messages in a batch for better performance
+        Initialize the log handler
         
         Args:
-            messages: List of message dictionaries
+            module_name: Name of the module for identification
+            rate_limit: Maximum messages per second
+            enable_colors: Whether to enable color coding
+            max_queue_size: Maximum queue size before dropping messages
         """
-        with self._batch_lock:
-            self._pending_messages.extend(messages)
-            
-            # Schedule batch update
-            if not self._batch_timer:
-                from PyQt5.QtCore import QTimer
-                self._batch_timer = QTimer()
-                self._batch_timer.timeout.connect(self._process_batch)
-                self._batch_timer.start(50)  # 50ms batch interval
+        super().__init__()
+        
+        self.module_name = module_name
+        self.enable_colors = enable_colors
+        
+        # Rate limiting
+        self._rate_limiter = RateLimiter(rate_limit)
+        
+        # Initialize shared components
+        self._ensure_shared_components()
+        
+        # Register this handler
+        LogToWindowHandler._handlers.add(self)
+        
     
-    def _process_batch(self):
-        """Process pending messages in batch"""
-        with self._batch_lock:
-            if not self._pending_messages:
+    @classmethod
+    def _ensure_shared_components(cls):
+        """Ensure shared components are initialized (thread-safe)"""
+        with cls._lock:
+            if cls._bridge is None:
+                # Check if we're in a Qt application
+                app = QApplication.instance()
+                if app is None:
+                    raise RuntimeError("LogToWindowHandler requires a Qt application")
+                
+                # Create bridge (must be on main thread)
+                cls._bridge = LogWindowBridge()
+                
+                # Create and start processor thread
+                cls._processor = LogProcessor(cls._bridge)
+                cls._processor.start()
+    
+    def emit(self, record: logging.LogRecord):
+        """Emit a log record"""
+        try:
+            # Check if window is available
+            if not LogWindow.is_inited():
                 return
             
-            messages = self._pending_messages[:100]  # Process up to 100 at a time
-            self._pending_messages = self._pending_messages[100:]
-        
-        # Process messages
-        for msg_data in messages:
-            timestamp = msg_data['timestamp'].strftime("%H:%M:%S")
-            level = msg_data['level_name']
-            message = msg_data['message']
-            color = msg_data.get('color', 'white')
+            # Rate limiting
+            if not self._rate_limiter.allow():
+                return
             
-            # Format and append
-            formatted_msg = f"[{timestamp}] <span style=\"color:{color};\">[{level}] {message}</span>"
-            self.log_text.append(formatted_msg)
-        
-        # Ensure size limit
-        self.enforce_log_size_limit()
-        
-        # Stop timer if no more messages
-        with self._batch_lock:
-            if not self._pending_messages and self._batch_timer:
-                self._batch_timer.stop()
-                self._batch_timer = None
+            # Format the record
+            msg = self.format(record)
+            
+            # Create log message object
+            log_msg = LogMessage(
+                level=record.levelno,
+                level_name=record.levelname,
+                module=self.module_name,
+                message=msg,
+                color=self._color_map.get(record.levelno) if self.enable_colors else None
+            )
+            
+            # Send to processor
+            if self._processor:
+                self._processor.add_message(log_msg)
+                
+        except Exception:
+            self.handleError(record)
     
-    def set_filter(self, filter_func: Optional[Callable[[Dict[str, Any]], bool]] = None):
-        """
-        Set a filter function for messages
-        
-        Args:
-            filter_func: Function that returns True to display message
-        """
-        self._filter_func = filter_func
+    def flush(self):
+        """Flush any pending messages"""
+        # Qt handles this automatically through the event system
+        pass
     
-    def clear_with_pattern(self, pattern: str):
-        """
-        Clear messages matching a pattern
+    def close(self):
+        """Close the handler"""
+        # Remove from registry
+        LogToWindowHandler._handlers.discard(self)
         
-        Args:
-            pattern: Regex pattern to match messages
-        """
-        import re
-        current_html = self.log_text.toHtml()
-        lines = current_html.split('<br>')
-        filtered_lines = [line for line in lines if not re.search(pattern, line)]
-        self.log_text.setHtml('<br>'.join(filtered_lines))
+        # If this was the last handler, cleanup shared components
+        with self._lock:
+            if not self._handlers and self._processor:
+                self._processor.stop()
+                self._processor = None
+                self._bridge = None
+        
+        super().close()
+    
+    @classmethod
+    def get_shared_stats(cls) -> Dict[str, Any]:
+        """Get statistics from the shared processor"""
+        if cls._processor:
+            return cls._processor.get_stats()
+        return {}
+    
+    @classmethod
+    def cleanup_all(cls):
+        """Cleanup all shared components"""
+        with cls._lock:
+            if cls._processor:
+                cls._processor.stop()
+                cls._processor = None
+            cls._bridge = None
+            
+            # Close all handlers
+            handlers = list(cls._handlers)
+            for handler in handlers:
+                try:
+                    handler.close()
+                except:
+                    pass
+
+
+# Convenience function for easy setup
+def setup_log_to_window(module_name: str, logger: Optional[logging.Logger] = None,
+                       level: int = logging.INFO, **kwargs) -> LogToWindowHandler:
+    """
+    Convenience function to set up logging to window
+    
+    Args:
+        module_name: Name of the module
+        logger: Logger instance (if None, uses root logger)
+        level: Logging level
+        **kwargs: Additional arguments for LogToWindowHandler
+    
+    Returns:
+        The created handler
+    """
+    if logger is None:
+        logger = logging.getLogger()
+    
+    handler = LogToWindowHandler(module_name, **kwargs)
+    handler.setLevel(level)
+    
+    # Set a formatter if none exists
+    if not handler.formatter:
+        formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+        handler.setFormatter(formatter)
+    
+    logger.addHandler(handler)
+    return handler
+
+
+# Example usage and testing
+def test_log_to_window():
+    """Test function for the log to window system"""
+    import sys
+    from PyQt5.QtWidgets import QApplication, QMainWindow
+    
+    # Create Qt application if it doesn't exist
+    app = QApplication.instance()
+    if app is None:
+        app = QApplication(sys.argv)
+    
+    # Create main window (placeholder)
+    main_window = QMainWindow()
+    
+    # Create log window
+    log_window = LogWindow.create_instance(main_window)
+    
+    # Set up logging
+    logger = logging.getLogger("TestModule")
+    handler = setup_log_to_window("TestModule", logger, logging.DEBUG)
+    
+    # Test logging
+    logger.info("This is an info message")
+    logger.warning("This is a warning message")
+    logger.error("This is an error message")
+    logger.debug("This is a debug message")
+    logger.critical("This is a critical message")
+    
+    # Test rapid logging
+    for i in range(10):
+        logger.info(f"Rapid message {i}")
+    
+    print("Log handler statistics:", LogToWindowHandler.get_shared_stats())
+    
+    # Cleanup
+    LogToWindowHandler.cleanup_all()
+
+
+if __name__ == "__main__":
+    test_log_to_window()

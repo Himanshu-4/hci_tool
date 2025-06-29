@@ -4,10 +4,8 @@ from PyQt5.QtWidgets import (
 
 from PyQt5.QtGui import (QTextCursor, QIntValidator)
 
-from logging import Handler as loggingHandler
 from PyQt5.QtCore import Qt
 import time
-
 
 
 MAX_LOG_SIZE_LOG_WINDOW = 10 * 1024 * 1024  # 10 MB
@@ -16,6 +14,14 @@ MAX_LOG_SIZE_LOG_WINDOW = 10 * 1024 * 1024  # 10 MB
 
 class LogWindow(QWidget):
     _instance = None
+    _color_map = {
+        'DEBUG': "blue",
+        'INFO': "green",
+        'WARNING': "yellow",
+        'ERROR': "red",
+        'CRITICAL': "orange",
+        'NOTSET': "white"
+    }
 
     @classmethod
     def is_inited(cls):
@@ -139,19 +145,7 @@ class LogWindow(QWidget):
         """Append a log message to the log window."""
         # wrap message after 500 characters
         level = level.lower()
-        color = "white"
-        if level == "info":
-            color = "green"
-        elif level == "warning":
-            color = "yellow"
-        elif level in ("error", "err"):
-            color = "red"
-        elif level == "debug":
-            color = "blue"
-        elif level == "critical":
-            color = "orange"
-        elif level == "exception":
-            color = "red"
+        color = self._color_map.get(level, "white")
 
         # if len(message) > 100:
         #     # Wrap the message to fit within 100 characters per line
@@ -235,6 +229,7 @@ class LogWindow(QWidget):
         cls.get_instance().append_log(message, "EXCEPTION")
         
 
+### Static Methods
 
 @staticmethod
 def ClearLogWindow():
@@ -253,18 +248,6 @@ def logToWindow(module_name: str, message: str):
     # log_window.setFocus()
     # log_window.show()
 
-class GuiLogHandler(loggingHandler):
-    """GUI log handler (kept for compatibility)"""
-    def __init__(self, module_name):
-        super().__init__()
-        self.module_name = module_name
-
-    def emit(self, record):
-        msg = self.format(record)
-        try:
-            logToWindow(self.module_name, msg)
-        except Exception as e:
-            print(f"Failed to log to GUI window: {e}")
 
 
 def test_log_window():
@@ -273,3 +256,89 @@ def test_log_window():
     log_window.append_log("This is a test message.")
     log_window.append_log("This is another test message.")
     log_window.append_log("This is a test message with a long text to check the size limit." * 10)
+
+
+
+
+# class EnhancedLogWindow(LogWindow):
+#     """
+#     Enhanced LogWindow with batch operations and better performance
+    
+#     This extends the existing LogWindow class with additional features
+#     """
+    
+#     def __init__(self, main_wind=None):
+#         super().__init__(main_wind)
+        
+#         # Batch operation support
+#         self._batch_timer = None
+#         self._pending_messages = []
+#         self._batch_lock = threading.Lock()
+    
+#     def append_log_batch(self, messages: List[Dict[str, Any]]):
+#         """
+#         Append multiple log messages in a batch for better performance
+        
+#         Args:
+#             messages: List of message dictionaries
+#         """
+#         with self._batch_lock:
+#             self._pending_messages.extend(messages)
+            
+#             # Schedule batch update
+#             if not self._batch_timer:
+#                 from PyQt5.QtCore import QTimer
+#                 self._batch_timer = QTimer()
+#                 self._batch_timer.timeout.connect(self._process_batch)
+#                 self._batch_timer.start(50)  # 50ms batch interval
+    
+#     def _process_batch(self):
+#         """Process pending messages in batch"""
+#         with self._batch_lock:
+#             if not self._pending_messages:
+#                 return
+            
+#             messages = self._pending_messages[:100]  # Process up to 100 at a time
+#             self._pending_messages = self._pending_messages[100:]
+        
+#         # Process messages
+#         for msg_data in messages:
+#             timestamp = msg_data['timestamp'].strftime("%H:%M:%S")
+#             level = msg_data['level_name']
+#             message = msg_data['message']
+#             color = msg_data.get('color', 'white')
+            
+#             # Format and append
+#             formatted_msg = f"[{timestamp}] <span style=\"color:{color};\">[{level}] {message}</span>"
+#             self.log_text.append(formatted_msg)
+        
+#         # Ensure size limit
+#         self.enforce_log_size_limit()
+        
+#         # Stop timer if no more messages
+#         with self._batch_lock:
+#             if not self._pending_messages and self._batch_timer:
+#                 self._batch_timer.stop()
+#                 self._batch_timer = None
+    
+#     def set_filter(self, filter_func: Optional[Callable[[Dict[str, Any]], bool]] = None):
+#         """
+#         Set a filter function for messages
+        
+#         Args:
+#             filter_func: Function that returns True to display message
+#         """
+#         self._filter_func = filter_func
+    
+#     def clear_with_pattern(self, pattern: str):
+#         """
+#         Clear messages matching a pattern
+        
+#         Args:
+#             pattern: Regex pattern to match messages
+#         """
+#         import re
+#         current_html = self.log_text.toHtml()
+#         lines = current_html.split('<br>')
+#         filtered_lines = [line for line in lines if not re.search(pattern, line)]
+#         self.log_text.setHtml('<br>'.join(filtered_lines))

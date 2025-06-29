@@ -405,7 +405,7 @@ class HciCommandManager:
         
         # add the transport callbacks to cleanup the command factory and evt factory windows
         self.transport =transport
-        self.transport.add_callback(TransportEvent.DISCONNECT, lambda _ : self.cleanup())
+        self.transport.add_callback(TransportEvent.DISCONNECT, lambda _ : self._close_all_windows())
         
     
     def __del__(self):
@@ -426,6 +426,11 @@ class HciCommandManager:
         if hasattr(self, '_evt_factory') and self._evt_factory:
             self._evt_factory.cleanup()
             self._evt_factory = None
+    
+    def _close_all_windows(self):
+        """Close all command windows"""
+        self._cmd_factory.close_all_command_windows()
+        self._evt_factory.close_all_event_windows()
     
     def __repr__(self):
         return f"<HciCommandManager parent={self.parent_window}, cmd_factory={self._cmd_factory}, evt_factory={self._evt_factory}>"

@@ -12,6 +12,8 @@ from pathlib import Path
 import copy
 from collections import ChainMap
 
+BASE_PATH = None
+
 
 class YAMLConfigParser:
     """
@@ -25,7 +27,11 @@ class YAMLConfigParser:
         Args:
             base_config_dir: Base directory for resolving relative paths
         """
-        self.base_config_dir = Path(base_config_dir) if base_config_dir else Path.cwd()
+        global BASE_PATH
+        if BASE_PATH is None:
+            BASE_PATH = os.environ.get("BASE_DIR", os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        
+        self.base_config_dir = BASE_PATH
         self._loaded_configs: Dict[str, Dict[str, Any]] = {}
         self._config_cache: Dict[str, Dict[str, Any]] = {}
         
@@ -50,11 +56,11 @@ class YAMLConfigParser:
         # Load the raw config
         raw_config = self._load_yaml_file(config_path)
         
-        # Process inheritance
-        processed_config = self._process_inheritance(raw_config, config_path.parent)
-        
         # Process includes
-        processed_config = self._process_includes(processed_config, config_path.parent)
+        processed_config  = self._process_includes(raw_config, config_path.parent)
+        
+        # Process inheritance
+        processed_config = self._process_inheritance(processed_config, config_path.parent)
         
         # Substitute environment variables
         processed_config = self._substitute_env_vars(processed_config)
@@ -67,6 +73,7 @@ class YAMLConfigParser:
     def _load_yaml_file(self, file_path: Path) -> Dict[str, Any]:
         """Load a YAML file"""
         try:
+            file_path = self._resolve_path(file_path) # resolve the path to an absolute path
             with open(file_path, 'r') as f:
                 return yaml.safe_load(f) or {}
         except Exception as e:
@@ -75,8 +82,36 @@ class YAMLConfigParser:
     def _resolve_path(self, path: Union[str, Path]) -> Path:
         """Resolve a path relative to the base directory"""
         path = Path(path)
-        if not path.is_absolute():
-            path = self.base_config_dir / path
+        global BASE_PATH
+       
+        
+        if  path.is_absolute():
+            return path
+        # First try base_config_dir
+        base_config_path = self.base_config_dir / path
+        if base_config_path.exists():
+            path = base_config_path
+        else:
+            # Search recursively in BASE_PATH
+            base_path = Path(BASE_PATH)
+            found_path = None
+            
+            # Walk through all directories under BASE_PATH
+            for root, dirs, files in os.walk(base_path):
+                
+                for file in files:
+                    if file == path.name:
+                        found_path = Path(root) / file
+                        break
+                if found_path:
+                    break
+            
+            if found_path:
+                path = found_path
+            else:
+                # Fallback to base_config_dir even if file doesn't exist
+                path = base_config_path
+                
         return path.resolve()
     
     def _process_inheritance(self, config: Dict[str, Any], 
@@ -133,16 +168,31 @@ class YAMLConfigParser:
         - includes: [file1.yml, file2.yml]
         """
         include_keys = ['include', 'includes']
+        # Check for include/include keys in config
+        include_values = []
         
+        def find_and_process_includes(config_dict: Dict[str, Any]) -> List[str]:
+            includes = []
+            for key, value in config_dict.items():
+                if key in include_keys:
+                    if isinstance(value, str):
+                        includes.append(value)
+                    elif isinstance(value, list):
+                        includes.extend(value)
+                elif isinstance(value, dict):
+                    includes.extend(find_and_process_includes(value))
+            return includes
+
+        include_values = find_and_process_includes(config)
+        # Remove all include keys from config
         for key in include_keys:
             if key in config:
-                include_value = config.pop(key)
-                includes = [include_value] if isinstance(include_value, str) else include_value
-                
-                for include_path in includes:
-                    include_full_path = current_dir / include_path
-                    include_config = self.load_config(include_full_path)
-                    config = self._deep_merge(config, include_config)
+                config.pop(key)
+        
+        # Process each include file
+        for include_path in include_values:
+            include_config = self.load_config(include_path)
+            config = self._deep_merge(config, include_config)
         
         return config
     
@@ -339,3 +389,110 @@ class YAMLConfigParser:
 #     name: "bluetooth.acl"
 #     enabled: true
 # """
+
+
+# create a test YAML parser
+
+_global_setting_parser = None
+
+class GlobalSettingParser:
+    def __init__(self):
+        self.parser = YAMLConfigParser()
+
+    def configure_from_yaml(self, config_path: Union[str, Path]):
+        """
+        Configure global settings from YAML file and apply environment variables
+        
+        Args:
+            config_path: Path to the YAML configuration file
+        """
+        try:
+            # Load the configuration from YAML file
+            config = self.parser.load_config(config_path)
+            
+            # Apply environment variables from the configuration
+            self._apply_environment_variables(config)
+            
+            return config
+            
+        except Exception as e:
+            print(f"Error configuring from YAML: {e}")
+            return {}
+    
+    def _apply_environment_variables(self, config: Dict[str, Any]):
+        """
+        Apply environment variables found in the configuration
+        
+        Args:
+            config: Configuration dictionary
+        """
+        if not isinstance(config, dict):
+            return
+            
+        for key, value in config.items():
+            if isinstance(value, dict):
+                # Recursively process nested dictionaries
+                self._apply_environment_variables(value)
+            elif isinstance(value, str):
+                # Check if the string contains environment variable references
+                if '${' in value and '}' in value:
+                    # Extract environment variable name and set it
+                    print(f"Processing environment variable: {value}")
+                    env_var_name = self._extract_env_var_name(value)
+                    if env_var_name:
+                        # Set the environment variable if it's not already set
+                        if env_var_name not in os.environ:
+                            # Extract default value if present (${VAR:default})
+                            default_value = self._extract_default_value(value)
+                            os.environ[env_var_name] = default_value or ""
+                            print(f"Set environment variable: {env_var_name} = {default_value or ''}")
+    
+    def _extract_env_var_name(self, value: str) -> Optional[str]:
+        """
+        Extract environment variable name from ${VAR} or ${VAR:default} format
+        
+        Args:
+            value: String containing environment variable reference
+            
+        Returns:
+            Environment variable name or None
+        """
+        import re
+        pattern = r'\$\{([^}:]+)(?::([^}]+))?\}'
+        match = re.match(pattern, value)
+        if match:
+            return match.group(1)
+        return None
+    
+    def _extract_default_value(self, value: str) -> Optional[str]:
+        """
+        Extract default value from ${VAR:default} format
+        
+        Args:
+            value: String containing environment variable reference
+            
+        Returns:
+            Default value or None
+        """
+        import re
+        pattern = r'\$\{([^}:]+):([^}]+)\}'
+        match = re.match(pattern, value)
+        if match:
+            return match.group(2)
+        return None
+
+def global_setting_parser() -> GlobalSettingParser:
+    global _global_setting_parser
+    if _global_setting_parser is None:
+        _global_setting_parser = GlobalSettingParser()
+    return _global_setting_parser
+
+def test_yaml_parser():
+    parser = YAMLConfigParser()
+    config = parser.load_config("logger.yml")
+    print(yaml.dump(config, default_flow_style=False))
+    # print the config dict in a pretty format
+    # print(yaml.dump(config, default_flow_style=False))
+
+if __name__ == "__main__":
+    test_yaml_parser()

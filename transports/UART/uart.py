@@ -29,8 +29,7 @@ import threading
 import time
 import asyncio
 
-from utils.logger import LoggerManager as logger
-from utils.logger import LogLevel
+from utils.logger import EnhancedLoggerManager as logger
 
 from ..base_lib import TransportInterface, ConnectionStatus, TransportError, ConfigurationError, ConnectionError, TransportState, TransportEvent
 

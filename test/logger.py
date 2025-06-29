@@ -11,12 +11,8 @@ import logging.handlers as logHandlers
 from typing import Union, Optional, Dict, Any
 from enum import Enum
 
-# Import the new FileIO components
-try:
-    from .file_handler import FileIO, FileIOLogger, FileIOEvent, FileIOCallbackData, FileIOMode
-except ImportError:
-    # Fallback for standalone testing
-    from file_handler import FileIO, FileIOLogger, FileIOEvent, FileIOCallbackData, FileIOMode
+
+from ui.exts.log_to_window import LogToWindowHandler, setup_log_to_window
 
 
 class LogLevel(Enum):
