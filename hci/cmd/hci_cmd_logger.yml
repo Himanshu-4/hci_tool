@@ -1,20 +1,24 @@
   
-hci_cmd_logger:
-  level: INFO
-  handlers:
-    console:
-      enabled: true
-      level: INFO
-    file:
-      enabled: true
-      level: DEBUG
-      filename: ${LOG_DIR}/hci_cmd.log
-    log_window:
-      enabled: true
-      level: DEBUG
-    secret_msg:
-      enabled: true
-      level: DEBUG
-      mask: "********"
-  format: "[%(asctime)s] [%(name)s] [%(levelname)s] %(message)s"
-  propagate: false
+
+logger:
+  # name of the logger 
+  hci_cmd:
+    level: INFO
+
+    handlers:
+      console:
+        enabled: true
+        level: INFO
+
+      file:
+        enabled: true
+        level: DEBUG
+        filename: ${LOG_DIR}/hci_cmd.log
+
+      log_window:
+        enabled: true
+        level: DEBUG
+
+     # the format of the logging can be used by this 
+    format: "[%(asctime)s] [%(name)s] [%(levelname)s] %(message)s"
+    propagate: false

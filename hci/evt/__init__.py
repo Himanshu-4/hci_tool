@@ -154,7 +154,7 @@ def hci_evt_parse_from_bytes(data: bytes) -> Optional[HciEvtBasePacket]:
 # Initialize event modules when this package is imported
 def _initialize_modules():
     """Import all event submodules to register events"""
-    print(f"Initializing event modules...")
+    print(f"[HCI event] Initing module")
    
 # Initialize modules
 _initialize_modules()

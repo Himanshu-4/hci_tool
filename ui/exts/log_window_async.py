@@ -151,6 +151,7 @@ class LogProcessor(QThread):
                 # Collect messages for batch processing
                 end_time = time.time() + self.flush_interval
                 
+                # fetch all the messages until batch size complete or flush interval expires
                 while len(messages) < self.batch_size and time.time() < end_time:
                     try:
                         # Wait for message with timeout
@@ -176,7 +177,7 @@ class LogProcessor(QThread):
                 
                 # Small sleep to prevent busy waiting
                 else:
-                    self.msleep(10)  # QThread's msleep method
+                    self.msleep(20)  # QThread's msleep method
                     
             except Exception as e:
                 print(f"[LogProcessor] Error in processing loop: {e}")
@@ -259,6 +260,7 @@ class LogToWindowHandler(logging.Handler):
     def emit(self, record: logging.LogRecord):
         """Emit a log record"""
         try:
+            print(f"LogToWindowHandler.emit: {record}")
             # Check if window is available
             if not LogWindow.is_inited():
                 return
@@ -279,6 +281,7 @@ class LogToWindowHandler(logging.Handler):
                 color=self._color_map.get(record.levelno) if self.enable_colors else None
             )
             
+            
             # Send to processor
             if self._processor:
                 self._processor.add_message(log_msg)
@@ -295,14 +298,6 @@ class LogToWindowHandler(logging.Handler):
         """Close the handler"""
         # Remove from registry
         LogToWindowHandler._handlers.discard(self)
-        
-        # If this was the last handler, cleanup shared components
-        with self._lock:
-            if not self._handlers and self._processor:
-                self._processor.stop()
-                self._processor = None
-                self._bridge = None
-        
         super().close()
     
     @classmethod
@@ -313,7 +308,7 @@ class LogToWindowHandler(logging.Handler):
         return {}
     
     @classmethod
-    def cleanup_all(cls):
+    def cleanup_module(cls):
         """Cleanup all shared components"""
         with cls._lock:
             if cls._processor:
@@ -321,43 +316,27 @@ class LogToWindowHandler(logging.Handler):
                 cls._processor = None
             cls._bridge = None
             
-            # Close all handlers
-            handlers = list(cls._handlers)
-            for handler in handlers:
-                try:
-                    handler.close()
-                except:
-                    pass
+            # Close all handlers if not closed
+            # handler close job is logger only not this module
 
 
 # Convenience function for easy setup
-def setup_log_to_window(module_name: str, logger: Optional[logging.Logger] = None,
-                       level: int = logging.INFO, **kwargs) -> LogToWindowHandler:
+def log_window_handler(module_name: str, **kwargs) -> LogToWindowHandler:
     """
     Convenience function to set up logging to window
     
     Args:
         module_name: Name of the module
-        logger: Logger instance (if None, uses root logger)
         level: Logging level
+        logger: Logger instance (if None, uses root logger)
         **kwargs: Additional arguments for LogToWindowHandler
     
     Returns:
         The created handler
     """
-    if logger is None:
-        logger = logging.getLogger()
-    
-    handler = LogToWindowHandler(module_name, **kwargs)
-    handler.setLevel(level)
-    
-    # Set a formatter if none exists
-    if not handler.formatter:
-        formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
-        handler.setFormatter(formatter)
-    
-    logger.addHandler(handler)
-    return handler
+
+    return LogToWindowHandler(module_name, **kwargs)
+
 
 
 # Example usage and testing
@@ -365,37 +344,55 @@ def test_log_to_window():
     """Test function for the log to window system"""
     import sys
     from PyQt5.QtWidgets import QApplication, QMainWindow
+    import logging
     
-    # Create Qt application if it doesn't exist
-    app = QApplication.instance()
-    if app is None:
-        app = QApplication(sys.argv)
+    # INSERT_YOUR_CODE
+    print("test_log_to_window")
+    # Create a simple PyQt5 application to test log_window_async
+    app = QApplication(sys.argv)
+
+    # Create a QMainWindow with an mdi_area attribute, as expected by LogWindow
+    class TestMainWindow(QMainWindow):
+        def __init__(self):
+            super().__init__()
+            from PyQt5.QtWidgets import QMdiArea
+            self.mdi_area = QMdiArea()
+            self.setCentralWidget(self.mdi_area)
+
+    main_window = TestMainWindow()
+    main_window.setWindowTitle("Log Window Async Test")
+    main_window.setGeometry(200, 200, 900, 600)
+    main_window.show()
+    LogWindow.create_instance(main_window)
     
-    # Create main window (placeholder)
-    main_window = QMainWindow()
+    # test this module here by creating multiple threads that logs to the window
     
-    # Create log window
-    log_window = LogWindow.create_instance(main_window)
     
-    # Set up logging
-    logger = logging.getLogger("TestModule")
-    handler = setup_log_to_window("TestModule", logger, logging.DEBUG)
+    def test_log_to_window_thread(i):
+        logger = logging.getLogger(f"TestModule{i}")
+        handler = setup_log_to_window(f"TestModule{i}", level= logging.DEBUG)
+        logger.addHandler(handler)
+        time.sleep(i*0.5)
+        logger.info(f"This is an info message {i}")
+        logger.warning(f"This is a warning message {i}")
+        logger.error(f"This is an error message {i}")
+        logger.debug(f"This is a debug message {i}")
+        logger.critical(f"This is a critical message {i}")
     
-    # Test logging
-    logger.info("This is an info message")
-    logger.warning("This is a warning message")
-    logger.error("This is an error message")
-    logger.debug("This is a debug message")
-    logger.critical("This is a critical message")
     
-    # Test rapid logging
+    threads = []
     for i in range(10):
-        logger.info(f"Rapid message {i}")
+        thread = threading.Thread(target=test_log_to_window_thread, args=(i,))
+        thread.daemon = True
+        thread.start()
+        threads.append(thread)
+    for thread in threads:
+        thread.join()
     
-    print("Log handler statistics:", LogToWindowHandler.get_shared_stats())
     
-    # Cleanup
-    LogToWindowHandler.cleanup_all()
+    
+    sys.exit(app.exec_())
+    # Create log window
 
 
 if __name__ == "__main__":

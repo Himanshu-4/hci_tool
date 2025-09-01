@@ -25,8 +25,6 @@ import threading
 import time
 import asyncio
 
-from utils.logger import LoggerManager as logger
-from utils.logger import LogLevel
 
 
 MAX_DEVICE_COUNT = 10

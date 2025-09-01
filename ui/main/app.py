@@ -103,6 +103,14 @@ class MainWindow(QMainWindow):
                 # For example, you could write to a log file or display a message box
         elif title in UTILITY_MAP:
             info = UTILITY_MAP[title]
+            
+            ## @todo : remove this after testing
+            if title == "app setting":
+                #execute the test 
+                from utils.logger import test_multiple_logger_threads
+                test_multiple_logger_threads()
+                return  
+            
             # dynamically fetch the class from the module
             func = getattr(info.module, info.func_name) ## info.module.__dict__[info.cls_name]   
             func()

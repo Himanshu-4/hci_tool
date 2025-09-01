@@ -14,7 +14,6 @@ import os
 import sys
 import time
 import threading
-import atexit
 from typing import Optional, Callable, Dict, Any, Union, List
 from enum import Enum
 from datetime import datetime
@@ -31,13 +30,9 @@ from .Exceptions import *
 _FILE_IO_MAX_SIZE = 10 * 1024 * 1024  # 10 MB
 _FILE_IO_MAX_FILES = 5  # Number of files to keep if size exceeds limit
 
-_BASE_DIR = None
-_BASE_PATH = None   
-_LOG_PATH = None
-_LOG_FILE = None
 
 # Global event loop manager
-_global_file_manager: EventLoopManager = EventLoopManager("FileIO_Manager")
+_global_file_evt_loop_mngr: EventLoopManager = EventLoopManager("FileIO_Manager")
 _file_handlers: List['FileIO'] = []  # Store all FileIO instances
 
 
@@ -91,9 +86,7 @@ class FileInfo:
     _last_modified: datetime
     
     def __init__(self, file_path: str, mode: Union[str, FileIOMode] = FileIOMode.READ):
-        global _BASE_DIR
-        if _BASE_DIR is None:
-            raise RuntimeError("Base directory not initialized. Call init_module() first.")
+        _BASE_DIR  = sys._BASE_PATH
         
         if not os.path.isfile(file_path):
             raise CustomFileNotFoundError(file_path)
@@ -134,8 +127,8 @@ class FileIO(FileInfo):
     """
     
     # Global event loop manager for all FileIO instances
-    global _global_file_manager
-    _loop_manager: Optional[EventLoopManager] = _global_file_manager
+    global _global_file_evt_loop_mngr
+    _loop_manager: Optional[EventLoopManager] = _global_file_evt_loop_mngr
     
     @classmethod
     def get_instances(cls):
@@ -472,9 +465,7 @@ class AsyncFileHandler(FileInfo):
             buffer_size: Maximum number of items in write buffer
         """
         
-        global _BASE_DIR
-        if _BASE_DIR is None:
-            raise RuntimeError("Base directory not initialized. Call init_module() first.")
+        _BASE_DIR = sys._BASE_PATH
         
         file_path = os.path.join(_BASE_DIR, file_path)
         
@@ -634,26 +625,13 @@ _module_initialized = False
 @staticmethod
 def __init_base_module():
     """Initialize the base module paths and directories"""
-    global _BASE_DIR, _BASE_PATH, _LOG_PATH, _LOG_FILE
-    
     print("[FileHandler] Initializing base module...")
     
-    # Set the base directory and log path
-    _BASE_PATH = _BASE_DIR = os.environ.get("BASE_DIR", os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    _BASE_PATH = os.path.join(os.path.abspath(_BASE_PATH), "app_data")
-    _LOG_PATH = os.path.join(_BASE_PATH, "logs")
     
-    # Create the log directory if it doesn't exist
-    if not os.path.exists(_LOG_PATH):
-        os.makedirs(_LOG_PATH, exist_ok=True)
-
-    _LOG_FILE = os.path.join(_LOG_PATH, "app.log.txt")
-    if not os.path.isfile(_LOG_FILE):
-        with open(_LOG_FILE, 'w') as f:
-            f.write(f"{datetime.now()} [FileHandler] APP Started{os.linesep}")
-            
+    #  create the differnt dir and files at the starting of the file 
+    
     # Start the global event loop manager
-    _global_file_manager.start()
+    _global_file_evt_loop_mngr.start()
     
 
 def init_module():
@@ -712,9 +690,9 @@ def flush_all_instances():
         if tasks:
             await asyncio.gather(*tasks, return_exceptions=True)
             
-    if _global_file_manager and hasattr(_global_file_manager, 'is_running') and _global_file_manager.is_running:
+    if _global_file_evt_loop_mngr and hasattr(_global_file_evt_loop_mngr, 'is_running') and _global_file_evt_loop_mngr.is_running:
         try:
-            _global_file_manager.run_and_wait(flush_all(), timeout=10)
+            _global_file_evt_loop_mngr.run_and_wait(flush_all(), timeout=10)
         except Exception as e:
             print(f"[FileIO] Error flushing instances: {e}")
                 
@@ -748,13 +726,10 @@ def cleanup_module():
     
     print("[FileHandler] Cleaning up...")
     close_all()
-    _global_file_manager.destroy()
+    _global_file_evt_loop_mngr.destroy()
     _module_initialized = False
     print("[FileHandler] Cleanup completed")
 
-
-# Register cleanup on module exit
-atexit.register(cleanup_module)
 
 
 ########################################################################

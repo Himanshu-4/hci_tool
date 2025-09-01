@@ -1,0 +1,24 @@
+# logger configuration file
+# This file defines configurations for other logger 
+# for all loggers in the application, including specific logger configurations.
+# we use global settings to provide a consistent logging setup across the application
+
+
+
+
+############################################################
+# include other logger configuration
+############################################################
+# ------------------------------------------------------------------------------------------------------
+#----------------  include the logger files of the nested modules
+
+
+# set the default global symbols for the logger
+logger :
+  DEFAULT_LOG_LEVEL : ${LOG_LEVEL:DEBUG}
+  DEFAULT_LOG_FILE_SIZE : ${DEFAULT_FILE_SIZE:150000}  # default file size of 15MB 
+  
+
+
+
+include : [ hci_acl_logger.yml, hci_cmd_logger.yml, hci_evt_logger.yml, hci_iso_logger.yml, hci_sco_logger.yml]

@@ -49,7 +49,7 @@ class HciCmdBasePacket(HciCommandPacket):
         # - 2 bytes: Opcode (OGF:6 bits, OCF:10 bits)
         # - 1 byte: Parameter Total Length
         # - N bytes: Parameters
-        print(f" {packet_type} and {packet_type.value} Serializing command {name} with opcode 0x{opcode} and params length {length}")
+        print(f" {packet_type}  Serializing command {name} with opcode 0x{opcode} and params length {length}")
         header = struct.pack("<BHB", packet_type.value, opcode, length)
         return header + param_bytes if param_bytes else header
     

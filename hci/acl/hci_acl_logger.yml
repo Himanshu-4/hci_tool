@@ -1,46 +1,40 @@
 # ACL (Asynchronous Connection-Less) logger configuration
 # Base configuration for Bluetooth ACL-related logging
 
-level: DEBUG
 
-handlers:
-  console:
-    enabled: false  # Disable console for ACL
-  
-  file:
-    enabled: true
+# specify the logger stuff only
+logger:
+  hci_acl:
+
     level: DEBUG
-    filename: ${LOG_DIR}/bluetooth/acl.log
-    mode: a
-    encoding: utf-8
-    max_size: 5242880  # 5 MB
-    backup_count: 3
-    use_fileio: true
-    async: true
-    buffer_size: 200
-    flush_interval: 1.0
-  
-  log_window:
-    enabled: false
-    level: DEBUG
-    buffer_size: 50
-    rate_limit: 50
-    module_name: "ACL"
 
-format: "[%(asctime)s] [ACL] [%(funcName)s:%(lineno)d] [%(levelname)s] %(message)s"
+    handlers:
+      console:
+        enabled: false  # Disable console for ACL
+      
+      file:
+        enabled: true
+        level: DEBUG
+        filename: ${LOG_DIR}/bluetooth/acl.log
+        mode: a
+        encoding: utf-8
+        max_size: 5242880  # 5 MB
+        backup_count: 3
+        use_fileio: true
+        async: true
+        buffer_size: 200
+        flush_interval: 1.0
+      
+      log_window:
+        enabled: false
+        level: DEBUG
+        buffer_size: 50
+        rate_limit: 50
+        module_name: "ACL"
 
-filters:
-  - type: module
-    name: bluetooth.acl
-    enabled: true
+    format: "[%(asctime)s] [ACL] [%(funcName)s:%(lineno)d] [%(levelname)s] %(message)s"
 
-# Additional ACL-specific settings
-additional_fields:
-  component: "Bluetooth ACL"
-  version: "5.2"
-  
-# Performance settings for ACL
-performance:
-  batch_size: 50
-  max_queue_size: 1000
-  thread_pool_size: 2
+    filters:
+        type: module
+        name: bluetooth.acl
+        enabled: true

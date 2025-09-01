@@ -94,7 +94,7 @@ class EventLoopManager:
         self._destroy_callbacks: list[Callable] = []
         
         # Register cleanup handlers
-        atexit.register(self._cleanup)
+        atexit.register(self.destroy)
         signal.signal(signal.SIGINT, self._signal_handler)
         signal.signal(signal.SIGTERM, self._signal_handler)
     
@@ -350,10 +350,6 @@ class EventLoopManager:
         
         logger.info("Event loop manager destroyed")
     
-    def _cleanup(self):
-        """Cleanup handler for atexit"""
-        if not self._stopping:
-            self.destroy()
     
     @property
     def is_running(self) -> bool:

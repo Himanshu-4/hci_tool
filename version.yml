@@ -1,3 +1,24 @@
 version: "0.0.1"
 build: 1
 release_date: "2024-01-01"
+
+# YAML file rules
+
+# YML parser rule
+
+#  parser will work in step by step its only job is to decode the and resolve the all YAML files into dic and store it for lateral use
+
+
+# 1.parser will first validate the file and then it look for any include symbol and then resolve 
+# - parser will first resolve the file inclusion to process the include files and expand it into a temporary file 
+# - if any error encounter raise the exception 
+# - again in that file it searchs for include symbol
+# - include inside the key are ignored by the parser 
+
+# 2. then it expand the expression and create a database for the expression then it expands the expressions
+
+# 3. run a format checker for checking unwanted include files that are not in global scope and expression that are not yet resolved and other things like not value for a key, etc
+
+# 4. store the whole database inside its memory and expose api to use that 
+
+# multiple files are created in that part and parser will create inside its folder in app_data

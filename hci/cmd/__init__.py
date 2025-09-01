@@ -65,7 +65,7 @@ def hci_create_cmd_packet(opcode :int, params: Optional[bytes]= None, name: Opti
 def _initialize_modules():
     """Import all submodules to register commands"""
     # global link_policy, link_controller, status, le_cmds, controller_baseband, information, testing, vs_specific
-    print("Initializing HCI command modules...")
+    print("[HCI command] Initing module")
     try:
         # Import all command modules dynamically
         package = Path(__file__).parent

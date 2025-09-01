@@ -4,241 +4,241 @@ This module provides functionality for logging messages to a file and console
 with enhanced asynchronous file operations using the FileIO class.
 """
 
-import time, os, logging, sys
-from datetime import datetime
-import traceback, threading
-import logging.handlers as logHandlers
-from typing import Union, Optional, Dict, Any
-from enum import Enum
+# import time, os, logging, sys
+# from datetime import datetime
+# import traceback, threading
+# import logging.handlers as logHandlers
+# from typing import Union, Optional, Dict, Any
+# from enum import Enum
 
 # import the GuiLogHandler
 
-# Import the new FileIO components
-from .file_handler import FileIO, FileIOEvent, FileIOCallbackData, FileIOMode
-# Remove the problematic import to avoid circular dependency
-# from ui.exts.log_to_window import LogToWindowHandler, setup_log_to_window
+# # Import the new FileIO components
+# from .file_handler import FileIO, FileIOEvent, FileIOCallbackData, FileIOMode
+# # Remove the problematic import to avoid circular dependency
+# # from ui.exts.log_to_window import LogToWindowHandler, setup_log_to_window
 
-class LogLevel(Enum):
-    DEBUG = logging.DEBUG
-    INFO = logging.INFO
-    WARNING = logging.WARNING
-    ERROR = logging.ERROR
-    CRITICAL = logging.CRITICAL
-    NOTSET = logging.NOTSET
-
-
-# Map string log levels to logging module levels
-log_level_map = {
-    "DEBUG": logging.DEBUG,
-    "INFO": logging.INFO,
-    "WARNING": logging.WARNING,
-    "ERROR": logging.ERROR,
-    "CRITICAL": logging.CRITICAL,
-    "NOTSET": logging.NOTSET
-}
+# class LogLevel(Enum):
+#     DEBUG = logging.DEBUG
+#     INFO = logging.INFO
+#     WARNING = logging.WARNING
+#     ERROR = logging.ERROR
+#     CRITICAL = logging.CRITICAL
+#     NOTSET = logging.NOTSET
 
 
-##########################################################################################
-# Custom logging filter to enable/disable logging for specific modules
-##########################################################################################
-
-class CustomLogFilter(logging.Filter):
-    def __init__(self, module_name, enabled=True):
-        super().__init__(name=module_name)
-        self.module_name = module_name
-        self.enabled = enabled
-
-    def filter(self, record):
-        return self.enabled
+# # Map string log levels to logging module levels
+# log_level_map = {
+#     "DEBUG": logging.DEBUG,
+#     "INFO": logging.INFO,
+#     "WARNING": logging.WARNING,
+#     "ERROR": logging.ERROR,
+#     "CRITICAL": logging.CRITICAL,
+#     "NOTSET": logging.NOTSET
+# }
 
 
-class LoggerManager:
-    """Enhanced logger manager with FileIO support"""
-    _loggers : Dict[str, Dict[str, Any]] = {}
-    _lock = threading.Lock()
-    APP_LOG_FILE = "app.log"
+# ##########################################################################################
+# # Custom logging filter to enable/disable logging for specific modules
+# ##########################################################################################
 
-    @classmethod
-    def get_logger(cls, module_name, level: Union[str, LogLevel] = LogLevel.DEBUG, *,
-                   to_console=True, to_file=True, to_log_window=False,
-                   description=True, prepend="", append="",
-                   log_file=None, enable=True, use_fileio=True,
-                   max_buffer_size=50, auto_flush_interval=2.0):
+# class CustomLogFilter(logging.Filter):
+#     def __init__(self, module_name, enabled=True):
+#         super().__init__(name=module_name)
+#         self.module_name = module_name
+#         self.enabled = enabled
 
-        with cls._lock:
-            if module_name in cls._loggers:
-                return cls._loggers[module_name]["logger"]
+#     def filter(self, record):
+#         return self.enabled
 
-            logger = logging.getLogger(module_name)
+
+# class LoggerManager:
+#     """Enhanced logger manager with FileIO support"""
+#     _loggers : Dict[str, Dict[str, Any]] = {}
+#     _lock = threading.Lock()
+#     APP_LOG_FILE = "app.log"
+
+#     @classmethod
+#     def get_logger(cls, module_name, level: Union[str, LogLevel] = LogLevel.DEBUG, *,
+#                    to_console=True, to_file=True, to_log_window=False,
+#                    description=True, prepend="", append="",
+#                    log_file=None, enable=True, use_fileio=True,
+#                    max_buffer_size=50, auto_flush_interval=2.0):
+
+#         with cls._lock:
+#             if module_name in cls._loggers:
+#                 return cls._loggers[module_name]["logger"]
+
+#             logger = logging.getLogger(module_name)
             
-            # Set the logger level
-            if isinstance(level, str):
-                level = log_level_map.get(level.upper(), logging.DEBUG)
-            elif isinstance(level, LogLevel):
-                level = level.value
+#             # Set the logger level
+#             if isinstance(level, str):
+#                 level = log_level_map.get(level.upper(), logging.DEBUG)
+#             elif isinstance(level, LogLevel):
+#                 level = level.value
             
-            logger.setLevel(level)
-            logger.propagate = False  # avoid double logging
+#             logger.setLevel(level)
+#             logger.propagate = False  # avoid double logging
 
-            formatter = cls._get_formatter(description, prepend, append)
-            module_log_file = log_file or cls.APP_LOG_FILE
+#             formatter = cls._get_formatter(description, prepend, append)
+#             module_log_file = log_file or cls.APP_LOG_FILE
 
-            if to_console:
-                ch = logging.StreamHandler(sys.stdout)
-                ch.setFormatter(formatter)
-                logger.addHandler(ch)
+#             if to_console:
+#                 ch = logging.StreamHandler(sys.stdout)
+#                 ch.setFormatter(formatter)
+#                 logger.addHandler(ch)
 
-            if to_file:
-                try:
-                    # Create directory if needed
-                    log_dir = os.path.dirname(module_log_file)
-                    if log_dir and not os.path.exists(log_dir):
-                        os.makedirs(log_dir, exist_ok=True)
+#             if to_file:
+#                 try:
+#                     # Create directory if needed
+#                     log_dir = os.path.dirname(module_log_file)
+#                     if log_dir and not os.path.exists(log_dir):
+#                         os.makedirs(log_dir, exist_ok=True)
                     
-                    if use_fileio:
-                        # Use the new FileIO-based handler
-                        fh = FileIOLogHandler(
-                            module_log_file,
-                            mode='a',
-                            max_buffer_size=max_buffer_size,
-                            auto_flush_interval=auto_flush_interval
-                        )
-                    else:
-                        # Use traditional file handler
-                        fh = logging.FileHandler(module_log_file, mode='a')
+#                     if use_fileio:
+#                         # Use the new FileIO-based handler
+#                         fh = FileIOLogHandler(
+#                             module_log_file,
+#                             mode='a',
+#                             max_buffer_size=max_buffer_size,
+#                             auto_flush_interval=auto_flush_interval
+#                         )
+#                     else:
+#                         # Use traditional file handler
+#                         fh = logging.FileHandler(module_log_file, mode='a')
                     
-                    fh.setFormatter(formatter)
-                    logger.addHandler(fh)
+#                     fh.setFormatter(formatter)
+#                     logger.addHandler(fh)
                     
-                except Exception as e:
-                    print(f"Failed to create file handler for {module_name}: {e}")
-                    # Continue without file logging
+#                 except Exception as e:
+#                     print(f"Failed to create file handler for {module_name}: {e}")
+#                     # Continue without file logging
 
-            # Optional: Hook for GUI log window
-            if to_log_window:
-                try:
-                    from ui.exts.log_to_window import GuiLogHandler
-                    gh = GuiLogHandler(module_name)
-                    gh.setFormatter(formatter)
-                    logger.addHandler(gh)
-                except ImportError:
-                    print("GUI log handler not available")
+#             # Optional: Hook for GUI log window
+#             if to_log_window:
+#                 try:
+#                     from ui.exts.log_window_async import GuiLogHandler
+#                     gh = GuiLogHandler(module_name)
+#                     gh.setFormatter(formatter)
+#                     logger.addHandler(gh)
+#                 except ImportError:
+#                     print("GUI log handler not available")
 
-            # Add filter for enabling/disabling
-            log_filter = CustomLogFilter(module_name, enable)
-            logger.addFilter(log_filter)
+#             # Add filter for enabling/disabling
+#             log_filter = CustomLogFilter(module_name, enable)
+#             logger.addFilter(log_filter)
 
-            cls._loggers[module_name] = {
-                "logger": logger,
-                "filter": log_filter
-            }
-            return logger
+#             cls._loggers[module_name] = {
+#                 "logger": logger,
+#                 "filter": log_filter
+#             }
+#             return logger
 
-    @classmethod
-    def enable_module(cls, module_name):
-        """Enable logging for a specific module"""
-        if module_name in cls._loggers:
-            cls._loggers[module_name]["filter"].enabled = True
+#     @classmethod
+#     def enable_module(cls, module_name):
+#         """Enable logging for a specific module"""
+#         if module_name in cls._loggers:
+#             cls._loggers[module_name]["filter"].enabled = True
 
-    @classmethod
-    def disable_module(cls, module_name):
-        """Disable logging for a specific module"""
-        if module_name in cls._loggers:
-            cls._loggers[module_name]["filter"].enabled = False
+#     @classmethod
+#     def disable_module(cls, module_name):
+#         """Disable logging for a specific module"""
+#         if module_name in cls._loggers:
+#             cls._loggers[module_name]["filter"].enabled = False
 
-    @classmethod
-    def flush_all(cls):
-        """Flush all loggers"""
-        for logger_info in cls._loggers.values():
-            logger = logger_info["logger"]
-            for handler in logger.handlers:
-                if hasattr(handler, 'flush'):
-                    handler.flush()
+#     @classmethod
+#     def flush_all(cls):
+#         """Flush all loggers"""
+#         for logger_info in cls._loggers.values():
+#             logger = logger_info["logger"]
+#             for handler in logger.handlers:
+#                 if hasattr(handler, 'flush'):
+#                     handler.flush()
 
-    @classmethod
-    def shutdown_all(cls):
-        """Shutdown all loggers"""
-        cls.flush_all()
+#     @classmethod
+#     def shutdown_all(cls):
+#         """Shutdown all loggers"""
+#         cls.flush_all()
         
-        for logger_info in cls._loggers.values():
-            logger = logger_info["logger"]
-            for handler in logger.handlers[:]:  # Copy list to avoid modification during iteration
-                if hasattr(handler, 'close'):
-                    handler.close()
-                logger.removeHandler(handler)
+#         for logger_info in cls._loggers.values():
+#             logger = logger_info["logger"]
+#             for handler in logger.handlers[:]:  # Copy list to avoid modification during iteration
+#                 if hasattr(handler, 'close'):
+#                     handler.close()
+#                 logger.removeHandler(handler)
         
-        cls._loggers.clear()
+#         cls._loggers.clear()
 
-    @staticmethod
-    def _get_formatter(include_desc, prepend, append):
-        """Create a formatter with the specified options"""
-        parts = []
-        if prepend:
-            parts.append(prepend)
-        if include_desc:
-            parts.append("[%(asctime)s] [%(threadName)s] [%(module)s:%(lineno)d]")
-        parts.append("%(message)s")
-        if append:
-            parts.append(append)
-        fmt = ' '.join(parts)
-        return logging.Formatter(fmt, datefmt="%Y-%m-%d %H:%M:%S")
+#     @staticmethod
+#     def _get_formatter(include_desc, prepend, append):
+#         """Create a formatter with the specified options"""
+#         parts = []
+#         if prepend:
+#             parts.append(prepend)
+#         if include_desc:
+#             parts.append("[%(asctime)s] [%(threadName)s] [%(module)s:%(lineno)d]")
+#         parts.append("%(message)s")
+#         if append:
+#             parts.append(append)
+#         fmt = ' '.join(parts)
+#         return logging.Formatter(fmt, datefmt="%Y-%m-%d %H:%M:%S")
 
 
 
-def test_logger():
-    """Test the enhanced logger functionality"""
-    print("Testing enhanced logger with FileIO...")
+# def test_logger():
+#     """Test the enhanced logger functionality"""
+#     print("Testing enhanced logger with FileIO...")
     
-    # Test basic logger
-    log = LoggerManager.get_logger(
-        "TestModule",
-        level=logging.DEBUG,
-        to_console=True,
-        to_file=True,
-        log_file="logs/test_module.log",
-        prepend="[TEST]",
-        use_fileio=True,
-        max_buffer_size=10,
-        auto_flush_interval=1.0
-    )
+#     # Test basic logger
+#     log = LoggerManager.get_logger(
+#         "TestModule",
+#         level=logging.DEBUG,
+#         to_console=True,
+#         to_file=True,
+#         log_file="logs/test_module.log",
+#         prepend="[TEST]",
+#         use_fileio=True,
+#         max_buffer_size=10,
+#         auto_flush_interval=1.0
+#     )
 
-    log.info("Logger initialized with FileIO")
-    log.debug("This is a debug message")
-    log.warning("This is a warning message")
-    log.error("This is an error message")
-    log.critical("This is a critical message")
+#     log.info("Logger initialized with FileIO")
+#     log.debug("This is a debug message")
+#     log.warning("This is a warning message")
+#     log.error("This is an error message")
+#     log.critical("This is a critical message")
 
-    # Test exception logging
-    try:
-        1 / 0
-    except Exception:
-        log.exception("Exception occurred")
+#     # Test exception logging
+#     try:
+#         1 / 0
+#     except Exception:
+#         log.exception("Exception occurred")
 
-    # Test module enable/disable
-    LoggerManager.disable_module("TestModule")
-    log.info("This message should not appear")
+#     # Test module enable/disable
+#     LoggerManager.disable_module("TestModule")
+#     log.info("This message should not appear")
     
-    LoggerManager.enable_module("TestModule")
-    log.info("Module re-enabled")
+#     LoggerManager.enable_module("TestModule")
+#     log.info("Module re-enabled")
 
-    # Test rapid logging to trigger buffer flush
-    for i in range(20):
-        log.info(f"Rapid log message {i}")
+#     # Test rapid logging to trigger buffer flush
+#     for i in range(20):
+#         log.info(f"Rapid log message {i}")
 
-    # Wait a bit for async operations
-    import time
-    time.sleep(2)
+#     # Wait a bit for async operations
+#     import time
+#     time.sleep(2)
 
-    # Flush and shutdown
-    LoggerManager.flush_all()
-    time.sleep(1)
-    LoggerManager.shutdown_all()
+#     # Flush and shutdown
+#     LoggerManager.flush_all()
+#     time.sleep(1)
+#     LoggerManager.shutdown_all()
     
-    print("Logger test completed")
+#     print("Logger test completed")
 
 
-if __name__ == "__main__":
-    test_logger()
+# if __name__ == "__main__":
+#     test_logger()
     
     
 """
@@ -250,6 +250,7 @@ This module provides a comprehensive logging system with:
 - Module-specific configurations
 """
 
+import copy
 import logging
 import os
 import sys
@@ -259,21 +260,32 @@ from pathlib import Path
 import weakref
 import atexit
 
+import signal
+
 # Import custom components
-from .yaml_config_parser import YAMLConfigParser
+from .yaml_cfg_parser import Parser as YAMLConfigParser
 from .file_log_handler import FileIOLogHandler, AsyncRotatingFileHandler
+# import the log window handler
+from ui.exts.log_window_async import   log_window_handler
 # Remove the problematic import to avoid circular dependency
-# from ui.exts.log_to_window import LogToWindowHandler
-from .file_handler import init_module as init_file_handler
+from .file_handler import init_module as init_fileio_module
 
 
-class EnhancedLoggerManager:
+####==============================================================
+# import the cleanup modules 
+##=================================================================
+from ui.exts.log_window_async import LogToWindowHandler
+from .file_handler import cleanup_module as file_handler_cleanup_module
+    
+    
+class EnhancedLogManager:
     """
     Enhanced logger manager with YAML configuration support
     """
     
+    
     # Singleton instance
-    _instance: Optional['EnhancedLoggerManager'] = None
+    _instance: Optional['EnhancedLogManager'] = None
     _lock = threading.Lock()
     
     # Class variables
@@ -286,8 +298,7 @@ class EnhancedLoggerManager:
     def __new__(cls):
         if cls._instance is None:
             with cls._lock:
-                if cls._instance is None:
-                    cls._instance = super().__new__(cls)
+                cls._instance = super(EnhancedLogManager, cls).__new__(cls)
         return cls._instance
     
     def __init__(self):
@@ -297,15 +308,69 @@ class EnhancedLoggerManager:
     def _initialize(self):
         """Initialize the logger manager"""
         self._initialized = True
-        
-        # Initialize file handler module
+        print("[EnhancedLogManager] Initing module")
         try:
-            init_file_handler()
+            # Init the config parser module to use here 
+            if not self._config_parser:
+                self._config_parser = YAMLConfigParser()
+                
+            ### init the module global methods
+            init_fileio_module()
+            
         except Exception as e:
-            print(f"[EnhancedLoggerManager] Warning: Could not initialize file handler: {e}")
+            print(f"[EnhancedLogManager] Warning: Could not initialize file handler: {e}")
+            raise 
         
+        # also register if interrupt comes to stop the application 
+
+        def _handle_sigint(signum, frame):
+            print("[EnhancedLogManager] SIGINT received, shutting down...")
+            self.shutdown()
+            sys.exit(0)
+
+        # Register SIGINT handler (Ctrl+C)
+        signal.signal(signal.SIGINT, _handle_sigint)
+        signal.signal(signal.SIGTERM, _handle_sigint)
         # Register cleanup
         atexit.register(self.shutdown)
+    
+    
+    def shutdown(self):
+        """Shutdown all loggers and handlers"""
+        print("[EnhancedLogManager] Shutting down...")
+        
+        # Flush all handlers
+        for handler in self._handlers.values():
+            try:
+                if hasattr(handler, 'flush'):
+                    handler.flush()
+            except:
+                pass
+        
+        # Close all handlers
+        for handler in self._handlers.values():
+            try:
+                if hasattr(handler, 'close'):
+                    handler.close()
+            except:
+                pass
+            
+        ## ===================shutdown the handlers top level module ==============================
+        # cleanup the log window handler
+        LogToWindowHandler.cleanup_module()
+        # cleanup the file handler module
+        file_handler_cleanup_module()
+
+        # Clear
+        self._loggers.clear()
+        self._handlers.clear()
+        self._configs.clear()
+        
+        print("[EnhancedLogManager] Shutdown complete")
+
+    ##########################################################################################
+    # YAML Configuration
+    ##########################################################################################
     
     def configure_from_yaml(self, config_file: Union[str, Path], 
                            base_dir: Optional[str] = None):
@@ -326,7 +391,7 @@ class EnhancedLoggerManager:
         if 'global' in main_config:
             self._apply_global_settings(main_config['global'])
         
-        # Store the configuration
+        # Store the configuration as main config
         self._configs['_main'] = main_config
     
     def _apply_global_settings(self, global_config: Dict[str, Any]):
@@ -340,51 +405,8 @@ class EnhancedLoggerManager:
             logging.getLogger().setLevel(
                 getattr(logging, global_config['root_level'].upper())
             )
-    
-    def get_logger(self, name: str, 
-                   config_file: Optional[Union[str, Path]] = None,
-                   source_file: Optional[str] = None,
-                   **kwargs) -> logging.Logger:
-        """
-        Get or create a logger with YAML configuration
-        
-        Args:
-            name: Logger name
-            config_file: Optional specific config file for this logger
-            source_file: Source file path (from __file__)
-            **kwargs: Additional configuration overrides
-            
-        Returns:
-            Configured logger instance
-        """
-        with self._lock:
-            # Check if logger already exists
-            if name in self._loggers:
-                return self._loggers[name]
-            
-            # Get configuration
-            if config_file:
-                if not self._config_parser:
-                    self._config_parser = YAMLConfigParser()
-                config = self._config_parser.get_logger_config(name, config_file)
-            elif '_main' in self._configs:
-                config = self._get_logger_config_from_main(name)
-            else:
-                # Use defaults
-                config = self._get_default_config()
-            
-            # Merge with kwargs
-            config = self._merge_configs(config, kwargs)
-            
-            # Create logger
-            logger = self._create_logger(name, config, source_file)
-            
-            # Store
-            self._loggers[name] = logger
-            self._configs[name] = config
-            
-            return logger
-    
+
+    ####============================ logger configurations based on YAML ==========================================
     def _get_logger_config_from_main(self, logger_name: str) -> Dict[str, Any]:
         """Get logger configuration from main config"""
         main_config = self._configs.get('_main', {})
@@ -414,7 +436,6 @@ class EnhancedLoggerManager:
     def _merge_configs(self, base: Dict[str, Any], 
                       override: Dict[str, Any]) -> Dict[str, Any]:
         """Deep merge configurations"""
-        import copy
         result = copy.deepcopy(base)
         
         for key, value in override.items():
@@ -426,7 +447,10 @@ class EnhancedLoggerManager:
         return result
     
     def _get_default_config(self) -> Dict[str, Any]:
-        """Get default logger configuration"""
+        """
+            Get default logger configuration
+            default only support console handler
+        """
         return {
             'level': 'INFO',
             'handlers': {
@@ -438,17 +462,64 @@ class EnhancedLoggerManager:
             'format': '[%(asctime)s] [%(name)s] [%(levelname)s] %(message)s',
             'propagate': False
         }
+        
+    ##########################################################################################
+    # Logger Management
+    ##########################################################################################
+    
+    def get_logger(self, name: str, 
+                   config_file: Optional[Union[str, Path]] = None,
+                   source_file: Optional[str] = None,
+                   **kwargs) -> logging.Logger:
+        """
+        Get or create a logger with YAML configuration
+        
+        Args:
+            name: Logger name
+            config_file: Optional specific config file for this logger
+            source_file: Source file path (from __file__)
+            **kwargs: Additional configuration overrides
+            
+        Returns:
+            Configured logger instance
+        """
+        with self._lock:
+            # Check if logger already exists
+            if name in self._loggers:
+                return self._loggers[name]
+            
+            # Get configuration
+            if config_file:
+                config = self._config_parser.get_logger_config(name, config_file)
+            elif '_main' in self._configs:
+                config = self._get_logger_config_from_main(name)
+            else:
+                # Use defaults
+                config = self._get_default_config()
+            
+            # Merge with kwargs
+            config = self._merge_configs(config, kwargs)
+            
+            # Create logger
+            logger = self._create_logger(name, config, source_file)
+            
+            # Store
+            self._loggers[name] = logger
+            self._configs[name] = config
+            
+            return logger
+    
     
     def _create_logger(self, name: str, config: Dict[str, Any], 
                       source_file: Optional[str] = None) -> logging.Logger:
         """Create and configure a logger"""
         logger = logging.getLogger(name)
         
-        # Set level
+        # Set level as INT number based on the level string
         level = getattr(logging, config.get('level', 'INFO').upper())
         logger.setLevel(level)
         
-        # Set propagate
+        # Set propagate to false as not traverse to the parent
         logger.propagate = config.get('propagate', False)
         
         # Clear existing handlers
@@ -458,9 +529,10 @@ class EnhancedLoggerManager:
         formatter = self._create_formatter(config, name)
         
         # Add handlers
-        handlers_config = config.get('handlers', {})
+        handlers_config : Dict[str, Any] = config.get('handlers', {})
         for handler_type, handler_config in handlers_config.items():
-            if handler_config.get('enabled', True):
+            if handler_config.get('enabled', False):
+                # create and add handler to the logger
                 handler = self._create_handler(
                     handler_type, handler_config, name, formatter, source_file
                 )
@@ -468,7 +540,7 @@ class EnhancedLoggerManager:
                     logger.addHandler(handler)
         
         # Add filters
-        filters_config = config.get('filters', [])
+        filters_config : List[Dict[str, Any]] = config.get('filters', [])
         for filter_config in filters_config:
             filter_obj = self._create_filter(filter_config)
             if filter_obj:
@@ -478,16 +550,64 @@ class EnhancedLoggerManager:
     
     def _create_formatter(self, config: Dict[str, Any], 
                          logger_name: str) -> logging.Formatter:
-        """Create a log formatter"""
-        format_str = config.get('format', 
-                               '[%(asctime)s] [%(name)s] [%(levelname)s] %(message)s')
-        
+        """Create a log formatter if not given then raise error"""
+        format_str : str = config.get('format')
+
+        # raise error if not format
+        if not format_str:
+            raise ValueError("Log format is not specified")
+
         # Replace placeholders
         format_str = format_str.replace('%(logger_name)s', logger_name)
         
         date_format = config.get('date_format', '%Y-%m-%d %H:%M:%S')
         
         return logging.Formatter(format_str, date_format)
+    
+    
+    def _create_filter(self, filter_config: Dict[str, Any]) -> Optional[logging.Filter]:
+        """Create a filter based on configuration"""
+        filter_type = filter_config.get('type', 'basic')
+        
+        if filter_type == 'module':
+            # Module name filter
+            class ModuleFilter(logging.Filter):
+                def __init__(self, module_name, enabled):
+                    self.module_name = module_name
+                    self.enabled = enabled
+                
+                def filter(self, record : logging.LogRecord) -> bool:
+                    return self.enabled and record.name.startswith(self.module_name)
+            
+            return ModuleFilter(
+                filter_config.get('name', ''),
+                filter_config.get('enabled', False)
+            )
+        
+        return None
+    
+    def reload_config(self, logger_name: Optional[str] = None):
+        """
+        Reload configuration for a logger or all loggers
+        note: This is no use right now ****
+        Args:
+            logger_name: Specific logger to reload, or None for all
+        """
+        with self._lock:
+            if logger_name:
+                if logger_name in self._loggers:
+                    # Remove and recreate
+                    del self._loggers[logger_name]
+                    config = self._configs.get(logger_name, {})
+                    self._create_logger(logger_name, config)
+            else:
+                # Reload all
+                for name in list(self._loggers.keys()):
+                    self.reload_config(name)
+                    
+    ##########################################################################################
+    # Handler Management
+    ##########################################################################################
     
     def _create_handler(self, handler_type: str, 
                        handler_config: Dict[str, Any],
@@ -510,34 +630,34 @@ class EnhancedLoggerManager:
                 handler = self._create_window_handler(handler_config, logger_name)
             
             elif handler_type == 'syslog':
-                handler = self._create_syslog_handler(handler_config)
+                # we should not use this handler type, it is not supported
+                # handler = self._create_syslog_handler(handler_config)
+                pass
             
             else:
-                print(f"[EnhancedLoggerManager] Unknown handler type: {handler_type}")
-                return None
+                raise ValueError(f"[EnhancedLogManager] Unknown handler type: {handler_type}")
             
-            if handler:
-                # Set level
-                level = getattr(logging, 
-                              handler_config.get('level', 'INFO').upper())
-                handler.setLevel(level)
-                
-                # Set formatter
-                if 'format' in handler_config:
-                    custom_formatter = logging.Formatter(
-                        handler_config['format'],
-                        handler_config.get('date_format', '%Y-%m-%d %H:%M:%S')
-                    )
-                    handler.setFormatter(custom_formatter)
-                else:
-                    handler.setFormatter(formatter)
-                
-                # Store handler
-                handler_key = f"{logger_name}_{handler_type}"
-                self._handlers[handler_key] = handler
+            # Set level
+            level = getattr(logging, 
+                            handler_config.get('level', 'INFO').upper())
+            handler.setLevel(level)
+            
+            # Set formatter
+            if 'format' in handler_config:
+                custom_formatter = logging.Formatter(
+                    handler_config['format'],
+                    handler_config.get('date_format', '%Y-%m-%d %H:%M:%S')
+                )
+                handler.setFormatter(custom_formatter)
+            else:
+                handler.setFormatter(formatter)
+            
+            # Store handler
+            handler_key = f"{logger_name}_{handler_type}"
+            self._handlers[handler_key] = handler
         
         except Exception as e:
-            print(f"[EnhancedLoggerManager] Error creating {handler_type} handler: {e}")
+            print(f"[EnhancedLogManager] Error creating {handler_type} handler: {e}")
         
         return handler
     
@@ -549,7 +669,7 @@ class EnhancedLoggerManager:
     def _create_file_handler(self, config: Dict[str, Any], 
                            logger_name: str,
                            source_file: Optional[str] = None) -> logging.Handler:
-        """Create a file handler"""
+        """Create a file handler with optional FileIO support"""
         # Determine filename
         filename = config.get('filename', f"{logger_name}.log")
         
@@ -596,7 +716,7 @@ class EnhancedLoggerManager:
     def _create_window_handler(self, config: Dict[str, Any], 
                              logger_name: str) -> logging.Handler:
         """Create a window handler"""
-        return LogToWindowHandler(
+        return log_window_handler(
             module_name=logger_name,
             max_buffer_size=config.get('buffer_size', 100),
             flush_interval=config.get('flush_interval', 0.1),
@@ -604,7 +724,7 @@ class EnhancedLoggerManager:
             enable_colors=config.get('colors', True),
             timestamp_format=config.get('timestamp_format')
         )
-    
+
     def _create_syslog_handler(self, config: Dict[str, Any]) -> logging.Handler:
         """Create a syslog handler"""
         from logging.handlers import SysLogHandler
@@ -620,45 +740,8 @@ class EnhancedLoggerManager:
         
         return SysLogHandler(address=address, facility=facility)
     
-    def _create_filter(self, filter_config: Dict[str, Any]) -> Optional[logging.Filter]:
-        """Create a filter based on configuration"""
-        filter_type = filter_config.get('type', 'basic')
-        
-        if filter_type == 'module':
-            # Module name filter
-            class ModuleFilter(logging.Filter):
-                def __init__(self, module_name, enabled=True):
-                    self.module_name = module_name
-                    self.enabled = enabled
-                
-                def filter(self, record):
-                    return self.enabled and record.name.startswith(self.module_name)
-            
-            return ModuleFilter(
-                filter_config.get('name', ''),
-                filter_config.get('enabled', True)
-            )
-        
-        return None
+    ##########################################################################################
     
-    def reload_config(self, logger_name: Optional[str] = None):
-        """
-        Reload configuration for a logger or all loggers
-        
-        Args:
-            logger_name: Specific logger to reload, or None for all
-        """
-        with self._lock:
-            if logger_name:
-                if logger_name in self._loggers:
-                    # Remove and recreate
-                    del self._loggers[logger_name]
-                    config = self._configs.get(logger_name, {})
-                    self._create_logger(logger_name, config)
-            else:
-                # Reload all
-                for name in list(self._loggers.keys()):
-                    self.reload_config(name)
     
     def set_level(self, logger_name: str, level: Union[str, int]):
         """
@@ -696,36 +779,10 @@ class EnhancedLoggerManager:
         
         return stats
     
-    def shutdown(self):
-        """Shutdown all loggers and handlers"""
-        print("[EnhancedLoggerManager] Shutting down...")
-        
-        # Flush all handlers
-        for handler in self._handlers.values():
-            try:
-                if hasattr(handler, 'flush'):
-                    handler.flush()
-            except:
-                pass
-        
-        # Close all handlers
-        for handler in self._handlers.values():
-            try:
-                if hasattr(handler, 'close'):
-                    handler.close()
-            except:
-                pass
-        
-        # Clear
-        self._loggers.clear()
-        self._handlers.clear()
-        self._configs.clear()
-        
-        print("[EnhancedLoggerManager] Shutdown complete")
 
 
 # Convenience functions
-_manager = EnhancedLoggerManager()
+_manager = EnhancedLogManager()
 
 def configure_logging(config_file: Union[str, Path], base_dir: Optional[str] = None):
     """Configure logging from YAML file"""
@@ -747,6 +804,34 @@ def shutdown_logging():
     """Shutdown logging system"""
     _manager.shutdown()
 
+
+
+##########################################################################################
+# Example usage
+##########################################################################################
+
+##########################################################################################
+#create a test that creates multiple threads and test log functionality 
+
+
+def test_log_to_window_thread(i):
+    logger = get_logger(f"TestModule{i}", level='INFO')
+    logger.info(f"This is an info message {i}")
+    logger.warning(f"This is a warning message {i}")
+    logger.error(f"This is an error message {i}")
+    logger.debug(f"This is a debug message {i}")
+    logger.critical(f"This is a critical message {i}")
+
+def test_multiple_logger_threads():
+    print("test_multiple_logger_threads")
+    threads = []
+    for i in range(10):
+        thread = threading.Thread(target=test_log_to_window_thread, args=(i,))
+        thread.daemon = True
+        thread.start()
+        threads.append(thread)
+    for thread in threads:
+        thread.join()
 
 # Example usage
 if __name__ == "__main__":

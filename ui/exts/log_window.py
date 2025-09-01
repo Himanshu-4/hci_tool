@@ -20,6 +20,7 @@ class LogWindow(QWidget):
         'WARNING': "yellow",
         'ERROR': "red",
         'CRITICAL': "orange",
+        'EXCEPTION': "purple",
         'NOTSET': "white"
     }
 
@@ -144,8 +145,8 @@ class LogWindow(QWidget):
     def append_log(self, message: str, level: str = "INFO"):
         """Append a log message to the log window."""
         # wrap message after 500 characters
-        level = level.lower()
         color = self._color_map.get(level, "white")
+        level = level.lower()
 
         # if len(message) > 100:
         #     # Wrap the message to fit within 100 characters per line

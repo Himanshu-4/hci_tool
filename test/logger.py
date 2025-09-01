@@ -12,7 +12,7 @@ from typing import Union, Optional, Dict, Any
 from enum import Enum
 
 
-from ui.exts.log_to_window import LogToWindowHandler, setup_log_to_window
+from ui.exts.log_window_async import LogToWindowHandler, setup_log_to_window
 
 
 class LogLevel(Enum):

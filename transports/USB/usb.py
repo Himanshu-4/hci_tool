@@ -24,8 +24,6 @@ It includes:
 MAX_DEVICE_COUNT = 10
 
 
-from utils.logger import LoggerManager as logger
-from utils.logger import LogLevel
 import threading
 
 import asyncio

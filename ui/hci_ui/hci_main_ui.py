@@ -687,6 +687,9 @@ class HciMainUI(QWidget):
         self.sub_window.setWindowIconText("HCI commands")  # Set window icon text
         self.sub_window.setWidget(self)
 
+         # set the window flags to make it a top-level, resizable window
+        self.sub_window.setWindowFlags(Qt.Window | Qt.WindowStaysOnTopHint | Qt.WindowCloseButtonHint | Qt.WindowMinMaxButtonsHint)
+
         self.sub_window.setWindowFlags(Qt.Window)  # Set window flags to make it a top-level window
         self.sub_window.setWindowModality(Qt.ApplicationModal)  # Set window modality to application modal
         # sizing the subwindow
@@ -700,7 +703,7 @@ class HciMainUI(QWidget):
         self.sub_window.raise_()  # Bring the subwindow to the front
         self.sub_window.activateWindow()  # Activate the subwindow
         self.sub_window.setFocus()  # Set focus to the subwindow
-    
+       
         
         
     def on_command_selected(self, category : str, command :  str):
