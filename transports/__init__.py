@@ -41,18 +41,18 @@ Usage Example:
 """
 
 from .transport import Transport
-from .base_lib import TransportInterface, ConnectionStatus, TransportError, ConfigurationError, ConnectionError, TransportState, TransportEvent
+from .base_lib import TransportInterface, TransportState, TransportError, ConfigurationError, ConnectionError, TransportState, TransportEvent
 from .UART.uart import UARTTransport
 from .SDIO.sdio import SDIOTransport  
 from .USB.usb import USBTransport
 
 __version__ = "1.0.0"
-__author__ = "Transport Module"
+__module__ = "Transport Module"
 
 __all__ = [
     'Transport',
-    'TransportInterface', 
-    'ConnectionStatus',
+    'TransportInterface',
+    'TransportState',
     'TransportError',
     'ConfigurationError', 
     'ConnectionError',

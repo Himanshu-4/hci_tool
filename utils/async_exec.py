@@ -7,13 +7,11 @@ import weakref
 from typing import Any, Callable, Optional, Union, Coroutine, TypeVar, Set
 from concurrent.futures import ThreadPoolExecutor, Future
 from functools import wraps
-import logging
 
-logger = logging.getLogger(__name__)
 
 T = TypeVar('T')
 
-
+#MARK: MangedTask
 class ManagedTask:
     """Wrapper for tasks with lifecycle management"""
     
@@ -27,8 +25,6 @@ class ManagedTask:
         if self._destroyed:
             return
             
-        self._destroyed = True
-        
         if self.destroy_callback:
             try:
                 if asyncio.iscoroutinefunction(self.destroy_callback):
@@ -36,8 +32,9 @@ class ManagedTask:
                 else:
                     self.destroy_callback()
             except Exception as e:
-                logger.error(f"Error in task destroy callback: {e}")
+                print(f"[Event loop]: Error in task destroy callback: {e}")
         
+        self._destroyed = True
         if not self.task.done():
             self.task.cancel()
             try:
@@ -45,7 +42,7 @@ class ManagedTask:
             except asyncio.CancelledError:
                 pass
 
-
+#MARK: EVTLoopManager
 class EventLoopManager:
     """
     Thread-safe event loop manager that runs in a separate thread.
@@ -59,12 +56,9 @@ class EventLoopManager:
         
         # Run and wait for result
         result = loop_manager.run_and_wait(some_coroutine())
-        
-        # Cleanup (also called automatically on exit)
-        loop_manager.destroy()
     """
     
-    _instances = {}
+    _instances = {}  # contains instances of the event loop manager
     _lock = threading.Lock()
     
     @classmethod
@@ -73,10 +67,20 @@ class EventLoopManager:
         with cls._lock:
             if name in cls._instances:
                 return cls._instances[name]
+            # create a new instance 
             instance = cls(name)
             cls._instances[name] = instance
         return instance 
 
+    @classmethod
+    def destroy_loop_mangers(cls):
+        """Destroy all event loop manager instances."""
+        with cls._lock:
+            instances = list(cls._instances.values()) # we need to copy to a list as runtime we can't chnage dic while usign it 
+            for instance in instances:
+                instance.destroy()
+            cls._instances.clear()
+    
     def __init__(self, name : Optional[str] = None):
         """Initialize the event loop manager"""
         if hasattr(self, '_initialized'):
@@ -84,30 +88,65 @@ class EventLoopManager:
             
         self._initialized = True
         self._name = name or "EventLoopManager"
+        
         self._loop: Optional[asyncio.AbstractEventLoop] = None
         self._thread: Optional[threading.Thread] = None
         self._started = threading.Event()
         self._stopping = False
+        
         self._task_list: Set[ManagedTask] = set()
         self._task_lock = threading.Lock()
+        
+        # create a default thread pool executor
         self._executor = ThreadPoolExecutor(max_workers=10)
         self._destroy_callbacks: list[Callable] = []
         
-        # Register cleanup handlers
-        atexit.register(self.destroy)
-        signal.signal(signal.SIGINT, self._signal_handler)
-        signal.signal(signal.SIGTERM, self._signal_handler)
+    #MARK: loop mngmt
+    def create(self):
+        """Start the event loop in a separate thread"""
+        if self._thread and self._thread.is_alive():
+            return
+        # create a new thread when the start is called 
+        self._thread = threading.Thread(target=self._run_loop, daemon=True)
+        self._thread.start()
+        self._started.wait()  # Wait for loop to be ready
+        print(f"[EventLoopManager]: {self._name} created")
+        
+    def stop(self):
+        """Stop the event loop (can be restarted)"""
+        if self._loop and self._loop.is_running():
+            self._loop.call_soon_threadsafe(self._loop.stop)
+            print(f"[EventLoopManager]: {self._name} Stopped!")
     
-    def _signal_handler(self, signum, frame):
-        """Handle system signals for graceful shutdown"""
-        logger.info(f"Received signal {signum}, initiating graceful shutdown")
-        self.destroy()
-        sys.exit(0)
+    def close(self):
+        """Close the event loop (cannot be restarted without creating new loop)"""
+        self.stop()
+        if self._thread and self._thread.is_alive():
+            self._thread.join(timeout=5)
+        print(f"[EventLoopManager]: {self._name} Closed!")
+
     
+    def _ensure_started(self):
+        """Ensure the event loop is running"""
+        if self._stopping:
+            raise RuntimeError("Event loop manager is stopping, cannot add tasks")
+        if self._loop and not self._loop.is_running():
+            raise RuntimeError("Event loop is not running, call start() first")
+        if self._thread and not self._thread.is_alive():
+            raise RuntimeError("Event loop thread is not alive, call start() first")
+        
     @property
     def is_running(self) -> bool:
         """Check if the event loop is running"""
-        return self._loop is not None and self._loop.is_running()
+        return (self._loop is not None and 
+                self._loop.is_running() and 
+                self._thread is not None and 
+                self._thread.is_alive())
+    
+    @property
+    def loop(self) -> Optional[asyncio.AbstractEventLoop]:
+        """Get the event loop (use with caution)"""
+        return self._loop
     
     @property
     def is_stopped(self) -> bool:
@@ -122,35 +161,50 @@ class EventLoopManager:
             self._started.set()
             self._loop.run_forever()
         except Exception as e:
-            logger.error(f"Event loop error: {e}")
+            print(f"[EventLoopManager]: ERROR {e}")
         finally:
             self._loop.close()
             self._loop = None
     
-    def start(self):
-        """Start the event loop in a separate thread"""
-        if self._thread and self._thread.is_alive():
-            return
+    def destroy(self):
+        """
+        Gracefully destroy the event loop manager
         
-        self._thread = threading.Thread(target=self._run_loop, daemon=True)
-        self._thread.start()
-        self._started.wait()  # Wait for loop to be ready
-        logger.info("Event loop started")
-    
-    def create(self):
-        """Alias for start() to match requested API"""
-        self.start()
-    
-    def _ensure_started(self):
-        """Ensure the event loop is running"""
+        This will:
+        1. Call destroy callbacks
+        2. Destroy all managed tasks
+        3. Stop and close the event loop
+        """
         if self._stopping:
-            raise RuntimeError("Event loop manager is stopping, cannot add tasks")
-        if self._loop and not self._loop.is_running():
-            raise RuntimeError("Event loop is not running, call start() first")
-        # If the thread is not alive, restart it
-        if self._thread and not self._thread.is_alive():
-            self.start()
+            return
+            
+        self._stopping = True
+        print(f"[EventLoopManager]: Destroying {self._name}")
+        
+        if self._loop and self._loop.is_running():
+            # Schedule task destruction in the event loop
+            future = asyncio.run_coroutine_threadsafe(
+                self._destroy_all_tasks(),
+                self._loop
+            )
+            
+            try:
+                future.result(timeout=10)
+            except Exception as e:
+                print(f"[EventLoopManager]: loop: {self.name} Error during task destruction: {e}")
+        
+        # Close executor
+        self._executor.shutdown(wait=True)
+        
+        # Stop and close loop
+        self.close()
+        
+        print(f"[EventLoopManager]: {self._name} destroyed")
     
+
+
+
+    #MARK: task mngmt
     def add_task(self, coro: Coroutine[Any, Any, T], 
                  destroy_callback: Optional[Callable] = None) -> asyncio.Task[T]:
         """
@@ -186,6 +240,7 @@ class EventLoopManager:
         
         # Remove from tracking when done
         def cleanup(_):
+            print(f"[EnhancedLogManager]:{self._name} removing task {managed_task.task.get_name()} ")
             with self._task_lock:
                 self._task_list.discard(managed_task)
         
@@ -271,18 +326,6 @@ class EventLoopManager:
         """
         self._destroy_callbacks.append(callback)
     
-    def stop(self):
-        """Stop the event loop (can be restarted)"""
-        if self._loop and self._loop.is_running():
-            self._loop.call_soon_threadsafe(self._loop.stop)
-            logger.info("Event loop stopped")
-    
-    def close(self):
-        """Close the event loop (cannot be restarted without creating new loop)"""
-        self.stop()
-        if self._thread and self._thread.is_alive():
-            self._thread.join(timeout=5)
-        logger.info("Event loop closed")
     
     async def _destroy_all_tasks(self):
         """Destroy all managed tasks gracefully"""
@@ -294,14 +337,14 @@ class EventLoopManager:
                 else:
                     callback()
             except Exception as e:
-                logger.error(f"Error in destroy callback: {e}")
+                print(f"[EventLoopManager]: {self._name} Error in destroy callback: {e}")
         
         # Destroy all tasks
         with self._task_lock:
             tasks = list(self._task_list)
         
         if tasks:
-            logger.info(f"Destroying {len(tasks)} tasks...")
+            print(f"[EventLoopManager]: {self._name}-> {len(tasks)} tasks...")
             destroy_tasks = [task.destroy() for task in tasks]
             await asyncio.gather(*destroy_tasks, return_exceptions=True)
         
@@ -310,72 +353,13 @@ class EventLoopManager:
                   if not t.done() and t != asyncio.current_task()]
         
         if pending:
-            logger.info(f"Cancelling {len(pending)} remaining tasks...")
+            print(f"[EventLoopManager]: {self._name} Cancelling {len(pending)} remaining tasks...")
             for task in pending:
                 task.cancel()
             await asyncio.gather(*pending, return_exceptions=True)
     
-    def destroy(self):
-        """
-        Gracefully destroy the event loop manager
-        
-        This will:
-        1. Call destroy callbacks
-        2. Destroy all managed tasks
-        3. Stop and close the event loop
-        """
-        if self._stopping:
-            return
-            
-        self._stopping = True
-        logger.info("Destroying event loop manager...")
-        
-        if self._loop and self._loop.is_running():
-            # Schedule task destruction in the event loop
-            future = asyncio.run_coroutine_threadsafe(
-                self._destroy_all_tasks(),
-                self._loop
-            )
-            
-            try:
-                future.result(timeout=10)
-            except Exception as e:
-                logger.error(f"Error during task destruction: {e}")
-        
-        # Close executor
-        self._executor.shutdown(wait=True)
-        
-        # Stop and close loop
-        self.close()
-        
-        logger.info("Event loop manager destroyed")
-    
-    
-    @property
-    def is_running(self) -> bool:
-        """Check if the event loop is running"""
-        return (self._loop is not None and 
-                self._loop.is_running() and 
-                self._thread is not None and 
-                self._thread.is_alive())
-    
-    @property
-    def loop(self) -> Optional[asyncio.AbstractEventLoop]:
-        """Get the event loop (use with caution)"""
-        return self._loop
+ 
 
-
-# Global instance for convenience
-_default_manager: Optional[EventLoopManager] = None
-
-
-def get_event_loop_manager() -> EventLoopManager:
-    """Get or create the default event loop manager"""
-    global _default_manager
-    if _default_manager is None:
-        _default_manager = EventLoopManager()
-        _default_manager.start()
-    return _default_manager
 
 
 # Decorator for async functions to run in the event loop
@@ -400,7 +384,7 @@ def run_async(func: Callable[..., Coroutine[Any, Any, T]] = None, *, manager: Op
     def decorator(f):
         @wraps(f)
         def wrapper(*args, **kwargs):
-            mgr = manager or get_event_loop_manager()
+            mgr = manager or EventLoopManager.create_instance()
             return mgr.run_and_wait(f(*args, **kwargs))
         return wrapper
 
@@ -412,8 +396,6 @@ def run_async(func: Callable[..., Coroutine[Any, Any, T]] = None, *, manager: Op
 if __name__ == "__main__":
     import time
     
-    # Configure logging
-    logging.basicConfig(level=logging.INFO)
     
     # Create manager
     manager = EventLoopManager()

@@ -3,7 +3,9 @@ Transport - Base class for all transport interfaces
 """
 
 from typing import Dict, Any, Optional, Union
-from .base_lib import TransportInterface, ConnectionStatus, TransportError, TransportState, TransportEvent
+from .base_lib import TransportInterface, TransportState, TransportError, TransportEvent
+
+# add the transport interfaces here
 from .UART.uart import UARTTransport
 from .SDIO.sdio import SDIOTransport
 from .USB.usb import USBTransport
@@ -172,20 +174,12 @@ class Transport:
         
         self.transport_instance.remove_callback(event_type, callback)
     
-    
+  
     @property
-    def state(self) -> TransportState:
-        """Get current transport state"""
-        if self.transport_instance is None:
-            return TransportState.INITIALIZED
-        
-        return self.transport_instance.state
-    
-    @property
-    def status(self) -> ConnectionStatus:
+    def status(self) -> TransportState:
         """Get current connection status"""
         if self.transport_instance is None:
-            return ConnectionStatus.DISCONNECTED
+            return TransportState.DISCONNECTED
         
         return self.transport_instance.status
     

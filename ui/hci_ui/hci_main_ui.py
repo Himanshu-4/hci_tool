@@ -19,7 +19,7 @@ from PyQt5.QtGui import QFont
 
 from typing import Optional
 from collections import namedtuple
-from enum import IntEnum
+from enum import IntEnum, unique
 
 from hci.cmd.cmd_opcodes import  (
     OGF, InformationOCF, LinkControlOCF, LinkPolicyOCF,
@@ -41,6 +41,7 @@ from transports import Transport as transport
 
 Bluetooth_cmd = namedtuple('Bluetooth_cmd', ['cmd', 'cmd_type', 'cmd_desc'])
 
+@unique
 class cmd_type(IntEnum):
     """Command types for Bluetooth commands"""
     #expand all the values in OGF

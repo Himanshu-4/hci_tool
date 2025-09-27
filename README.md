@@ -4,8 +4,9 @@
 ## Overview
 This HCI tool provides command line and UI interface  for Bluetooth Host commands and events interfce . One common use case is creating an LE connection and obtaining detailed packet information, testing throughput, testing controller functionality like A2DP, sco, HID, throughput etc.
 
-## Example Usage
+### Example Usage
 
+# use without UI
 ```python
 import hci.cmd as hci_cmd
 
@@ -28,6 +29,10 @@ rsp = transp.w4_rsp(timeout)
 # Access the data contained in the packet.
 rsp.data
 ```
+
+
+# with UI
+- directly Python main.py
 
 ## Instructions
 1. Ensure required dependencies are installed.

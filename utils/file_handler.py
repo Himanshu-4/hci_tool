@@ -15,7 +15,7 @@ import sys
 import time
 import threading
 from typing import Optional, Callable, Dict, Any, Union, List
-from enum import Enum
+from enum import Enum, unique
 from datetime import datetime
 from dataclasses import dataclass
 
@@ -31,11 +31,12 @@ _FILE_IO_MAX_SIZE = 10 * 1024 * 1024  # 10 MB
 _FILE_IO_MAX_FILES = 5  # Number of files to keep if size exceeds limit
 
 
-# Global event loop manager
+# init a global fileIO event loop manager to handle file operations 
 _global_file_evt_loop_mngr: EventLoopManager = EventLoopManager("FileIO_Manager")
 _file_handlers: List['FileIO'] = []  # Store all FileIO instances
 
 
+@unique
 class FileIOEvent(Enum):
     """Events that can trigger callbacks"""
     OPENED = "opened"
@@ -47,6 +48,7 @@ class FileIOEvent(Enum):
     SEEK = "seek"
 
 
+@unique
 class FileIOMode(Enum):
     """File operation modes"""
     READ = "r"
@@ -86,7 +88,10 @@ class FileInfo:
     _last_modified: datetime
     
     def __init__(self, file_path: str, mode: Union[str, FileIOMode] = FileIOMode.READ):
-        _BASE_DIR  = sys._BASE_PATH
+    
+        if not  hasattr(sys, "_BASE_PATH"):
+            raise AppRuntimeError("_BASE_DIR" , "missing in sys.path")
+        _BASE_DIR = sys._BASE_PATH
         
         if not os.path.isfile(file_path):
             raise CustomFileNotFoundError(file_path)
@@ -464,7 +469,8 @@ class AsyncFileHandler(FileInfo):
             auto_flush: Whether to auto-flush writes
             buffer_size: Maximum number of items in write buffer
         """
-        
+        if not  hasattr(sys, "_BASE_PATH"):
+            raise AppRuntimeError("_BASE_DIR" , "missing in sys.path")
         _BASE_DIR = sys._BASE_PATH
         
         file_path = os.path.join(_BASE_DIR, file_path)
@@ -627,11 +633,8 @@ def __init_base_module():
     """Initialize the base module paths and directories"""
     print("[FileHandler] Initializing base module...")
     
-    
-    #  create the differnt dir and files at the starting of the file 
-    
-    # Start the global event loop manager
-    _global_file_evt_loop_mngr.start()
+    # create and start the event loop 
+    _global_file_evt_loop_mngr.create()
     
 
 def init_module():

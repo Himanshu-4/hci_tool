@@ -1,22 +1,20 @@
 from abc import ABC, abstractmethod
 from typing import Dict, Any, Callable, Optional
-from enum import StrEnum, Enum
+from enum import StrEnum, Enum, unique
 
-class ConnectionStatus(StrEnum):    
+@unique
+class TransportState(StrEnum):    
     """Enumeration for connection status"""
+    INITIATING = "initiating"
     DISCONNECTED = "disconnected"
+    DISCONNECTING = "disconnecting"
     CONNECTING = "connecting" 
     CONNECTED = "connected"
+    IDLE = "idle"
     ERROR = "error"
     
 
-class TransportState(Enum):
-    """Transport state"""
-    INITIALIZED = 0
-    DISCONNECTED = 1
-    CONNECTED = 2
-    ERROR = 3
-
+@unique
 class TransportEvent(Enum):
     """Transport event"""
     READ = 0
@@ -26,12 +24,14 @@ class TransportEvent(Enum):
     ERROR = 4
     FLOW_CONTROL_UPDATE = 5
 
+
 class TransportInterface(ABC):
     """Abstract base class for all transport interfaces"""
     
     def __init__(self):
-        self.status = ConnectionStatus.DISCONNECTED
+        self.status = TransportState.DISCONNECTED
         self.config = {}
+        
         self.callbacks = {
             TransportEvent.READ: [],
             TransportEvent.WRITE: [],
@@ -121,13 +121,16 @@ class TransportInterface(ABC):
             except Exception as e:
                 print(f"Callback error in {event_type}: {e}")
     
-    def get_status(self) -> ConnectionStatus:
-        """Get current connection status"""
-        return self.status
     
+    @property
     def is_connected(self) -> bool:
         """Check if currently connected"""
-        return self.status == ConnectionStatus.CONNECTED
+        return self.status == TransportState.CONNECTED
+    
+    @property
+    def get_conn_status(self) -> TransportState:
+        """Get current connection status"""
+        return self.status
     
     @property
     def get_config(self) -> Dict[str, Any]:

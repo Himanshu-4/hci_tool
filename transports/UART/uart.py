@@ -29,10 +29,6 @@ import threading
 import time
 import asyncio
 
-# from utils.logger import EnhancedLogManager as logger
-
-from ..base_lib import TransportInterface, ConnectionStatus, TransportError, ConfigurationError, ConnectionError, TransportState, TransportEvent
-
 # MAX_DEVICE_COUNT = 10
 
 # class uart_transfer:
@@ -237,9 +233,13 @@ import serial.tools.list_ports
 import threading
 import time
 from typing import Dict, Any, Optional
-from ..base_lib import TransportInterface, ConnectionStatus, TransportError, ConfigurationError, ConnectionError
-
 from dataclasses import dataclass
+
+
+# # from utils.logger import EnhancedLogManager as logger
+
+from ..base_lib import TransportInterface, TransportError, ConfigurationError, ConnectionError, TransportState, TransportEvent
+
 
 @dataclass
 class UARTConfig:
@@ -397,7 +397,7 @@ class UARTTransport(TransportInterface):
             if not self.config.port:
                 raise ConnectionError("No port configured")
             
-            self.status = ConnectionStatus.CONNECTING
+            self.status = TransportState.CONNECTING
             
             # Create serial connection
             self.serial_connection = serial.Serial(
@@ -418,13 +418,13 @@ class UARTTransport(TransportInterface):
             # Start read thread
             # self._start_read_thread()
             
-            self.status = ConnectionStatus.CONNECTED
+            self.status = TransportState.CONNECTED
             self._trigger_callbacks(TransportEvent.CONNECT, self)
             
             return True
             
         except Exception as e:
-            self.status = ConnectionStatus.ERROR
+            self.status = TransportState.ERROR
             self.serial_connection = None
             raise ConnectionError(f"UART connection failed: {str(e)}")
     
@@ -445,7 +445,7 @@ class UARTTransport(TransportInterface):
                 self.serial_connection.close()
             
             self.serial_connection = None
-            self.status = ConnectionStatus.DISCONNECTED
+            self.status = TransportState.DISCONNECTED
             
             # Clear read buffer
             with self.buffer_lock:
@@ -456,7 +456,7 @@ class UARTTransport(TransportInterface):
             return True
             
         except Exception as e:
-            self.status = ConnectionStatus.ERROR
+            self.status = TransportState.ERROR
             raise ConnectionError(f"UART disconnect failed: {str(e)}")
     
     def read(self, size: int = -1, max_wait : int = 1) -> Optional[bytes]:
@@ -632,6 +632,19 @@ class UARTTransport(TransportInterface):
         return stats
     
     
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+# MARK: ANOTHER lib
+    
 """
 Async UART Library with HCI Flow Control
 This module provides an asynchronous UART transport layer with HCI packet flow control
@@ -657,25 +670,11 @@ import inspect
 # Setup logger
 logger = logging.getLogger(__name__)
 
-# HCI Packet Types
-class HCIPacketType(IntEnum):
-    COMMAND = 0x01
-    ACL_DATA = 0x02
-    SYNC_DATA = 0x03
-    EVENT = 0x04
-    ISO_DATA = 0x05
-
-# HCI Event Codes
-class HCIEventCode(IntEnum):
-    COMMAND_COMPLETE = 0x0E
-    COMMAND_STATUS = 0x0F
-    NUMBER_OF_COMPLETED_PACKETS = 0x13
-    LE_META_EVENT = 0x3E
 
 @dataclass
 class HCIPacket:
     """Represents an HCI packet"""
-    packet_type: HCIPacketType
+    packet_type : int
     data: bytes
     timestamp: float = None
     

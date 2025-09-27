@@ -19,14 +19,14 @@ from pathlib import Path
 import copy
 from collections import ChainMap
 from datetime import datetime
-from enum import Enum
+from enum import Enum, unique
 
 
 #include the fileinfo from file_handler
 from .file_handler import FileInfo
 
 
-
+@unique
 class ParseStage(Enum):
     """Enumeration of parsing stages"""
     INITIAL = "initial"
@@ -38,12 +38,14 @@ class ParseStage(Enum):
     FINAL_RESOLUTION = "final_resolution"
     SEARCH_HISTORY = "search_history"
 
+@unique
 class ValidationSeverity(Enum):
     """Validation message severity levels"""
     ERROR = "error"
     WARNING = "warning"
     INFO = "info"
 
+# MARK: ValidationResult
 class ValidationResult:
     """Result of validation process"""
     def __init__(self):
@@ -125,7 +127,7 @@ class ValidationResult:
                 summary += f"    - {info['message']} at {info['location']}\n"
         return summary
 
-
+#MARK: SymbolDatabase
 class SymbolDatabase:
     """Database for resolving symbols and expressions"""
     
@@ -230,7 +232,7 @@ class SymbolDatabase:
 # ----------------------------   and expand them corerctly  --------------------------------------------------
 # ============================================================================================================
 
-#MARK:
+#MARK: EnhncdYMLParsr
 class EnhancedYAMLParser:
     """Enhanced YAML parser with multi-step processing"""
     
@@ -782,10 +784,6 @@ class Parser:
         # at this point if YML config is generated properly then we are good to go otherwise 
         # Enhanced YAML parser only give the error and return the result
         
-        print(self.search_config_keys('logger.hci_cmd.handlers.file'))
-        print(self.search_config_keys('logger.hci_cmd.handlers'))
-        sys.exit(0)
-        
         # module inited properly
         Parser._initialized = True
 
@@ -835,7 +833,7 @@ class Parser:
                             print(f"Set environment variable: {env_var_name} = {default_value or ''}")
 
     # ----------------------------- This method is very useful ---------------------------------------------------------
-    def search_config_keys(self, keyword: str):
+    def search_config_item(self, keyword: str):
         """
         Search for items in the _yml_generated_config using provided keywords.
         Uses regex to find similar keys. Prints search history and results.

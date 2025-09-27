@@ -5,9 +5,10 @@ This module defines the base HCI packet structure and common packet types.
 """
 
 from abc import ABC, abstractmethod
-from enum import IntEnum
+from enum import IntEnum, unique
 from typing import Dict, Any, Optional, ClassVar, Type, Union
 
+@unique
 class HciPacketType(IntEnum):
     """HCI Packet Types"""
     COMMAND = 0x01

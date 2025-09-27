@@ -183,7 +183,7 @@ class usb_transfer:
         
         
 from typing import Dict, Any, Optional
-from ..base_lib import TransportInterface, ConnectionStatus, TransportError, ConfigurationError, ConnectionError
+from ..base_lib import TransportInterface, TransportError, ConfigurationError, ConnectionError
 
 class USBTransport(TransportInterface):
     """USB transport implementation (placeholder)"""

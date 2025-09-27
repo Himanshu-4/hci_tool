@@ -153,6 +153,27 @@ class FileEncodingError(CustomFileException):
         self.filename = filename
         self.message = message
         super().__init__(filename, message)
+        
+        
+####################################################################################################
+## Custom Exceptions for Runtime 
+####################################################################################################
+
+class AppRuntimeError(CustomException):
+    """
+        Exception raised for runtime things
+        so some behaviour is expected at runtime which are not correct 
+        
+        Attributes:
+            input_value -- the invalid behaviour 
+            message --- message to show 
+    """
+    
+    def __init__(self, input_value, message="Invalid behaviour runtime."):
+        self.input_value = input_value
+        self.message = message
+        super().__init__(f"{message} Input: {input_value}")
+
 ####################################################################################################
 ## Custom Exceptions for Input Handling
 ####################################################################################################
@@ -182,11 +203,10 @@ class InputOutOfRangeError(InvalidInputError):
         max_value -- maximum acceptable value
         message -- explanation of the error
     """
-
+        
     def __init__(self, input_value, min_value, max_value):
         self.input_value = input_value
         self.min_value = min_value
         self.max_value = max_value
         self.message = f"Input {input_value} is out of range ({min_value}, {max_value})."
         super().__init__(input_value, self.message)
-        

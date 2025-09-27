@@ -4,8 +4,9 @@ Error codes for HCI events and commands
 This module defines the error codes (status values) returned in HCI events.
 """
 
-from enum import IntEnum
+from enum import IntEnum, unique
 
+@unique
 class StatusCode(IntEnum):
     """HCI Status Codes / Error Codes"""
     SUCCESS = 0x00

@@ -17,8 +17,9 @@ from PyQt5.QtCore import Qt, pyqtSignal
 import serial.tools.list_ports
 from transports.transport import Transport
 
-from enum  import StrEnum
+from enum  import StrEnum, unique
 
+@unique
 class msg_type(StrEnum):
     info = "info"
     error = "error"

@@ -1,9 +1,10 @@
 """
 Event codes for HCI events
 """
-from enum import IntEnum
+from enum import IntEnum, unique
 
 # HCI Event Codes
+@unique
 class HciEventCode(IntEnum):
     INQUIRY_COMPLETE = 0x01
     INQUIRY_RESULT = 0x02
@@ -81,10 +82,9 @@ class HciEventCode(IntEnum):
     INQUIRY_RESPONSE_NOTIFICATION = 0x56
     AUTHENTICATED_PAYLOAD_TIMEOUT_EXPIRED = 0x57
     SAM_STATUS_CHANGE = 0x58
-    READ_BD_ADDR_COMPLETE = 0x0E  # This is actually a Command Complete event for Read BD_ADDR
-    READ_BUFFER_SIZE_COMPLETE = 0x0E  # This is actually a Command Complete event for Read Buffer Size
-
+   
 # LE Meta Event Subevent Codes
+@unique
 class LeMetaEventSubCode(IntEnum):
     CONNECTION_COMPLETE = 0x01
     ADVERTISING_REPORT = 0x02
@@ -122,17 +122,6 @@ class LeMetaEventSubCode(IntEnum):
     BIG_INFO_ADVERTISING_REPORT = 0x22
     SUBRATE_CHANGE = 0x23
 
-# Command Complete event - Return Parameters
-class CommandCompleteReturnParamLen(IntEnum):
-    RESET = 1
-    READ_BD_ADDR = 7
-    READ_LOCAL_VERSION_INFORMATION = 9
-    READ_LOCAL_SUPPORTED_COMMANDS = 65
-    READ_LOCAL_SUPPORTED_FEATURES = 9
-    READ_BUFFER_SIZE = 8
-    READ_RSSI = 4
-    READ_LINK_QUALITY = 4
-    READ_LOCAL_NAME = 249
 
 # Dictionary of event codes to names
 HCI_EVENT_CODE_TO_NAME = {

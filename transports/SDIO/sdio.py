@@ -129,7 +129,7 @@ class sdio_transfer:
         return speed
     
 from typing import Dict, Any, Optional
-from ..base_lib import TransportInterface, ConnectionStatus, TransportError, ConfigurationError, ConnectionError
+from ..base_lib import TransportInterface, TransportError, ConfigurationError, ConnectionError
 
 class SDIOTransport(TransportInterface):
     """SDIO transport implementation (placeholder)"""

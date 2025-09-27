@@ -31,7 +31,7 @@ class SerialTransport(asyncio.Transport):
     indeed a serial port.
 
 
-    You generally won’t instantiate a transport yourself; instead, you
+    You generally won't instantiate a transport yourself; instead, you
     will call `create_serial_connection` which will create the
     transport and try to initiate the underlying communication channel,
     calling you back when it succeeds.

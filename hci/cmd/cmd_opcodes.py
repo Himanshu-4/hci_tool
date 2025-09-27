@@ -1,9 +1,10 @@
 """
     Defines opcodes for HCI commands
 """
-from enum import IntEnum
+from enum import IntEnum, unique
 
 # OGF (OpCode Group Field) definitions
+@unique
 class OGF(IntEnum):
     LINK_CONTROL = 0x01
     LINK_POLICY = 0x02
@@ -15,12 +16,14 @@ class OGF(IntEnum):
     VENDOR_SPECIFIC = 0x3F
 
 
+@unique
 class OCF(IntEnum):
     # OCF values are defined in the specific command classes below
     pass
 # OCF (OpCode Command Field) definitions for each OGF
 
 # Link Control Commands (OGF = 0x01)
+@unique
 class LinkControlOCF(OCF):
     INQUIRY = 0x0001
     INQUIRY_CANCEL = 0x0002
@@ -69,6 +72,7 @@ class LinkControlOCF(OCF):
     REMOTE_OOB_EXTENDED_DATA_REQUEST_REPLY = 0x0045
     
 # Link Policy Commands (OGF = 0x02)
+@unique
 class LinkPolicyOCF(OCF):
     HOLD_MODE = 0x0001
     SNIFF_MODE = 0x0003
@@ -84,6 +88,7 @@ class LinkPolicyOCF(OCF):
     SNIFF_SUBRATING = 0x0011
     
 # Controller & Baseband Commands (OGF = 0x03)
+@unique
 class ControllerBasebandOCF(OCF):
     SET_EVENT_MASK = 0x0001
     RESET = 0x0003
@@ -182,6 +187,7 @@ class ControllerBasebandOCF(OCF):
     READ_MIN_ENCRYPTION_KEY_SIZE = 0x007B
 
 # Information Parameters Commands (OGF = 0x04)
+@unique
 class InformationOCF(OCF):
     READ_LOCAL_VERSION_INFORMATION = 0x0001
     READ_LOCAL_SUPPORTED_COMMANDS = 0x0002
@@ -197,6 +203,7 @@ class InformationOCF(OCF):
     READ_LOCAL_SUPPORTED_CONTROLLER_DELAY = 0x000F
 
 # Status Parameters Commands (OGF = 0x05)
+@unique
 class StatusOCF(OCF):
     READ_FAILED_CONTACT_COUNTER = 0x0001
     RESET_FAILED_CONTACT_COUNTER = 0x0002
@@ -212,6 +219,7 @@ class StatusOCF(OCF):
     READ_LOCAL_AMP_ASSOCIATED_CODING = 0x000D
 
 # Testing Commands (OGF = 0x06)
+@unique
 class TestingOCF(OCF):
     READ_LOOPBACK_MODE = 0x0001
     WRITE_LOOPBACK_MODE = 0x0002
@@ -220,6 +228,7 @@ class TestingOCF(OCF):
     WRITE_SECURE_CONNECTIONS_TEST_MODE = 0x0005
 
 # LE Controller Commands (OGF = 0x08)
+@unique
 class LEControllerOCF(OCF):
     SET_EVENT_MASK = 0x0001
     READ_BUFFER_SIZE = 0x0002
@@ -385,6 +394,7 @@ class LEControllerOCF(OCF):
 
 
 # Vendor Specific Commands (OGF = 0x3F)
+@unique
 class VendorSpecificOCF(IntEnum):
     # Vendor specific opcodes can be defined here
     HCI_EXTENSION_SET_RX_GAIN = 0xFC00

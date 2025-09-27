@@ -6,13 +6,14 @@ This module provides classes for Low Energy HCI commands.
 
 import struct
 from typing import List, Dict, Any, ClassVar, Optional, Tuple, Union
-from enum import IntEnum
+from enum import IntEnum, unique
 
 from ..cmd_base_packet import HciCmdBasePacket
 from ..cmd_opcodes import HciOpcode, create_opcode, OGF, LEControllerOCF
 from .. import register_command
 
 # LE Advertising Types
+@unique
 class AdvertisingType(IntEnum):
     ADV_IND = 0x00                  # Connectable and scannable undirected advertising
     ADV_DIRECT_IND = 0x01           # Connectable directed advertising
@@ -21,6 +22,7 @@ class AdvertisingType(IntEnum):
     ADV_DIRECT_IND_LOW_DUTY = 0x04  # Connectable directed advertising (low duty cycle)
 
 # LE Address Types
+@unique
 class AddressType(IntEnum):
     PUBLIC = 0x00
     RANDOM = 0x01
