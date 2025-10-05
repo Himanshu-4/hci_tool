@@ -51,8 +51,6 @@ from utils.yaml_cfg_parser import global_setting_parser
 from ui.main.app import start_app
 
 
-
-
 def main():
     # global_setting_parser().configure_from_yaml("logger.yml")
     # Set the environment variable  

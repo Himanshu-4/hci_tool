@@ -21,213 +21,6 @@
     
 """
 
-import os
-import serial
-import serial.tools.list_ports
-
-import threading
-import time
-import asyncio
-
-# MAX_DEVICE_COUNT = 10
-
-# class uart_transfer:
-#     """
-#     A class to handle UART data transfer.
-#     It provides methods for sending and receiving data over UART.
-#     """
-#     _instance = None
-#     _device_instances = {}
-#     _lock = threading.Lock()
-
-#     @classmethod
-#     def create_instance(cls, device_name) -> 'uart_transfer':
-#         """
-#         create the singleton instance of the uart_transfer class for the specified device.
-#         """
-#         with cls._lock:
-#             if cls._instance != None and device_name not in cls._device_instances.keys():
-#                 return uart_transfer(device_name)
-            
-#     @classmethod
-#     def get_instance(cls, device_name : str) -> 'uart_transfer':
-#         """
-#         Get the singleton instance of the uart_transfer class for the specified device.
-#         """
-#         return cls._instance
-    
-    
-#     def __init__(self, device_name):
-#         self.device_name = device_name
-#         self.serial_port = None
-#         self.is_connected = False
-#         self._device_instances[device_name] = self
-#         self._instance = self
-#         # self._logger = logger.get_logger(__name__, level=LogLevel.DEBUG,
-#         #                                   log_file=os.path.join(os.path.dirname(__file__), "uart_transfer.log"))
-        
-#         # self._logger.debug(f"Creating uart_transfer instance for device: {device_name}")
-        
-        
-        
-#     def connect(self, baudrate=115200, timeout=1):
-#         """
-#         Connect to the UART device.
-#         :param baudrate: Baud rate for the UART connection.
-#         :param timeout: Timeout for the UART connection.
-#         :return: True if connected, False otherwise.
-#         """
-#         # if self.is_connected:
-#         #     self._logger.warning(f"Already connected to {self.device_name}")
-#         #     return True
-        
-#         # try:
-#         #     self.serial_port = serial.Serial(self.device_name, baudrate=baudrate, timeout=timeout)
-#         #     self.is_connected = True
-            
-#         #     # self._logger.info(f"Connected to {self.device_name} at {baudrate} baud.")
-#         #     return True
-#         # except serial.SerialException as e:
-#         #     # self._logger.error(f"Failed to connect to {self.device_name}: {e}")
-#         #     return False
-#         print(f"Connecting to {self.device_name} at {baudrate} baud...")
-        
-        
-#     def disconnect(self):
-#         """
-#         Disconnect from the UART device.
-#         :return: True if disconnected, False otherwise.
-#         """
-#         # if not self.is_connected:
-#         #     self._logger.warning(f"Not connected to {self.device_name}")
-#         #     return False
-        
-#         # try:
-#         #     self.serial_port.close()
-#         #     self.is_connected = False
-#         #     self._logger.info(f"Disconnected from {self.device_name}.")
-#         #     return True
-#         # except serial.SerialException as e:
-#         #     self._logger.error(f"Failed to disconnect from {self.device_name}: {e}")
-#         #     return False
-#         print(f"Disconnecting from {self.device_name}...")
-        
-#     def send(self, data: bytes):
-#         """
-#         Send data to the UART device.
-#         :param data: Data to be sent.
-#         :return: True if data is sent successfully, False otherwise.
-#         """
-#         # if not self.is_connected:
-#         #     self._logger.warning(f"Not connected to {self.device_name}")
-#         #     return False
-        
-#         # try:
-#         #     self.serial_port.write(data)
-#         #     self._logger.info(f"Sent data to {self.device_name}: {data}")
-#         #     return True
-#         # except serial.SerialException as e:
-#         #     self._logger.error(f"Failed to send data to {self.device_name}: {e}")
-#         #     return False
-#         print(f"Sending data to {self.device_name}: {data}")
-        
-        
-#     def receive(self, size: int = 1024):
-#         """
-#         Receive data from the UART device.
-#         :param size: Number of bytes to read.
-#         :return: Received data.
-#         """
-#         # if not self.is_connected:
-#         #     self._logger.warning(f"Not connected to {self.device_name}")
-#         #     return None
-        
-#         # try:
-#         #     data = self.serial_port.read(size)
-#         #     self._logger.info(f"Received data from {self.device_name}: {data}")
-#         #     return data
-#         # except serial.SerialException as e:
-#         #     self._logger.error(f"Failed to receive data from {self.device_name}: {e}")
-#         #     return None
-#         print(f"Receiving data from {self.device_name}...")
-        
-#     def set_timeout(self, timeout: int):
-#         """
-#         Set the timeout for the UART connection.
-#         :param timeout: Timeout in seconds.
-#         """
-#         # if not self.is_connected:
-#         #     self._logger.warning(f"Not connected to {self.device_name}")
-#         #     return False
-        
-#         # try:
-#         #     self.serial_port.timeout = timeout
-#         #     self._logger.info(f"Set timeout for {self.device_name} to {timeout} seconds.")
-#         #     return True
-#         # except serial.SerialException as e:
-#         #     self._logger.error(f"Failed to set timeout for {self.device_name}: {e}")
-#         #     return False
-#         print(f"Setting timeout for {self.device_name} to {timeout} seconds...")
-        
-        
-#     def get_timeout(self):
-#         """
-#         Get the timeout for the UART connection.
-#         :return: Timeout in seconds.
-#         """
-#         # if not self.is_connected:
-#         #     self._logger.warning(f"Not connected to {self.device_name}")
-#         #     return None
-        
-#         # try:
-#         #     timeout = self.serial_port.timeout
-#         #     self._logger.info(f"Timeout for {self.device_name} is {timeout} seconds.")
-#         #     return timeout
-#         # except serial.SerialException as e:
-#         #     self._logger.error(f"Failed to get timeout for {self.device_name}: {e}")
-#         #     return None
-#         print(f"Getting timeout for {self.device_name}...")
-        
-#     def set_baudrate(self, baudrate: int):
-#         """
-#         Set the baud rate for the UART connection.
-#         :param baudrate: Baud rate.
-#         """
-#         # if not self.is_connected:
-#         #     self._logger.warning(f"Not connected to {self.device_name}")
-#         #     return False
-        
-#         # try:
-#         #     self.serial_port.baudrate = baudrate
-#         #     self._logger.info(f"Set baud rate for {self.device_name} to {baudrate}.")
-#         #     return True
-#         # except serial.SerialException as e:
-#         #     self._logger.error(f"Failed to set baud rate for {self.device_name}: {e}")
-#         #     return False
-#         print(f"Setting baud rate for {self.device_name} to {baudrate}...")
-#         self.baudrate = baudrate
-        
-#     def get_baudrate(self):
-#         """
-#         Get the baud rate for the UART connection.
-#         :return: Baud rate.
-#         """
-#         # if not self.is_connected:
-#         #     self._logger.warning(f"Not connected to {self.device_name}")
-#         #     return None
-        
-#         # try:
-#         #     baudrate = self.serial_port.baudrate
-#         #     self._logger.info(f"Baud rate for {self.device_name} is {baudrate}.")
-#         #     return baudrate
-#         # except serial.SerialException as e:
-#         #     self._logger.error(f"Failed to get baud rate for {self.device_name}: {e}")
-#         #     return None
-#         print(f"Getting baud rate for {self.device_name}...")
-#         return self.baudrate
-    
-
-
 import serial
 import serial.tools.list_ports
 import threading
@@ -391,7 +184,7 @@ class UARTTransport(TransportInterface):
         Returns True if connection successful
         """
         try:
-            if self.is_connected():
+            if self.is_connected:
                 return True
             
             if not self.config.port:
@@ -434,7 +227,7 @@ class UARTTransport(TransportInterface):
         Returns True if successful
         """
         try:
-            if not self.is_connected():
+            if not self.is_connected:
                 return True
             
             # Stop read thread
@@ -671,167 +464,6 @@ import inspect
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class HCIPacket:
-    """Represents an HCI packet"""
-    packet_type : int
-    data: bytes
-    timestamp: float = None
-    
-    def __post_init__(self):
-        if self.timestamp is None:
-            self.timestamp = time.time()
-
-@dataclass
-class FlowControlState:
-    """Tracks flow control state for HCI"""
-    num_hci_command_packets: int = 1
-    num_acl_data_packets: int = 0
-    pending_commands: int = 0
-    pending_acl: int = 0
-    
-    @property
-    def can_send_command(self) -> bool:
-        return self.num_hci_command_packets > self.pending_commands
-    
-    @property
-    def can_send_acl(self) -> bool:
-        return self.num_acl_data_packets > self.pending_acl
-
-class HCIPacketParser:
-    """Parser for HCI packets with flow control extraction"""
-    
-    def __init__(self):
-        self.buffer = bytearray()
-        self.current_packet_type = None
-        self.expected_length = 0
-        
-    def add_data(self, data: bytes) -> List[HCIPacket]:
-        """Add data to parser and return complete packets"""
-        self.buffer.extend(data)
-        packets = []
-        
-        while self.buffer:
-            if self.current_packet_type is None:
-                # Need at least 1 byte for packet type
-                if len(self.buffer) < 1:
-                    break
-                    
-                packet_type = self.buffer[0]
-                if packet_type not in [t.value for t in HCIPacketType]:
-                    # Invalid packet type, skip byte
-                    logger.warning(f"Invalid HCI packet type: 0x{packet_type:02X}")
-                    self.buffer.pop(0)
-                    continue
-                    
-                self.current_packet_type = HCIPacketType(packet_type)
-                self.buffer.pop(0)
-            
-            # Parse based on packet type
-            packet = self._parse_packet()
-            if packet:
-                packets.append(packet)
-                self.current_packet_type = None
-                self.expected_length = 0
-            else:
-                # Not enough data yet
-                break
-                
-        return packets
-    
-    def _parse_packet(self) -> Optional[HCIPacket]:
-        """Parse a single packet based on current type"""
-        if self.current_packet_type == HCIPacketType.COMMAND:
-            # Command: OpCode (2) + Length (1) + Parameters
-            if len(self.buffer) < 3:
-                return None
-            length = self.buffer[2]
-            if len(self.buffer) < 3 + length:
-                return None
-            data = bytes(self.buffer[:3 + length])
-            del self.buffer[:3 + length]
-            return HCIPacket(self.current_packet_type, data)
-            
-        elif self.current_packet_type == HCIPacketType.ACL_DATA:
-            # ACL: Handle (2) + Length (2) + Data
-            if len(self.buffer) < 4:
-                return None
-            length = struct.unpack('<H', self.buffer[2:4])[0]
-            if len(self.buffer) < 4 + length:
-                return None
-            data = bytes(self.buffer[:4 + length])
-            del self.buffer[:4 + length]
-            return HCIPacket(self.current_packet_type, data)
-            
-        elif self.current_packet_type == HCIPacketType.EVENT:
-            # Event: Event Code (1) + Length (1) + Parameters
-            if len(self.buffer) < 2:
-                return None
-            length = self.buffer[1]
-            if len(self.buffer) < 2 + length:
-                return None
-            data = bytes(self.buffer[:2 + length])
-            del self.buffer[:2 + length]
-            return HCIPacket(self.current_packet_type, data)
-            
-        elif self.current_packet_type == HCIPacketType.SYNC_DATA:
-            # Sync: Handle (2) + Length (1) + Data
-            if len(self.buffer) < 3:
-                return None
-            length = self.buffer[2]
-            if len(self.buffer) < 3 + length:
-                return None
-            data = bytes(self.buffer[:3 + length])
-            del self.buffer[:3 + length]
-            return HCIPacket(self.current_packet_type, data)
-            
-        elif self.current_packet_type == HCIPacketType.ISO_DATA:
-            # ISO: Handle (2) + Length (2) + Data
-            if len(self.buffer) < 4:
-                return None
-            length = struct.unpack('<H', self.buffer[2:4])[0] & 0x3FFF
-            if len(self.buffer) < 4 + length:
-                return None
-            data = bytes(self.buffer[:4 + length])
-            del self.buffer[:4 + length]
-            return HCIPacket(self.current_packet_type, data)
-            
-        return None
-    
-    @staticmethod
-    def extract_flow_control_info(packet: HCIPacket) -> Optional[Dict[str, Any]]:
-        """Extract flow control information from HCI packets"""
-        if packet.packet_type != HCIPacketType.EVENT:
-            return None
-            
-        event_code = packet.data[0]
-        
-        if event_code == HCIEventCode.COMMAND_COMPLETE:
-            # Command Complete: EventCode(1) + Length(1) + NumHCICommands(1) + OpCode(2) + ReturnParams
-            if len(packet.data) >= 3:
-                num_hci_commands = packet.data[2]
-                return {'num_hci_command_packets': num_hci_commands}
-                
-        elif event_code == HCIEventCode.COMMAND_STATUS:
-            # Command Status: EventCode(1) + Length(1) + Status(1) + NumHCICommands(1) + OpCode(2)
-            if len(packet.data) >= 4:
-                num_hci_commands = packet.data[3]
-                return {'num_hci_command_packets': num_hci_commands}
-                
-        elif event_code == HCIEventCode.NUMBER_OF_COMPLETED_PACKETS:
-            # Number of Completed Packets event
-            if len(packet.data) >= 3:
-                num_handles = packet.data[2]
-                if len(packet.data) >= 3 + (num_handles * 4):
-                    total_completed = 0
-                    for i in range(num_handles):
-                        offset = 3 + (i * 4)
-                        # handle = struct.unpack('<H', packet.data[offset:offset+2])[0]
-                        num_completed = struct.unpack('<H', packet.data[offset+2:offset+4])[0]
-                        total_completed += num_completed
-                    return {'num_completed_acl_packets': total_completed}
-                    
-        return None
 
 class AsyncUARTPort:
     """Async UART port with HCI flow control"""
@@ -1000,7 +632,7 @@ class AsyncUARTPort:
                     self.rx_queue.get_nowait()
                 except asyncio.QueueEmpty:
                     break
-            
+
             while not self.tx_queue.empty():
                 try:
                     self.tx_queue.get_nowait()
@@ -1124,7 +756,7 @@ class AsyncUARTPort:
             if self._disconnect_requested.is_set() and self.is_connected:
                 asyncio.create_task(self.disconnect("Write error"))
     
-    async def _check_flow_control(self, packet: HCIPacket) -> bool:
+    async def _check_flow_control(self, packet) -> bool:
         """Check if packet can be sent according to flow control"""
         async with self._flow_control_lock:
             if packet.packet_type == HCIPacketType.COMMAND:
@@ -1135,7 +767,7 @@ class AsyncUARTPort:
                 # No flow control for other packet types
                 return True
     
-    async def _update_flow_control_on_send(self, packet: HCIPacket):
+    async def _update_flow_control_on_send(self, packet):
         """Update flow control counters when sending packet"""
         async with self._flow_control_lock:
             if packet.packet_type == HCIPacketType.COMMAND:
@@ -1158,7 +790,7 @@ class AsyncUARTPort:
             
             await self._trigger_callback(TransportEvent.FLOW_CONTROL_UPDATE, self.port_id, self.flow_control)
     
-    async def send_packet(self, packet: HCIPacket) -> bool:
+    async def send_packet(self, packet) -> bool:
         """Send an HCI packet"""
         if not self.is_connected:
             return False
@@ -1185,7 +817,7 @@ class AsyncUARTPort:
         packet = HCIPacket(HCIPacketType.ACL_DATA, header + data)
         return await self.send_packet(packet)
     
-    async def receive_packet(self, timeout: Optional[float] = None) -> Optional[HCIPacket]:
+    async def receive_packet(self, timeout: Optional[float] = None) :
         """Receive a packet from the RX queue"""
         try:
             if timeout is None:
@@ -1309,7 +941,7 @@ class AsyncUARTManager:
         
         return asyncio.run_coroutine_threadsafe(port.disconnect(reason), self._loop)
     
-    def send_packet(self, port_id: str, packet: HCIPacket) -> asyncio.Future:
+    def send_packet(self, port_id: str, packet) -> asyncio.Future:
         """Send a packet to a port (returns future)"""
         port = self._ports.get(port_id)
         if not port:

@@ -15,28 +15,19 @@ import threading
 from typing import Dict, Any, Optional, Union, List
 from pathlib import Path
 import weakref
-import atexit
 
 from enum import Enum, unique
-
-import signal
 
 # Import custom components
 from .yaml_cfg_parser import Parser as YAMLConfigParser
 from .file_log_handler import FileIOLogHandler, AsyncRotatingFileHandler
-# import the log window handler
+# import the log window handler and file io handler 
 from ui.exts.log_window_async import   log_window_handler
-# Remove the problematic import to avoid circular dependency
 from .file_handler import init_module as init_fileio_module
 
-from .async_exec import EventLoopManager as loop_manager
 
-####==============================================================
-# import the cleanup modules 
-##=================================================================
-from ui.exts.log_window_async import LogToWindowHandler
-from .file_handler import cleanup_module as file_handler_cleanup_module
-    
+from .shutdown_handler import register_shutdown, ShutdownPriority
+
 @unique
 class LogLevel(Enum):
     DEBUG = logging.DEBUG
@@ -102,25 +93,13 @@ class EnhancedLogManager:
         except Exception as e:
             print(f"[EnhancedLogManager] Warning: Could not initialize file handler: {e}")
             raise 
-        
-        # also register if interrupt comes to stop the application 
-
-        def _handle_sigint(signum, frame):
-            print("[EnhancedLogManager] SIGINT received, shutting down...")
-            self.shutdown()
-            sys.exit(0)
-
-        # Register SIGINT handler (Ctrl+C)
-        signal.signal(signal.SIGINT, _handle_sigint)
-        signal.signal(signal.SIGTERM, _handle_sigint)
-        # Register cleanup
-        atexit.register(self.shutdown)
-
+        # register for shutdown
+        register_shutdown(self.shutdown, "enhanced_log_manager", ShutdownPriority.LOGGER_MAIN, 5.0, False, group="loggers")
         self._initialized = True
     
     def shutdown(self):
         """Shutdown all loggers and handlers"""
-        print("[EnhancedLogManager] Shutting down...")
+        print("[EnhancedLogManager] cleanup... ")
         
         # Flush all handlers
         for handler in self._handlers.values():
@@ -137,21 +116,12 @@ class EnhancedLogManager:
                     handler.close()
             except:
                 pass
-            
-        ## ===================shutdown the handlers top level module ==============================
-        # cleanup the log window handler
-        LogToWindowHandler.cleanup_module()
-        # cleanup the file handler module
-        file_handler_cleanup_module()
 
-        # close all the event loop manager 
-        loop_manager.destroy_loop_mangers()
-        
         # Clear
         self._loggers.clear()
         self._handlers.clear()
         self._configs.clear()
-        print("[EnhancedLogManager] Shutdown complete")
+        print("[EnhancedLogManager] cleanup complete")
 
 
     ##########################################################################################

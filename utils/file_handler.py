@@ -25,6 +25,7 @@ from .async_exec import EventLoopManager
 from .asyncio_files import open_async, AsyncTextFile, AsyncBinaryFile, open_async_file_wait
 from .Exceptions import *
 
+from .shutdown_handler import register_shutdown, ShutdownPriority
 
 # Global configuration
 _FILE_IO_MAX_SIZE = 10 * 1024 * 1024  # 10 MB
@@ -32,22 +33,10 @@ _FILE_IO_MAX_FILES = 5  # Number of files to keep if size exceeds limit
 
 
 # init a global fileIO event loop manager to handle file operations 
-_global_file_evt_loop_mngr: EventLoopManager = EventLoopManager("FileIO_Manager")
-_file_handlers: List['FileIO'] = []  # Store all FileIO instances
+_global_file_evt_loop_mngr: EventLoopManager = EventLoopManager("FileIO_Handler")
 
 
-@unique
-class FileIOEvent(Enum):
-    """Events that can trigger callbacks"""
-    OPENED = "opened"
-    CLOSED = "closed"
-    READ = "read"
-    WRITE = "write"
-    ERROR = "error"
-    FLUSH = "flush"
-    SEEK = "seek"
-
-
+#MARK: File mode
 @unique
 class FileIOMode(Enum):
     """File operation modes"""
@@ -61,33 +50,29 @@ class FileIOMode(Enum):
     READ_WRITE_BINARY = "r+b"
 
 
-@dataclass
-class FileIOCallbackData:
-    """Data structure passed to callbacks"""
-    event: FileIOEvent
-    data: Any = None
-    error: Exception = None
-    file_path: str = None
-    timestamp: datetime = None
-    
-    def __post_init__(self):
-        if self.timestamp is None:
-            self.timestamp = datetime.now()
 
-
+            
+#MARK: File info
 @dataclass
 class FileInfo:
     """File information data structure"""
     _file_name: str
     _size: int
     _mode : str
+    _encoding :str
+    _file_ext: str
+
     _file_path: str
     _full_path: str
     _rel_path: str
-    _file_type: str
     _last_modified: datetime
     
-    def __init__(self, file_path: str, mode: Union[str, FileIOMode] = FileIOMode.READ):
+    _closed : bool = True
+    # actual file object
+    _file: Optional[Union[AsyncTextFile, AsyncBinaryFile]] = None
+    
+    
+    def __init__(self, file_path: str, mode: Union[str, FileIOMode] = FileIOMode.READ, encoding: str = "utf-8" ):
     
         if not  hasattr(sys, "_BASE_PATH"):
             raise AppRuntimeError("_BASE_DIR" , "missing in sys.path")
@@ -97,12 +82,15 @@ class FileInfo:
             raise CustomFileNotFoundError(file_path)
         self._file_path = file_path
         self._mode = mode.value if isinstance(mode, FileIOMode) else mode
+        self._encoding = encoding if 'b' not in self._mode else None
+        
+        # store the paths 
         self._full_path = os.path.abspath(file_path)
         # get relative path from base directory
         self._rel_path = os.path.relpath(file_path, _BASE_DIR)
         self._file_name = os.path.basename(file_path)
         self._size = os.path.getsize(file_path)
-        self._file_type = os.path.splitext(file_path)[1]
+        self._file_ext = os.path.splitext(self._file_name)[1]
         self._last_modified = datetime.fromtimestamp(os.path.getmtime(file_path))
 
     @property
@@ -117,7 +105,107 @@ class FileInfo:
     def is_executable(self):
         return os.access(self._full_path, os.X_OK)
 
+    @property
+    def is_open(self) -> bool:
+        """Check if the file is open"""
+        return self._file and not self._file.closed
 
+    @property
+    def file_path(self) -> str:
+        """Get the file path"""
+        return self._file_path
+
+    @property
+    def mode(self) -> str:
+        """Get the file mode"""
+        return self._mode
+
+    @property
+    def encoding(self) -> str:
+        """Get the file encoding"""
+        return self._encoding
+
+
+#MARK: File Evt
+@unique
+class FileIOEvent(Enum):
+    """Events that can trigger callbacks"""
+    OPENED = "opened"
+    CLOSED = "closed"
+    READ = "read"
+    WRITE = "write"
+    ERROR = "error"
+    FLUSH = "flush"
+    SEEK = "seek"
+
+#MARK: class FileIoCallback 
+@dataclass
+class FileIOCallbackData:
+    """Data structure passed to callbacks"""
+    event: FileIOEvent
+    data: Any = None
+    error: Exception = None
+    file_info: FileInfo = None
+    timestamp: datetime = None
+    
+    def __post_init__(self):
+        if self.timestamp is None:
+            self.timestamp = datetime.now()
+
+class FileIoCallback(FileIOCallbackData):
+    """" File io callback to trigger in different events """
+    
+    def __init__(self, fileinfo : FileInfo ):
+        # store the fileinfo
+        self.fileinfo = fileinfo
+        # store the callbacks
+        self._callbacks: Dict[FileIOEvent, List[Callable[[FileIOCallbackData], None]]] = {
+            event: [] for event in FileIOEvent
+        }
+        
+    def add(self, event: FileIOEvent, callback: Callable[[FileIOCallbackData], None]):
+        """Add a callback for a specific event"""
+        self._callbacks[event].append(callback)
+        
+    def remove(self, event: FileIOEvent, callback: Callable[[FileIOCallbackData], None]):
+        """Remove a callback for a specific event"""
+        if callback in self._callbacks[event]:
+            self._callbacks[event].remove(callback)
+    
+    def ClearAll(self):
+        """ clear the callback list"""
+        self._callbacks.clear()
+        
+    def _trigger_callbacks(self, event: FileIOEvent, data: Any = None, error: Exception = None):
+        """Trigger all callbacks for an event"""
+        if not self._callbacks[event]:
+            return
+        for callback in self._callbacks[event]:
+            callback(FileIOCallbackData(event, data, error, self.file_info))
+    
+    def open(self, data :Any = None):
+        self._trigger_callbacks(FileIOEvent.OPENED, data)
+    
+    def close(self, data: Any = None):
+        self._trigger_callbacks(FileIOEvent.CLOSED, data)
+
+    def read(self, data: Any):
+        self._trigger_callbacks(FileIOEvent.READ, data)
+
+    def write(self, data: Any):
+        self._trigger_callbacks(FileIOEvent.WRITE, data)
+
+    def flush(self, data: Any = None):
+        self._trigger_callbacks(FileIOEvent.FLUSH, data)
+
+    def seek(self, data: Any = None):
+        self._trigger_callbacks(FileIOEvent.SEEK, data)
+
+    def error(self, error: Exception):
+        self._trigger_callbacks(FileIOEvent.ERROR, error=error)
+                
+
+#MARK: FileIO
 class FileIO(FileInfo):
     """
     High-performance asynchronous FileIO class with callback support.
@@ -135,27 +223,9 @@ class FileIO(FileInfo):
     global _global_file_evt_loop_mngr
     _loop_manager: Optional[EventLoopManager] = _global_file_evt_loop_mngr
     
-    @classmethod
-    def get_instances(cls):
-        """Get the global file handlers list"""
-        global _file_handlers
-        return _file_handlers
-
-    @classmethod
-    def append_instances(cls, value: 'FileIO'):
-        """Set the global file handlers list"""
-        global _file_handlers
-        _file_handlers.append(value)
-        
-    @classmethod
-    def remove_instances(cls, value: 'FileIO'):
-        """Remove an instance from the global file handlers list"""
-        global _file_handlers
-        _file_handlers.remove(value)
-
-
-    def __init__(self, file_path: str, mode: Union[str, FileIOMode] = FileIOMode.READ, timeout: float = 5.0,
-                 encoding: str = "utf-8", buffering: int = -1, auto_flush: bool = False):
+    def __init__(self, file_path: str, mode: Union[str, FileIOMode] = FileIOMode.READ,encoding: str = "utf-8",
+                 timeout: float = 5.0, buffering: int = -1, auto_flush: bool = False, 
+                 _callback : Optional[FileIoCallback] = None):
         """
         Initialize FileIO instance
         
@@ -171,56 +241,20 @@ class FileIO(FileInfo):
             CustomFileException: If there is an error during initialization
         """
         
-        super().__init__(file_path, mode)
+        super().__init__(file_path, mode, encoding)
         
-        self._encoding = encoding
         self._buffering = buffering
         self._auto_flush = auto_flush
         self._timeout = timeout
-        # State management
-        self._file: Optional[Union[AsyncTextFile, AsyncBinaryFile]] = None
-        self._closed = True
-        self._callbacks: Dict[FileIOEvent, List[Callable[[FileIOCallbackData], None]]] = {
-            event: [] for event in FileIOEvent
-        }
-        
-        # Register this instance of the class
-        FileIO.append_instances(self)
+        # to store the callbacks and use here 
+        self.callbacks = _callback if _callback is not None else  FileIoCallback(self)
 
     def __del__(self):
         """Destructor - ensure file is closed and flushed"""
         if not self._closed:
-            try:
-                self.flush_wait()
-                self.close_wait()
-            except Exception as e:
-                print(f"[FileIO] Error closing in destructor: {e}")
-            finally:
-                # remove from global instances
-                FileIO.remove_instances(self)
+            print(f"[FileIO] Warning: File {self._file_path} not closed properly")
 
-    def add_callback(self, event: FileIOEvent, callback: Callable[[FileIOCallbackData], None]):
-        """Add a callback for a specific event"""
-        self._callbacks[event].append(callback)
-        
-    def remove_callback(self, event: FileIOEvent, callback: Callable[[FileIOCallbackData], None]):
-        """Remove a callback for a specific event"""
-        if callback in self._callbacks[event]:
-            self._callbacks[event].remove(callback)
-            
-    def _trigger_callbacks(self, event: FileIOEvent, data: Any = None, error: Exception = None):
-        """Trigger all callbacks for an event"""
-        if not self._callbacks[event]:
-            return
-            
-        callback_data = FileIOCallbackData(event, data, error, self._file_path)
-        
-        for callback in self._callbacks[event]:
-            try:
-                callback(callback_data)
-            except Exception as e:
-                print(f"[FileIO] Error in callback for event {event}: {e}")
-
+    #MARK: async methods
     async def _async_open(self):
         """Asynchronously open the file"""
         try:
@@ -229,22 +263,21 @@ class FileIO(FileInfo):
                 self._file_path, 
                 self._mode, 
                 buffering=self._buffering,
-                encoding=self._encoding if 'b' not in self._mode else None
+                encoding=self._encoding
             )
                 
             self._closed = False
-            self._trigger_callbacks(FileIOEvent.OPENED, self._file_path)
+            self.callbacks.open("self._file_path")
             print(f"[FileIO] File opened: {self._file_path}")
         except Exception as e:
-            self._trigger_callbacks(FileIOEvent.ERROR, error=e)
+            self.callbacks.error(e)
             print(f"[FileIO] Error opening file {self._file_path}: {e}")
             raise
 
     async def _async_close(self):
         """Asynchronously close the file"""
         if self._closed or not self._file:
-            return
-            
+            return 
         try:
             if hasattr(self._file, 'close'):
                 if asyncio.iscoroutinefunction(self._file.close):
@@ -255,10 +288,10 @@ class FileIO(FileInfo):
                 self._file.close()
                 
             self._closed = True
-            self._trigger_callbacks(FileIOEvent.CLOSED, self._file_path)
+            self.callbacks.close(self._file_path)
             print(f"[FileIO] File closed: {self._file_path}")
         except Exception as e:
-            self._trigger_callbacks(FileIOEvent.ERROR, error=e)
+            self.callbacks.error(e)
             print(f"[FileIO] Error closing file {self._file_path}: {e}")
             raise
 
@@ -275,11 +308,11 @@ class FileIO(FileInfo):
                 loop = asyncio.get_event_loop()
                 data = await loop.run_in_executor(None, self._file.read, size)
                 
-            self._trigger_callbacks(FileIOEvent.READ, data)
+            self.callbacks.read(data)
             print(f"[FileIO] Read {len(data)} characters/bytes from {self._file_path}")
             return data
         except Exception as e:
-            self._trigger_callbacks(FileIOEvent.ERROR, error=e)
+            self.callbacks.error(e)
             print(f"[FileIO] Error reading from file {self._file_path}: {e}")
             raise
 
@@ -300,11 +333,11 @@ class FileIO(FileInfo):
                 if self._auto_flush:
                     await loop.run_in_executor(None, self._file.flush)
                     
-            self._trigger_callbacks(FileIOEvent.WRITE, bytes_written)
+            self.callbacks.write(bytes_written)
             print(f"[FileIO] Wrote {bytes_written} characters/bytes to {self._file_path}")
             return bytes_written
         except Exception as e:
-            self._trigger_callbacks(FileIOEvent.ERROR, error=e)
+            self.callbacks.error(e)
             print(f"[FileIO] Error writing to file {self._file_path}: {e}")
             raise
 
@@ -322,10 +355,10 @@ class FileIO(FileInfo):
                     loop = asyncio.get_event_loop()
                     await loop.run_in_executor(None, self._file.flush)
                     
-            self._trigger_callbacks(FileIOEvent.FLUSH)
+            self.callbacks.flush()
             print(f"[FileIO] Flushed file: {self._file_path}")
         except Exception as e:
-            self._trigger_callbacks(FileIOEvent.ERROR, error=e)
+            self.callbacks.error(e)
             print(f"[FileIO] Error flushing file {self._file_path}: {e}")
             raise
 
@@ -342,57 +375,41 @@ class FileIO(FileInfo):
                 loop = asyncio.get_event_loop()
                 position = await loop.run_in_executor(None, self._file.seek, offset, whence)
                 
-            self._trigger_callbacks(FileIOEvent.SEEK, position)
+            self.callbacks.seek(position)
             print(f"[FileIO] Seeked to position {position} in {self._file_path}")
             return position
         except Exception as e:
-            self._trigger_callbacks(FileIOEvent.ERROR, error=e)
+            self.callbacks.error(e)
             print(f"[FileIO] Error seeking in file {self._file_path}: {e}")
             raise
-
+        
+    #MARK: non-blockng methods
     # Non-blocking async methods
-    def open(self, callback: Optional[Callable[[FileIOCallbackData], None]] = None):
+    def open(self ):
         """Open the file asynchronously (non-blocking)"""
-        if callback:
-            self.add_callback(FileIOEvent.OPENED, callback)
-            self.add_callback(FileIOEvent.ERROR, callback)
         return FileIO._loop_manager.add_task(self._async_open())
 
-    def close(self, callback: Optional[Callable[[FileIOCallbackData], None]] = None):
+    def close(self):
         """Close the file asynchronously (non-blocking)"""
-        if callback:
-            self.add_callback(FileIOEvent.CLOSED, callback)
-            self.add_callback(FileIOEvent.ERROR, callback)
         return FileIO._loop_manager.add_task(self._async_close())
 
-    def read(self, size: Optional[int] = None, callback: Optional[Callable[[FileIOCallbackData], None]] = None):
+    def read(self, size: Optional[int] = None):
         """Read from the file asynchronously (non-blocking)"""
-        if callback:
-            self.add_callback(FileIOEvent.READ, callback)
-            self.add_callback(FileIOEvent.ERROR, callback)
         return FileIO._loop_manager.add_task(self._async_read(size))
 
-    def write(self, data: Union[str, bytes], callback: Optional[Callable[[FileIOCallbackData], None]] = None):
+    def write(self, data: Union[str, bytes]):
         """Write to the file asynchronously (non-blocking)"""
-        if callback:
-            self.add_callback(FileIOEvent.WRITE, callback)
-            self.add_callback(FileIOEvent.ERROR, callback)
         return FileIO._loop_manager.add_task(self._async_write(data))
 
-    def flush(self, callback: Optional[Callable[[FileIOCallbackData], None]] = None):
+    def flush(self):
         """Flush the file asynchronously (non-blocking)"""
-        if callback:
-            self.add_callback(FileIOEvent.FLUSH, callback)
-            self.add_callback(FileIOEvent.ERROR, callback)
         return FileIO._loop_manager.add_task(self._async_flush())
 
-    def seek(self, offset: int, whence: int = 0, callback: Optional[Callable[[FileIOCallbackData], None]] = None):
+    def seek(self, offset: int, whence: int = 0):
         """Seek in the file asynchronously (non-blocking)"""
-        if callback:
-            self.add_callback(FileIOEvent.SEEK, callback)
-            self.add_callback(FileIOEvent.ERROR, callback)
         return FileIO._loop_manager.add_task(self._async_seek(offset, whence))
 
+    #MARK: blocking methods
     # Blocking wait methods
     def open_wait(self, timeout: Optional[float] = None):
         """Open the file and wait for completion (blocking)"""
@@ -402,6 +419,10 @@ class FileIO(FileInfo):
         """Close the file and wait for completion (blocking)"""
         return FileIO._loop_manager.run_and_wait(self._async_close(), timeout or self._timeout)
 
+    def flush_wait(self, timeout: Optional[float] = None):
+        """Flush the file and wait for completion (blocking)"""
+        return FileIO._loop_manager.run_and_wait(self._async_flush(), timeout or self._timeout)
+    
     def read_wait(self, size: Optional[int] = None, timeout: Optional[float] = None) -> Union[str, bytes]:
         """Read from the file and wait for completion (blocking)"""
         return FileIO._loop_manager.run_and_wait(self._async_read(size), timeout or self._timeout)
@@ -409,10 +430,6 @@ class FileIO(FileInfo):
     def write_wait(self, data: Union[str, bytes], timeout: Optional[float] = None) -> int:
         """Write to the file and wait for completion (blocking)"""
         return FileIO._loop_manager.run_and_wait(self._async_write(data), timeout or self._timeout)
-
-    def flush_wait(self, timeout: Optional[float] = None):
-        """Flush the file and wait for completion (blocking)"""
-        return FileIO._loop_manager.run_and_wait(self._async_flush(), timeout or self._timeout)
 
     def seek_wait(self, offset: int, whence: int = 0, timeout: Optional[float] = None) -> int:
         """Seek in the file and wait for completion (blocking)"""
@@ -426,29 +443,11 @@ class FileIO(FileInfo):
     def __exit__(self, exc_type, exc_val, exc_tb):
         """Context manager exit - ensure file is closed and flushed"""
         self.close_wait()
-                
-    # Properties
-    @property
-    def is_open(self) -> bool:
-        """Check if the file is open"""
-        return not self._closed and self._file is not None
-
-    @property
-    def file_path(self) -> str:
-        """Get the file path"""
-        return self._file_path
-
-    @property
-    def mode(self) -> str:
-        """Get the file mode"""
-        return self._mode
-
-    @property
-    def encoding(self) -> str:
-        """Get the file encoding"""
-        return self._encoding
+             
+   
 
 
+#MARK: Async file handler
 class AsyncFileHandler(FileInfo):
     """
     Enhanced asynchronous file handler with buffering and rotation capabilities.
@@ -621,12 +620,13 @@ class AsyncFileHandler(FileInfo):
 ########################################################################
 # Global File Handler Management
 ########################################################################
-
+# store all the file handlers 
+__file_handlers: List['FileIO'] = []  # Store all FileIO instances
 _file_handlers:  List[AsyncFileHandler] = []
 _global_lock = threading.Lock()
 _module_initialized = False
 
-  
+#MARK: module methds
     
 @staticmethod
 def __init_base_module():
@@ -727,19 +727,21 @@ def cleanup_module():
     """Cleanup the   file handler module"""
     global _module_initialized
     
-    print("[FileHandler] Cleaning up...")
+    print("[FileHandler] Cleanup...")
     close_all()
     _global_file_evt_loop_mngr.destroy()
     _module_initialized = False
-    print("[FileHandler] Cleanup completed")
+    print("[FileHandler] Cleanup complete")
 
 
+# register the shutdown handler for the module
+register_shutdown(cleanup_module, "FileHandler", ShutdownPriority.FILE_HANDLERS, 5, False, group="file_handlers")
 
 ########################################################################
 # Example usage and testing
 ########################################################################
 
-def test_file_handler():
+if __name__ == "__main__":
     """Test the file handler functionality"""
     # Initialize the module
     init_module()
@@ -828,11 +830,6 @@ def test_file_handler():
     file_io.flush_wait()
     file_io.close_wait()
 
-
     # Cleanup
     cleanup_module()
     print("\n=== Test Completed ===")
-
-
-if __name__ == "__main__":
-    test_file_handler()

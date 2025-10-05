@@ -376,6 +376,7 @@ class AsyncSerialPort:
             "stop_byte": self.stop_byte
         }
 
+#MARK:
 class SerialManager:
     def __init__(self, loop=None):
         self._is_loop_externally_managed = loop is not None
@@ -544,6 +545,12 @@ class SerialManager:
     
     def get_all_statuses(self):
         return {pid: p.get_status() for pid, p in self.serial_ports.items()}
+
+
+
+
+
+
 
 # --- Example Usage (Illustrative - UI marshalling not shown) ---
 if __name__ == "__main__":

@@ -1,12 +1,10 @@
 import asyncio
 import threading
-import atexit
-import signal
-import sys
-import weakref
-from typing import Any, Callable, Optional, Union, Coroutine, TypeVar, Set
+from typing import Any, Callable, Optional, Union, Coroutine, TypeVar, Set, Self
 from concurrent.futures import ThreadPoolExecutor, Future
 from functools import wraps
+
+from yaml import Event
 
 
 T = TypeVar('T')
@@ -60,34 +58,25 @@ class EventLoopManager:
     
     _instances = {}  # contains instances of the event loop manager
     _lock = threading.Lock()
-    
-    @classmethod
-    def create_instance(cls, name:str ) -> 'EventLoopManager':
-        """Create a new instance of EventLoopManager"""
+
+    def __new__(cls, name) -> Self:
         with cls._lock:
             if name in cls._instances:
                 return cls._instances[name]
-            # create a new instance 
-            instance = cls(name)
-            cls._instances[name] = instance
-        return instance 
-
-    @classmethod
-    def destroy_loop_mangers(cls):
-        """Destroy all event loop manager instances."""
-        with cls._lock:
-            instances = list(cls._instances.values()) # we need to copy to a list as runtime we can't chnage dic while usign it 
-            for instance in instances:
-                instance.destroy()
-            cls._instances.clear()
-    
-    def __init__(self, name : Optional[str] = None):
-        """Initialize the event loop manager"""
-        if hasattr(self, '_initialized'):
-            return
             
+             # Create a new instance
+            instance = super(EventLoopManager, cls).__new__(cls)
+            cls._instances[name] = instance
+            return instance
+    
+    def __init__(self, name : str):
+        """Initialize the event loop manager"""
+        # Prevent reinitialization if instance already exists
+        if hasattr(self, "_initialized") and self._initialized:
+            return
+
+        self._name = name
         self._initialized = True
-        self._name = name or "EventLoopManager"
         
         self._loop: Optional[asyncio.AbstractEventLoop] = None
         self._thread: Optional[threading.Thread] = None
@@ -104,6 +93,7 @@ class EventLoopManager:
     #MARK: loop mngmt
     def create(self):
         """Start the event loop in a separate thread"""
+        # check if already started
         if self._thread and self._thread.is_alive():
             return
         # create a new thread when the start is called 
@@ -178,6 +168,10 @@ class EventLoopManager:
         if self._stopping:
             return
             
+        # remove that instance from the loop manager instance 
+        with EventLoopManager._lock:
+            EventLoopManager._instances.pop(self._name)
+            
         self._stopping = True
         print(f"[EventLoopManager]: Destroying {self._name}")
         
@@ -191,7 +185,7 @@ class EventLoopManager:
             try:
                 future.result(timeout=10)
             except Exception as e:
-                print(f"[EventLoopManager]: loop: {self.name} Error during task destruction: {e}")
+                print(f"[EventLoopManager]: loop: {self._name} Error during task destruction: {e}")
         
         # Close executor
         self._executor.shutdown(wait=True)
@@ -217,36 +211,41 @@ class EventLoopManager:
         Returns:
             Coro future that will contain the result of the coroutine
         """
+        
+        async def _create_managed_task( coro: Coroutine[Any, Any, T], 
+                                   destroy_callback: Optional[Callable] = None) -> asyncio.Task[T]:
+            """Create and track a managed task"""
+            if not asyncio.iscoroutine(coro):
+                raise ValueError("Provided object is not a coroutine")
+            
+            task = asyncio.create_task(coro)
+            managed_task = ManagedTask(task, destroy_callback)
+            
+            with self._task_lock:
+                self._task_list.add(managed_task)
+            
+            # Remove from tracking when done
+            def cleanup(_):
+                print(f"[EnhancedLogManager]:{self._name} removing task {managed_task.task.get_name()} ")
+                with self._task_lock:
+                    self._task_list.discard(managed_task)
+            
+            task.add_done_callback(cleanup)
+            return task
+        
+        
         self._ensure_started()
         # Ensure the coroutine is a valid asyncio coroutine
         fut=  asyncio.run_coroutine_threadsafe(
-            self._create_managed_task(coro, destroy_callback),
+            _create_managed_task(coro, destroy_callback),
             self._loop
         )
         return fut.result()  # Wait for task to be created and return the task object
         
     
-    async def _create_managed_task(self, coro: Coroutine[Any, Any, T], 
-                                   destroy_callback: Optional[Callable] = None) -> asyncio.Task[T]:
-        """Create and track a managed task"""
-        if not asyncio.iscoroutine(coro):
-            raise ValueError("Provided object is not a coroutine")
-        
-        task = asyncio.create_task(coro)
-        managed_task = ManagedTask(task, destroy_callback)
-        
-        with self._task_lock:
-            self._task_list.add(managed_task)
-        
-        # Remove from tracking when done
-        def cleanup(_):
-            print(f"[EnhancedLogManager]:{self._name} removing task {managed_task.task.get_name()} ")
-            with self._task_lock:
-                self._task_list.discard(managed_task)
-        
-        task.add_done_callback(cleanup)
-        return task
+ 
     
+    #MARK: Run methods
     def add_coroutine(self, coro: Coroutine[Any, Any, T]) -> asyncio.Task[T]:
         """Alias for add_task() to match requested API"""
         self._ensure_started()
@@ -306,6 +305,7 @@ class EventLoopManager:
         
         return self.run_task(executor_wrapper())
     
+    # MARK: callback methods
     def add_callback(self, callback: Callable, *args, **kwargs):
         """
         Schedule a callback to run in the event loop

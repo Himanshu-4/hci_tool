@@ -357,6 +357,8 @@ class ConnectionDialog(QDialog):
                 self.show_message("Connection test failed!", msg_type.error)
                 
         except Exception as e:
+            import traceback
+            traceback.print_exc()
             self.show_message(f"Connection test error: {str(e)}", msg_type.exception)
     
     def accept_connection(self):

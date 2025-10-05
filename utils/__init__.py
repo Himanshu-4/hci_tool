@@ -23,6 +23,8 @@ from .file_handler import *
 from .logger import *
 from .yaml_cfg_parser import *
 
+from .shutdown_handler import register_shutdown, unregister_shutdown, unregister_group, trigger_shutdown, get_shutdown_status
+
 __all__ = [
     'async_exec',
     'asyncio_files',
@@ -39,4 +41,11 @@ __all__ = [
     'get_logging_statistics',
     'shutdown_logging',
     'global_setting_parser',
+
+    # shutdown handler
+    'register_shutdown',
+    'unregister_shutdown',
+    'unregister_group',
+    'trigger_shutdown',
+    'get_shutdown_status',
 ]

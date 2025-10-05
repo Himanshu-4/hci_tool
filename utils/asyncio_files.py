@@ -24,7 +24,7 @@ __all__ = [
     "FileWatcher"
 ]
 
-
+#MARK:FileOperation
 class FileOperation:
     """Helper class to manage file operation callbacks."""
     
@@ -59,6 +59,7 @@ class FileOperation:
         for callback in self._callbacks:
             asyncio.create_task(callback(self))
 
+#MARK: AsyncFile
 class AsyncFile:
     """Base class for asynchronous file operations."""
     
@@ -89,6 +90,7 @@ class AsyncFile:
         status = "closed" if self.closed else "open"
         return f"{self.__class__.__name__}(path='{self.path}', mode='{self.mode}', status='{status}')"
 
+#MARK: AsyncTxtFile
 class AsyncTextFile(AsyncFile):
     """Class for asynchronous text file operations."""
     
@@ -132,13 +134,14 @@ class AsyncTextFile(AsyncFile):
         await self._loop.run_in_executor(None, self._file.flush)
         
     async def __aiter__(self) -> AsyncIterator[str]:
-        """Allow iterating through file lines asynchronously."""
+        """Allow iterating through file lines asynchronously., can be used as async with """
         while True:
             line = await self.readline()
             if not line:
                 break
             yield line
 
+#MARK: AsyncBinFile
 class AsyncBinaryFile(AsyncFile):
     """Class for asynchronous binary file operations."""
     
@@ -178,6 +181,7 @@ class AsyncBinaryFile(AsyncFile):
         """Flush the write buffer asynchronously."""
         await self._loop.run_in_executor(None, self._file.flush)
 
+#MARK: AsyncFileReader
 class AsyncFileReader:
     """High-level reader for asynchronous file operations."""
     
@@ -216,6 +220,7 @@ class AsyncFileReader:
         async with open_async(self.path, mode, **kwargs) as file:
             return await file.read()
 
+#MARK: AsyncFileWriter
 class AsyncFileWriter:
     """High-level writer for asynchronous file operations."""
     
@@ -245,6 +250,7 @@ class AsyncFileWriter:
             else:
                 await file.writelines(lines)
 
+#MARK: Open Ops
 @asynccontextmanager
 async def open_async(
     path: str, 
@@ -257,7 +263,7 @@ async def open_async(
 ) -> AsyncIterator[Union[AsyncTextFile, AsyncBinaryFile]]:
     """
     Open a file asynchronously, returning an async file object.
-    
+    This you can use with async with open_async 
     Args:
         path: Path to the file
         mode: Mode in which the file is opened
@@ -348,11 +354,9 @@ async def open_async_file_wait(
         FileNotFoundError: If file doesn't exist in read mode
         PermissionError: If file can't be accessed with requested permissions
     """
-    loop = asyncio.get_event_loop()
-    
     try:
         # Use run_in_executor to perform blocking file open in a separate thread
-        file_obj = await loop.run_in_executor(
+        file_obj = await asyncio.get_event_loop().run_in_executor(
             None,
             functools.partial(
                 open,
@@ -391,6 +395,7 @@ async def open_async_file_wait(
             raise CustomFileException(f"Unknown error: {str(e)}")
 
 
+#MARK: R/W ops
 async def read_file(path: str, binary: bool = False, encoding: str = "utf-8") -> Union[str, bytes]:
     """
     Read entire file contents asynchronously.
@@ -458,6 +463,7 @@ async def append_to_file(
     async with open_async(path, mode, **kwargs) as file:
         await file.write(data)
 
+#MARK: copy/move ops
 async def copy_file(
     src_path: str, 
     dest_path: str, 
@@ -552,15 +558,14 @@ async def delete_file(path: str) -> None:
         FileNotFoundError: If file doesn't exist
         PermissionError: If file can't be deleted due to permissions
     """
-    loop = asyncio.get_event_loop()
-    
     try:
-        await loop.run_in_executor(None, os.unlink, path)
+        await asyncio.get_event_loop().run_in_executor(None, os.unlink, path)
     except FileNotFoundError:
         raise FileNotFoundError(f"File not found: {path}")
     except PermissionError:
         raise PermissionError(f"Permission denied when deleting: {path}")
 
+#MARK: dir ops
 async def create_directory(path: str, mode: int = 0o777, parents: bool = False) -> None:
     """
     Create a directory asynchronously.
@@ -574,7 +579,6 @@ async def create_directory(path: str, mode: int = 0o777, parents: bool = False) 
         FileExistsError: If directory already exists and parents is False
     """
     loop = asyncio.get_event_loop()
-    
     try:
         if parents:
             await loop.run_in_executor(None, os.makedirs, path, mode)
@@ -593,24 +597,10 @@ async def directory_exists(path: str) -> bool:
         
     Returns:
         True if directory exists, False otherwise
-    """
-    loop = asyncio.get_event_loop()
-    
-    return await loop.run_in_executor(None, os.path.isdir, path)
+    """    
+    return await asyncio.get_event_loop().run_in_executor(None, os.path.isdir, path)
 
-async def file_exists(path: str) -> bool:
-    """
-    Check if a file exists asynchronously.
-    
-    Args:
-        path: File path
-        
-    Returns:
-        True if file exists, False otherwise
-    """
-    loop = asyncio.get_event_loop()
-    
-    return await loop.run_in_executor(None, os.path.isfile, path)
+
 
 async def list_directory(path: str, pattern: Optional[str] = None) -> List[str]:
     """
@@ -624,10 +614,9 @@ async def list_directory(path: str, pattern: Optional[str] = None) -> List[str]:
         List of file/directory names in the directory
     """
     import fnmatch
-    loop = asyncio.get_event_loop()
     
     try:
-        contents = await loop.run_in_executor(None, os.listdir, path)
+        contents = await asyncio.get_event_loop().run_in_executor(None, os.listdir, path)
         
         if pattern:
             contents = [item for item in contents if fnmatch.fnmatch(item, pattern)]
@@ -638,45 +627,6 @@ async def list_directory(path: str, pattern: Optional[str] = None) -> List[str]:
     except PermissionError:
         raise PermissionError(f"Permission denied when listing directory: {path}")
 
-async def get_file_size(path: str) -> int:
-    """
-    Get file size asynchronously.
-    
-    Args:
-        path: File path
-        
-    Returns:
-        File size in bytes
-        
-    Raises:
-        FileNotFoundError: If file doesn't exist
-    """
-    loop = asyncio.get_event_loop()
-    
-    try:
-        return await loop.run_in_executor(None, os.path.getsize, path)
-    except FileNotFoundError:
-        raise FileNotFoundError(f"File not found: {path}")
-
-async def get_file_stats(path: str) -> os.stat_result:
-    """
-    Get file or directory stats asynchronously.
-    
-    Args:
-        path: File or directory path
-        
-    Returns:
-        os.stat_result object
-        
-    Raises:
-        FileNotFoundError: If path doesn't exist
-    """
-    loop = asyncio.get_event_loop()
-    
-    try:
-        return await loop.run_in_executor(None, os.stat, path)
-    except FileNotFoundError:
-        raise FileNotFoundError(f"Path not found: {path}")
 
 async def scan_directory(
     directory: str, 
@@ -699,7 +649,6 @@ async def scan_directory(
         List of file/directory paths
     """
     import fnmatch
-    loop = asyncio.get_event_loop()
     results = []
     
     try:
@@ -707,7 +656,7 @@ async def scan_directory(
         
         for item in items:
             item_path = os.path.join(directory, item)
-            is_dir = await loop.run_in_executor(None, os.path.isdir, item_path)
+            is_dir = await asyncio.get_event_loop().run_in_executor(None, os.path.isdir, item_path)
             
             # Check if the item matches the pattern
             if pattern and not fnmatch.fnmatch(item, pattern):
@@ -734,6 +683,58 @@ async def scan_directory(
     except PermissionError:
         raise PermissionError(f"Permission denied when scanning directory: {directory}")
 
+#MARK: file stats
+async def file_exists(path: str) -> bool:
+    """
+    Check if a file exists asynchronously.
+    
+    Args:
+        path: File path
+        
+    Returns:
+        True if file exists, False otherwise
+    """
+    return await asyncio.get_event_loop().run_in_executor(None, os.path.isfile, path)
+
+
+async def get_file_size(path: str) -> int:
+    """
+    Get file size asynchronously.
+    
+    Args:
+        path: File path
+        
+    Returns:
+        File size in bytes
+        
+    Raises:
+        FileNotFoundError: If file doesn't exist
+    """
+    try:
+        return await asyncio.get_event_loop().run_in_executor(None, os.path.getsize, path)
+    except FileNotFoundError:
+        raise FileNotFoundError(f"File not found: {path}")
+
+async def get_file_stats(path: str) -> os.stat_result:
+    """
+    Get file or directory stats asynchronously.
+    
+    Args:
+        path: File or directory path
+        
+    Returns:
+        os.stat_result object
+        
+    Raises:
+        FileNotFoundError: If path doesn't exist
+    """
+    try:
+        return await asyncio.get_event_loop().run_in_executor(None, os.stat, path)
+    except FileNotFoundError:
+        raise FileNotFoundError(f"Path not found: {path}")
+    
+    
+#MARK: Filewatcher
 class FileWatcher:
     """
     Watch a file or directory for changes.

@@ -3,6 +3,7 @@ Enhanced Log to Window Module
 Thread-safe logging to Qt GUI window using Qt's signal-slot mechanism
 """
 
+from atexit import register
 import logging
 import threading
 import time
@@ -14,10 +15,12 @@ import weakref
 from PyQt5.QtCore import QObject, pyqtSignal, QTimer, QThread
 from PyQt5.QtWidgets import QApplication
 
-
 # Import your existing LogWindow class
 from ui.exts.log_window import LogWindow
 from dataclasses import dataclass
+
+#shutdown handler 
+from utils.shutdown_handler import ShutdownPriority, register_shutdown
 
 
 @dataclass  
@@ -177,7 +180,7 @@ class LogProcessor(QThread):
                 
                 # Small sleep to prevent busy waiting
                 else:
-                    self.msleep(20)  # QThread's msleep method
+                    self.msleep(30)  # QThread's msleep method
                     
             except Exception as e:
                 print(f"[LogProcessor] Error in processing loop: {e}")
@@ -338,9 +341,11 @@ def log_window_handler(module_name: str, **kwargs) -> LogToWindowHandler:
     return LogToWindowHandler(module_name, **kwargs)
 
 
+register_shutdown(LogToWindowHandler.cleanup_module, "log_to_window", ShutdownPriority.LOGGING, )
 
-# Example usage and testing
-def test_log_to_window():
+# =========================================================================================================
+# ----------------------------- test this log window handler ----------------------------
+if __name__ == "__main__":
     """Test function for the log to window system"""
     import sys
     from PyQt5.QtWidgets import QApplication, QMainWindow
@@ -393,7 +398,3 @@ def test_log_to_window():
     
     sys.exit(app.exec_())
     # Create log window
-
-
-if __name__ == "__main__":
-    test_log_to_window()

@@ -328,7 +328,7 @@ class EnhancedYAMLParser:
                         print(f"{" " * space}     File: {fileinfo._file_name}")
                         print(f"{" " * space}     RelPath: {fileinfo._rel_path}")
                         print(f"{" " * space}     Size: {fileinfo._size} bytes")
-                        print(f"{" " * space}     Type: {fileinfo._file_type}")
+                        print(f"{" " * space}     Type: {fileinfo._file_ext}")
                         print(f"{" " * space}     Last Modified: {fileinfo._last_modified}")
                     elif isinstance(fileinfo, dict):
                         # as we go in take the credit

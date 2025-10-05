@@ -11,7 +11,8 @@ import threading
 from datetime import datetime
 from typing import Optional, Dict, Any, List
 from queue import Queue, Empty
-import atexit
+
+from .shutdown_handler import register_shutdown, ShutdownPriority
 
 # Import FileIO components (these would be from your file_handler module)
 from .file_handler import FileIO, FileIOMode, FileIOEvent, FileIOCallbackData
@@ -80,7 +81,7 @@ class FileIOLogHandler(logging.Handler):
         self._start_flusher_thread()
         
         # Register cleanup
-        atexit.register(self.close)
+        register_shutdown(self.close, f"FileIOLogHandler-{self.filename}", ShutdownPriority.FILE_LOG_HANDLERS, 5, False, "file_log_handler")
         
         # Statistics
         self._stats = {

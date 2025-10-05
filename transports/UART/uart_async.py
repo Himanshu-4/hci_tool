@@ -20,7 +20,7 @@ except ImportError:
 
 __version__ = '0.6'
 
-
+# from serial.threaded
 class SerialTransport(asyncio.Transport):
     """An asyncio transport model of a serial communication channel.
 
