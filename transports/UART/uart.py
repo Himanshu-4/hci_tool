@@ -343,7 +343,7 @@ class UARTTransport(TransportInterface):
         Returns True if successful
         """
         try:
-            if not self.is_connected():
+            if not self.is_connected:
                 return False
             
             if not isinstance(data, (bytes, bytearray)):

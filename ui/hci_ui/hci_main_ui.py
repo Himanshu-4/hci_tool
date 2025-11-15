@@ -1,8 +1,5 @@
 """Main UI for HCI command selection and management"""  
 
-import traceback
-import re 
-
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QSizePolicy,
     QListWidget, QListWidgetItem, QMdiArea, QMdiSubWindow,
@@ -18,99 +15,27 @@ from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QFont
 
 from typing import Optional
-from collections import namedtuple
-from enum import IntEnum, unique
 
-from hci.cmd.cmd_opcodes import  (
-    OGF, InformationOCF, LinkControlOCF, LinkPolicyOCF,
-    ControllerBasebandOCF,  StatusOCF, TestingOCF, LEControllerOCF,
-    VendorSpecificOCF
-    )
-
-from transports.transport import Transport, TransportEvent, UARTTransport
+from transports.transport import Transport, TransportEvent
 
 # Import the base UI classes
 from .cmd_factory import HCICommandFactory
 from .evt_factory import HCIEventFactory
 
-from hci.cmd.cmd_opcodes import create_opcode, OPCODE_TO_NAME
 from .cmds.cmd_baseui import HCICmdUI
-# import the transport library
-from transports import Transport as transport
 
-
-Bluetooth_cmd = namedtuple('Bluetooth_cmd', ['cmd', 'cmd_type', 'cmd_desc'])
-
-@unique
-class cmd_type(IntEnum):
-    """Command types for Bluetooth commands"""
-    #expand all the values in OGF
-    LINK_CONTROL = OGF.LINK_CONTROL
-    LINK_POLICY = OGF.LINK_POLICY
-    CONTROLLER_BASEBAND = OGF.CONTROLLER_BASEBAND
-    INFORMATION = OGF.INFORMATION_PARAMS
-    STATUS = OGF.STATUS_PARAMS
-    TESTING = OGF.TESTING
-    LE = OGF.LE_CONTROLLER
-    VENDOR_SPECIFIC = OGF.VENDOR_SPECIFIC
-    
-    # Add more command types as needed
-    def __repr__(self):
-        """String representation of command types"""
-        return {
-            self.LINK_CONTROL: "Link Control",
-            self.LINK_POLICY: "Link Policy",
-            self.CONTROLLER_BASEBAND: "Controller & Baseband",
-            self.INFORMATION: "Informational ",
-            self.STATUS: "Status",
-            self.TESTING: "Testing",
-            self.LE: "LE",
-            self.VENDOR_SPECIFIC: 'vendor_specific'
-        }
-    
-    def __str__(self):
-        """String representation of command types"""
-        return {
-            self.LINK_CONTROL: "Link Control",
-            self.LINK_POLICY: "Link Policy",
-            self.CONTROLLER_BASEBAND: "Controller & Baseband",
-            self.INFORMATION: "Informational ",
-            self.STATUS: "Status",
-            self.TESTING: "Testing",
-            self.LE: "LE",
-            self.VENDOR_SPECIFIC: 'vendor_specific'
-        }.get(self, "Unknown")    
-        
-class commands:
-    #link control commands list 
-    LINK_CONTROL_COMMANDS = [cmd.name for cmd in LinkControlOCF]
-    #link policy commands list
-    LINK_POLICY_COMMANDS = [ cmd.name for cmd in LinkPolicyOCF ]
-    #controller baseband commands list
-    CONTROLLER_BASEBAND_COMMANDS = [ cmd.name for cmd in ControllerBasebandOCF ]
-    #information commands list
-    INFORMATION_COMMANDS = [ cmd.name for cmd in InformationOCF ]
-    #status commands list
-    STATUS_COMMANDS = [ cmd.name for cmd in StatusOCF ]
-    #testing commands list
-    TESTING_COMMANDS = [ cmd.name for cmd in TestingOCF ]
-    #le controller commands list
-    LE_CONTROLLER_COMMANDS = [ cmd.name for cmd in LEControllerOCF ]
-    #vendor specific commands list
-    VENDOR_SPECIFIC_COMMANDS = [ cmd.name for cmd in VendorSpecificOCF ]
-    # Add more command types as needed
-    
-        
+from hci.cmd.cmd_opcodes import cmd_type, commands_list
 
 
 
+#MARK: HCiCmdSlctr
 class HciCommandSelector(QWidget):
     """Widget for selecting HCI commands from a hierarchical structure"""
     
     command_selected = pyqtSignal(str, str)  # Signal emitted when a command is selected (category, command)
     transport_state_changed = pyqtSignal(bool)  # Signal emitted when transport state changes
     
-    def __init__(self, transport: Transport):
+    def __init__(self, baudrate):
         super().__init__()
         self.categories = []
         self.commands = {}
@@ -118,17 +43,11 @@ class HciCommandSelector(QWidget):
         self.filtered_commands = {}
         self.filtered_results = []  # Store filtered results for navigation
         self.current_match_index = -1  # Track current match index
-
-        # transport instance
-        self.transport = transport
-        # add the callbacks to enable and disable the Ui's elements
-        self.transport.add_callback(TransportEvent.CONNECT, self._on_device_connected)
-        self.transport.add_callback(TransportEvent.DISCONNECT, self._on_device_disconnected)
         
         # flag to track if the instance is destroyed
         self._is_destroyed = False  
         # initialize the UI
-        self.init_ui()
+        self.init_ui(baudrate)
         # load the commands
         self.load_commands()
 
@@ -146,7 +65,7 @@ class HciCommandSelector(QWidget):
         # so we don't need to do anything here
         pass
 
-    def init_ui(self):
+    def init_ui(self,baudrate):
         """Initialize the UI components"""
         if self._is_destroyed:
             return
@@ -163,13 +82,12 @@ class HciCommandSelector(QWidget):
         # Enable checkbox
         self.enable_checkbox = QCheckBox("Enable Device")
         self.enable_checkbox.setChecked(True)
-        self.enable_checkbox.stateChanged.connect(self.on_enable_changed)
         control_layout.addWidget(self.enable_checkbox)
         
         control_layout.addStretch(1)
         
         # Baudrate display
-        self.baudrate_label = QLabel(f"Baudrate: {self.transport.transport_instance.get_config.get('baudrate', "No Baudrate")}")
+        self.baudrate_label = QLabel(f"Baudrate: {baudrate or  "No Baudrate"}")
         self.baudrate_label.setStyleSheet("font-weight: bold;")
         control_layout.addWidget(self.baudrate_label)
         
@@ -281,36 +199,28 @@ class HciCommandSelector(QWidget):
         self.categories = [ str(cmd) for cmd in cmd_type ]
         # Map category names to command type combo box indexes
         self.category_to_index = {
-            str(cmd): index for index, cmd in enumerate(cmd_type)
+            str(cmd): index for index, cmd in enumerate[cmd_type](cmd_type)
         }
             
         # Commands for each category
         self.commands = {
-            str(cmd_type.LINK_CONTROL) : commands.LINK_CONTROL_COMMANDS,
-            str(cmd_type.LINK_POLICY) : commands.LINK_POLICY_COMMANDS,
-            str(cmd_type.CONTROLLER_BASEBAND) : commands.CONTROLLER_BASEBAND_COMMANDS,
-            str(cmd_type.INFORMATION) : commands.INFORMATION_COMMANDS,
-            str(cmd_type.STATUS) : commands.STATUS_COMMANDS,
-            str(cmd_type.TESTING) : commands.TESTING_COMMANDS,
-            str(cmd_type.LE) : commands.LE_CONTROLLER_COMMANDS,
-            str(cmd_type.VENDOR_SPECIFIC) : commands.VENDOR_SPECIFIC_COMMANDS
+            str(cmd_type.LINK_CONTROL) : commands_list.LINK_CONTROL,
+            str(cmd_type.LINK_POLICY) : commands_list.LINK_POLICY,
+            str(cmd_type.CONTROLLER_BASEBAND) : commands_list.CONTROLLER_BASEBAND,
+            str(cmd_type.INFORMATION) : commands_list.INFORMATION,
+            str(cmd_type.STATUS) : commands_list.STATUS,
+            str(cmd_type.TESTING) : commands_list.TESTING,
+            str(cmd_type.LE) : commands_list.LE,
+            str(cmd_type.VENDOR_SPECIFIC) : commands_list.VENDOR_SPECIFIC,
         }
         
         # Initialize filtered commands to match all commands
-        self.filtered_commands = dict(self.commands)
+        self.filtered_commands = dict[str, list[str]](self.commands)
         
         # Populate the command type combo box
         self._on_category_selected(self.command_type_combo.currentText())
-    
-    def on_enable_changed(self, state):
-        """Handle enable checkbox state change"""
-        is_enabled = (state == Qt.Checked)
-        if is_enabled:
-            self.transport.connect()
-        else:
-            self.transport.disconnect()
 
-    def _on_device_connected(self, trans_instance : Optional[UARTTransport] = None):
+    def _on_device_connected(self, *args, **kwargs):
         """Update UI based on transport connection state"""
         # update the enable checkbox
         self.enable_checkbox.setChecked(True)
@@ -318,7 +228,7 @@ class HciCommandSelector(QWidget):
         self.command_type_combo.setEnabled(True)
         self.search_box.setEnabled(True)
         
-    def _on_device_disconnected(self, trans_instance : Optional[UARTTransport] = None):
+    def _on_device_disconnected(self, *args, **kwargs):
         """Update UI based on transport connection state"""
         # update the enable checkbox
         self.enable_checkbox.setChecked(False)
@@ -352,7 +262,7 @@ class HciCommandSelector(QWidget):
                 for cmd in filtered_cmds:
                     self.filtered_results.append({'category': selected_category, 'command': cmd})
             else:
-                self.filtered_commands[selected_category] = list(self.commands[selected_category])
+                self.filtered_commands[selected_category] = list[str](self.commands[selected_category])
         
         # Update the commands list
         self.commands_list.clear()
@@ -392,109 +302,7 @@ class HciCommandSelector(QWidget):
     
 
 
-"""Manager class for HCI commands and their UIs"""
-
-class HciCommandManager:
-    """Manager class for HCI commands and their UIs"""
-    
-    def __init__(self, title, parent_window : QMainWindow , transport: Transport):
-        self.parent_window = parent_window
-        self._is_destroyed = False  # Flag to track if the instance is destroyed
-        # Keep track of open windows by command
-        self._cmd_factory = HCICommandFactory(title, parent_window, transport)
-        self._evt_factory = HCIEventFactory(title, parent_window, transport)
-        
-        # add the transport callbacks to cleanup the command factory and evt factory windows
-        self.transport =transport
-        self.transport.add_callback(TransportEvent.DISCONNECT, lambda _ : self._close_all_windows())
-        
-    
-    def __del__(self):
-        """Destructor to ensure all command windows are closed"""
-        if not self._is_destroyed:
-            self.cleanup()
-    
-    def cleanup(self):
-        """Explicit cleanup method"""
-        if self._is_destroyed:
-            return
-            
-        self._is_destroyed = True
-        
-        if hasattr(self, '_cmd_factory') and self._cmd_factory:
-            self._cmd_factory.cleanup()
-            self._cmd_factory = None
-        if hasattr(self, '_evt_factory') and self._evt_factory:
-            self._evt_factory.cleanup()
-            self._evt_factory = None
-    
-    def _close_all_windows(self):
-        """Close all command windows"""
-        self._cmd_factory.close_all_command_windows()
-        self._evt_factory.close_all_event_windows()
-    
-    def __repr__(self):
-        return f"<HciCommandManager parent={self.parent_window}, cmd_factory={self._cmd_factory}, evt_factory={self._evt_factory}>"
-    def __str__(self):
-        return f"HciCommandManager(parent={self.parent_window}, cmd_factory={self._cmd_factory}, evt_factory={self._evt_factory})"
-    def __len__(self):
-        """Return the number of command windows currently managed"""
-        return len(self._cmd_factory) if self._cmd_factory else 0
-    def __contains__(self, cmd_opcode: int) -> bool:
-        """Check if a command window with the given opcode exists"""
-        return cmd_opcode in self._cmd_factory if self._cmd_factory else False
-    def __getitem__(self, cmd_opcode: int) -> Optional[HCICmdUI]:
-        """Get a command window by its opcode"""
-        return self._cmd_factory[cmd_opcode] if self._cmd_factory else None
-    
-    
-    def open_command_ui(self, category : str, command : str):
-        """Open a UI for the specified HCI command"""
-        if self._is_destroyed or (self._cmd_factory is None) :
-            return
-        
-        try:
-            cmd_opcode = None
-            category = category.replace("&", "").replace(" ", "_").replace("__", "_").upper()
-            cmd = command.replace(" ", "_").upper()
-            opcode_name_to_srch = f"{category}_{cmd}"
-            # Get the class name from the opcode name values 
-            for opcode, name in OPCODE_TO_NAME.items():
-                if name == opcode_name_to_srch:
-                    cmd_opcode = opcode
-                    break
-            if cmd_opcode is None:
-                raise ValueError(f"Command {opcode_name_to_srch} not found in OPCODE_TO_NAME mapping")
-            
-            
-            # cmd_opcode = create_opcode(getattr(cmd_type, category), getattr(cmd_type, command))
-            print(f"cmd_opcode: {cmd_opcode}, srching for {opcode_name_to_srch}")
-            
-            cmd_window = self._cmd_factory.create_command_window(cmd_opcode)
-            if  cmd_window == None:
-                # If the command doesn't need a UI, try to execute it directly
-                self.execute_simple_command(cmd_opcode, category=category, command=command)
-                
-        except Exception as e:
-            print(f"Error opening command UI: {e} ")
-            # also point where the error happened
-            traceback.print_exc()
-    
-    def execute_simple_command(self, cmd_opcode : int, **cmd_params):
-        """Execute a simple command that doesn't need a UI"""
-        # Try to find a function for this command
-        self._cmd_factory.execute_command(cmd_opcode, **cmd_params)
-    
-    def close_all_windows(self):
-        """Close all command windows"""
-        self.cleanup()
-        
-    # create a mouse event handler when clicked it will raise all the command windows
-    def raise_all_command_windows(self):
-        """Raise all command windows to the front"""
-        self._cmd_factory.raise_all_command_windows()
-        
-
+#MARK: HciMainUI
 class HciMainUI(QWidget):
     """Main UI for HCI command selection and management"""
     
@@ -521,14 +329,14 @@ class HciMainUI(QWidget):
         new_instance = cls(main_window, title=title, transport=transport)
         return new_instance
     
-    def get_instance(cls, window_name_or_transport: str | transport) -> Optional['HciMainUI']:
+    def get_instance(cls, window_name_or_transport: str | Transport) -> Optional['HciMainUI']:
         """Get an instance of HciMainUI by window name or transport"""
-        for instance in list(cls.open_instances):  # Create a copy to avoid modification during iteration
+        for instance in list[HciMainUI](cls.open_instances):  # Create a copy to avoid modification during iteration
             try:
                 if isinstance(window_name_or_transport, str):
                     if instance.title == window_name_or_transport:
                         return instance
-                elif isinstance(window_name_or_transport, transport):
+                elif isinstance(window_name_or_transport, Transport):
                     # Check if the transport matches
                     if instance.transport == window_name_or_transport:
                         return instance
@@ -554,18 +362,18 @@ class HciMainUI(QWidget):
         return cls.open_instances
     
     @classmethod
-    def delete_instance(cls, window_name_or_transport :  str | transport) -> None:
+    def delete_instance(cls, window_name_or_transport :  str | Transport) -> None:
         """Delete an instance of HciMainUI by window name or transport"""
-        for instance in list(cls.open_instances):  # Create a copy to avoid modification during iteration
+        for instance in list[HciMainUI](cls.open_instances):  # Create a copy to avoid modification during iteration
             try:
                 if isinstance(window_name_or_transport, str):
                     if instance.title == window_name_or_transport:
-                        instance.cleanup()
+                        instance._cleanup()
                         break
-                elif isinstance(window_name_or_transport, transport):
+                elif isinstance(window_name_or_transport, Transport):
                     # Check if the transport matches
                     if instance.transport == window_name_or_transport:
-                        instance.cleanup()
+                        instance._cleanup()
                         break
             except (RuntimeError, AttributeError):
                 # Instance is no longer valid, remove it
@@ -576,10 +384,10 @@ class HciMainUI(QWidget):
     def close_all_instances(cls):
         """Close all open HCI Command Center windows"""
         # Make a copy to avoid list modification during iteration
-        instances = list(cls.open_instances)
+        instances = list[HciMainUI](cls.open_instances)
         for instance in instances:
             try:
-                instance.cleanup()
+                instance._cleanup()
             except (RuntimeError, AttributeError):
                 # Instance is already invalid
                 pass
@@ -590,27 +398,49 @@ class HciMainUI(QWidget):
         """Close a specific instance of HciMainUI"""
         if instance in cls.open_instances:
             try:
-                instance.cleanup()
+                instance._cleanup()
             except (RuntimeError, AttributeError):
                 # Instance is already invalid
                 pass
             if instance in cls.open_instances:
                 cls.open_instances.remove(instance)
-
+                
+    
+    def __repr__(self):
+        return f"<HciCommandManager parent={self.main_window}, cmd_factory={self._cmd_factory}, evt_factory={self._evt_factory}>"
+    def __str__(self):
+        return f"HciCommandManager(parent={self.main_window}, cmd_factory={self._cmd_factory}, evt_factory={self._evt_factory})"
+    def __len__(self):
+        """Return the number of command windows currently managed"""
+        return len(self._cmd_factory) if self._cmd_factory else 0
+    def __contains__(self, cmd_opcode: int) -> bool:
+        """Check if a command window with the given opcode exists"""
+        return cmd_opcode in self._cmd_factory if self._cmd_factory else False
+    def __getitem__(self, cmd_opcode: int) -> Optional[HCICmdUI]:
+        """Get a command window by its opcode"""
+        return self._cmd_factory[cmd_opcode] if self._cmd_factory else None
+    
     ############################################################
     ##== Initialization and UI Setup ===##
     #############################################################
     def __init__(self, main_window : QMainWindow, *, title : Optional[str] = "HCI Command Center" , transport : Transport):
         """Initialize the HCI Main UI"""
         super().__init__()
-        self.main_window = main_window
-        self.sub_window = None
-        self.transport = transport
-        self.title = title
-        self._destroy_window_handler = None
         self._is_destroyed = False  # Flag to track if the instance is destroyed
-        self.command_manager = None  # Command manager instance
-        self.command_selector = None  # Command selector widget
+        
+        self.main_window = main_window
+        self.sub_window : QMdiSubWindow = None
+        self.title = title
+        self._destroy_window_handler : callable = None
+        
+        # cmd selector window
+        self.command_selector : HciCommandSelector = None  # Command selector widget
+        # cmd factory and evt factory
+        self._cmd_factory : HCICommandFactory = None
+        self._evt_factory : HCIEventFactory = None
+        # transport instance
+        self.transport : Transport = transport
+        
         self.init_ui()
         self.show_window()
         
@@ -621,15 +451,23 @@ class HciMainUI(QWidget):
     def __del__(self):
         """Destructor to clean up resources"""
         if not self._is_destroyed:
-            self.cleanup()
+            self._cleanup()
 
-    def cleanup(self):
+    def _cleanup(self):
         """Explicit cleanup method"""
         if self._is_destroyed:
             return
             
         self._is_destroyed = True
         
+        if hasattr(self, '_cmd_factory') and self._cmd_factory:
+            self._cmd_factory.cleanup()
+            self._cmd_factory = None
+        if hasattr(self, '_evt_factory') and self._evt_factory:
+            self._evt_factory.cleanup()
+            self._evt_factory = None
+    
+    
         # Close the subwindow safely
         if hasattr(self, 'sub_window') and self.sub_window:
             try:
@@ -642,20 +480,19 @@ class HciMainUI(QWidget):
         # Remove this instance from the list of open instances
         if self in HciMainUI.open_instances:
             HciMainUI.open_instances.remove(self)
-            
-        # Clean up command manager
-        if hasattr(self, 'command_manager') and self.command_manager:
-            self.command_manager.cleanup()
-            self.command_manager = None
-            
+          
         # Call destroy handler if set
         if self._destroy_window_handler:
             try:
                 self._destroy_window_handler()
             except Exception:
                 pass  # Ignore errors in handler
-            
-            
+        # Clean up
+        try:
+            self.deleteLater()
+        except RuntimeError:
+            pass  # Already deleted
+        
     def init_ui(self):
         """Initialize the UI components"""
         # Main layout
@@ -670,13 +507,20 @@ class HciMainUI(QWidget):
         # title_layout.addStretch(1)
         # main_layout.addLayout(title_layout)
              # Command selector
-        self.command_selector = HciCommandSelector(self.transport)
-        self.command_selector.command_selected.connect(self.on_command_selected)
+        self.command_selector = HciCommandSelector(self.transport.transport_instance.get_config["baudrate"])
+        self.command_selector.command_selected.connect(lambda category_opcode, command_opcode : self._cmd_factory.execute_command(category=category_opcode, opcode=command_opcode))
+        def _on_enable_changed(state) -> None:
+            """Handle enable checkbox state change"""
+            is_enabled = (state == Qt.Checked)
+            if is_enabled:
+                self.transport.connect()
+            else:
+                self.transport.disconnect()
+        self.command_selector.enable_checkbox.stateChanged.connect(_on_enable_changed)
+        
         # command selector will set the widget properly
         main_layout.addWidget(self.command_selector)
         
-        # Create the command manager
-        self.command_manager = HciCommandManager(self.title , self, self.transport)
         # Add a separator
         # line = QFrame()
         # line.setFrameShape(QFrame.HLine)
@@ -697,53 +541,29 @@ class HciMainUI(QWidget):
         self.sub_window.resize(300, 700)
         self.sub_window.setMinimumSize(200, 400)  # Set minimum size
         self.sub_window.setAttribute(Qt.WA_DeleteOnClose, True)  # Enable deletion on close
-        # Connect close event
-        self.sub_window.destroyed.connect(self.on_subwindow_closed)
-        # self.sub_window.destroyed.connect(lambda : (setattr(self, 'sub_window', None), self._on_subwindow_closed()))
+        
+        
+        # define the command and event factories
+        self._cmd_factory = HCICommandFactory(self.title, self.sub_window, self.transport)
+        self._evt_factory = HCIEventFactory(self.title, self.sub_window, self.transport)
+        
+        # callbacks when transport state changes
+        self.transport.add_callback(TransportEvent.CONNECT, self.command_selector._on_device_connected)
+        self.transport.add_callback(TransportEvent.DISCONNECT, self.command_selector._on_device_disconnected)
+        self.transport.add_callback(TransportEvent.DISCONNECT, lambda _ : (self._cmd_factory.close_all_command_windows(), self._evt_factory.close_all_event_windows()))
+
+        # callback when subwindow is destroyed
+        self.sub_window.destroyed.connect(lambda : (setattr(self, 'sub_window', None), self._cleanup()))
         # show the subwindow in the main window's MDI area
         self.sub_window.raise_()  # Bring the subwindow to the front
         self.sub_window.activateWindow()  # Activate the subwindow
         self.sub_window.setFocus()  # Set focus to the subwindow
        
-        
-        
-    def on_command_selected(self, category : str, command :  str):
-        """Handle selection of a command"""
-        self.command_manager.open_command_ui(category, command)
-        
     def show_window(self):
         """Show the HCI Main UI in a subwindow"""    
         # Add the subwindow to the MDI area
         self.main_window.mdi_area.addSubWindow(self.sub_window)
         self.sub_window.show()
-        
-    def on_subwindow_closed(self):
-        """Handle subwindow closed event - clean up resources"""
-        if self._is_destroyed:
-            return
-            
-        # Mark as destroyed first to prevent recursive calls
-        self._is_destroyed = True
-        
-        # Close all command windows opened by this instance
-        if hasattr(self, 'command_manager') and self.command_manager:
-            self.command_manager.cleanup()
-        
-        # Remove this instance from the list of open instances
-        if self in HciMainUI.open_instances:
-            HciMainUI.open_instances.remove(self)
-        
-        if self._destroy_window_handler:
-            try:
-                self._destroy_window_handler()
-            except Exception:
-                pass  # Ignore errors in handler
-                
-        # Clean up
-        try:
-            self.deleteLater()
-        except RuntimeError:
-            pass  # Already deleted
         
     def register_destroy(self, handler : callable):
         """Register a handler to be called when the window is destroyed"""
@@ -761,32 +581,7 @@ class HciMainUI(QWidget):
             super().mousePressEvent(event)
         except RuntimeError:
             return
-        
         # Raise all command windows when any mouse button is clicked
-        if hasattr(self, 'command_manager') and self.command_manager:
-            self.command_manager.raise_all_command_windows()
+        self._cmd_factory.raise_all_windows()
+        self._evt_factory.raise_all_windows()
         
-        
-    # def closeEvent(self, event): --- should not implement this otherwise subwindow not call on_subwindow_closed
-    #     """Handle close event for the main window"""
-    #     # Close all command windows opened by this instance
-    #     if hasattr(self, 'command_manager'):
-    #         self.command_manager.close_all_windows()
-        
-    #     # Remove this instance from the list of open instances
-    #     if self in HciMainUI.open_instances:
-    #         HciMainUI.open_instances.remove(self)
-        
-    #     # Clean up
-    #     self.deleteLater()
-        
-    #     # Call the base class close event
-    #     super().closeEvent(event)
-    #     # Close the subwindow
-    #     if self.sub_window:
-    #         self.sub_window.close()
-    ########################################################
-    ##== Class Methods for Instance Management ===##
-    ########################################################
-  
-

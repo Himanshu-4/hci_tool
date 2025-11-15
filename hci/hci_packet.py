@@ -17,6 +17,7 @@ class HciPacketType(IntEnum):
     EVENT = 0x04
     ISO_DATA = 0x05
 
+#MARK: HCIpacket
 class HciPacket(ABC):
     """Base class for all HCI packet types"""
     
@@ -48,6 +49,7 @@ class HciPacket(ABC):
         """String representation of the packet"""
         pass
 
+#MARK: HciCommandPacket
 class HciCommandPacket(HciPacket):
     """Base class for HCI Command packets"""
     PACKET_TYPE = HciPacketType.COMMAND
@@ -74,7 +76,7 @@ class HciCommandPacket(HciPacket):
         # This method should be implemented by subclasses to validate specific command parameters
         pass
     
-    
+#MARK: HciEventPacket
 class HciEventPacket(HciPacket):
     """Base class for HCI Event packets"""
     PACKET_TYPE = HciPacketType.EVENT
@@ -101,7 +103,7 @@ class HciEventPacket(HciPacket):
         # This method should be implemented by subclasses to validate specific event parameters
         pass
 
-
+#MARK: HciAclDatapacket
 class HciAclDataPacket(HciPacket):
     """Base class for HCI ACL Data packets"""
     PACKET_TYPE = HciPacketType.ACL_DATA
@@ -194,6 +196,7 @@ class HciAclDataPacket(HciPacket):
             data=acl_data
         )
 
+#MARK: HciScoPacket
 class HciSynchronousDataPacket(HciPacket):
     """Base class for HCI Synchronous Data packets"""
     PACKET_TYPE = HciPacketType.SYNCHRONOUS_DATA
@@ -276,6 +279,10 @@ class HciSynchronousDataPacket(HciPacket):
             packet_status_flag=packet_status_flag,
             data=sync_data
         )
+
+
+
+#MARK: Utils
 
 def parse_hci_packet(data: bytes) -> Optional[HciPacket]:
     """

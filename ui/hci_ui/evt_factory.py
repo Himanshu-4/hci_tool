@@ -27,6 +27,7 @@
     that resources are properly released when the user is done with the HCI events.
 """
 import traceback
+from ui.hci_ui.evts.evt_baseui import HCIEvtUI
 import weakref
 
 from PyQt5.QtWidgets import (QMdiSubWindow)
@@ -45,6 +46,7 @@ from typing import ClassVar, Optional, Dict, Type
 # @todo : move this to a separate module for logging the events 
 from ui.exts.log_window import LogWindow
 
+#MARK: Event factory
 class HCIEventFactory:
     """
     Handler for HCI events - processes raw HCI packets and routes them to the appropriate
@@ -210,7 +212,19 @@ class HCIEventFactory:
 
     def get_all_event_windows(self) -> list[Optional[HCIEvtUI]]:
         """Get all event windows"""
-        return list(self.event_windows.values())
+        return list[HCIEvtUI | None](self.event_windows.values())
+    
+    def raise_all_windows(self):
+        """Raise all event windows to the front"""
+        for event_code, window in list[tuple[int, HCIEvtUI]](self.event_windows.items()):
+            try:
+                if window.isVisible():
+                    window.raise_()
+                    window.activateWindow()
+            except RuntimeError:
+                # Window has been deleted, remove from tracking
+                self.event_windows.pop(event_code, None)
+    
     
     def close_event_window(self, event_code : int):
         """Close a specific event window by its event code"""

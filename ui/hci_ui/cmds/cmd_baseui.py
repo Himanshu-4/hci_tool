@@ -4,22 +4,21 @@ Generic Command UI Module
 This module provides generic UI components for HCI commands that don't have
 specific UI implementations.
 """
-
-
-from transports.transport import Transport
 from PyQt5.QtWidgets import QGroupBox, QFormLayout
 from abc import abstractmethod
 from typing import  Union, Optional, List
 
 from ..hci_base_ui import HCICmdBaseUI
 
+from hci.cmd import HciCmdBasePacket
+
 class HCICmdUI(HCICmdBaseUI):
     """Generic UI for HCI commands with automatic parameter input fields"""
     
-    def __init__(self, title, parent=None, transport : Optional[Transport] = None):
-        super().__init__(title, parent, transport)
+    def __init__(self, title, parent=None):
+        super().__init__(title, parent)
         self.title = title
-        self.transport = transport
+        self._cmd_instance : HciCmdBasePacket = None
 
     def setup_ui(self):
         """Initialize the command UI"""
@@ -48,8 +47,16 @@ class HCICmdUI(HCICmdBaseUI):
     @abstractmethod
     def validate_parameters(self) -> bool:
         """Validate parameters before sending by the command"""
-        return True
+        pass
     
+    @property
+    def get_cmd_instance(self):
+        return self._cmd_instance 
+        
+    def get_data_bytes(self) -> bytes:
+        """ get the parameter values from the UI and create a bytearray for the command"""
+        return self._cmd_instance.to_bytes()
+
     @abstractmethod
     def pre_send_func(self):
         """Pre-send function to validate and prepare data"""
@@ -60,3 +67,4 @@ class HCICmdUI(HCICmdBaseUI):
         # Collect parameter values
         self.pre_send_func()
         return super().on_ok_button_clicked()    
+

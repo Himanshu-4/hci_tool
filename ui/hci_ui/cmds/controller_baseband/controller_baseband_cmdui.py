@@ -17,19 +17,18 @@ from hci.cmd.cmd_opcodes import create_opcode, OGF, ControllerBasebandOCF
 import hci.cmd.controller_baseband as cb_cmds
 
 from typing import Optional, Union, List
-from transports.transport import Transport
 
 from ..cmd_baseui import HCICmdUI
 
 from .. import register_command_ui
 
-
+#MARK: setEventMAsk
 class SetEventMaskUI(HCICmdUI):
     """UI for the Set Event Mask command"""
     OPCODE = create_opcode(OGF.CONTROLLER_BASEBAND, ControllerBasebandOCF.SET_EVENT_MASK)
     NAME = "Set Event Mask"
-    def __init__(self, title, parent=None, transport : Optional[Transport] = None):
-        super().__init__(title, parent, transport)
+    def __init__(self, title, parent=None):
+        super().__init__(title, parent)
     
     def setup_ui(self):
         """Initialize the Set Event Mask command UI"""
@@ -74,8 +73,8 @@ class WriteLocalNameUI(HCICmdUI):
     """UI for the Write Local Name command"""
     OPCODE = create_opcode(OGF.CONTROLLER_BASEBAND, ControllerBasebandOCF.WRITE_LOCAL_NAME)
     NAME = "Write Local Name"
-    def __init__(self, title, parent=None, transport : Optional[Transport] = None):
-        super().__init__(title, parent, transport)
+    def __init__(self, title, parent=None):
+        super().__init__(title, parent)
     
     def setup_ui(self):
         """Add ui specific to Write Local Name command"""

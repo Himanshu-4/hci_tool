@@ -1,4 +1,3 @@
-from transports.transport import Transport
 from PyQt5.QtWidgets import QGroupBox, QFormLayout
 from abc import abstractmethod
 from typing import  Optional,ClassVar, List
@@ -17,11 +16,10 @@ class HCIEvtUI(HCIEvtBaseUI):
     EVENT_CODE : ClassVar[int]  # The event code (1 byte)
     SUB_EVENT_CODE: Optional[int] = None  # Sub-event code (if applicable, 1 byte)
     NAME: ClassVar[str]    # Human-readable name of the event
-    def __init__(self, title, parent=None, transport : Optional[Transport] = None):
+    def __init__(self, title, parent=None):
         """Initialize the event handler with an MDI area to display event UIs."""
-        super().__init__(title, parent, transport)
+        super().__init__(title, parent)
         self.title = title
-        self.transport = transport
       
     def setup_ui(self):
         """Initialize the Event UI"""

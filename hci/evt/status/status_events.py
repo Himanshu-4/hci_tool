@@ -18,7 +18,7 @@ from .. import register_event
 
 class ReadRssiCompleteEvent(CommandCompleteEvent):
     """Read RSSI Complete Event"""
-    OPCODE = create_opcode(OGF.STATUS_PARAMS, StatusOCF.READ_RSSI) 
+    OPCODE = create_opcode(OGF.STATUS, StatusOCF.READ_RSSI) 
     NAME = "Read_RSSI_Complete"
     
     def __init__(self, num_hci_command_packets: int, opcode: int, status: Union[int, StatusCode],connection_handle: int, rssi: int):
@@ -102,7 +102,7 @@ class ReadRssiCompleteEvent(CommandCompleteEvent):
 
 class ReadLinkQualityCompleteEvent(CommandCompleteEvent):
     """Read Link Quality Complete Event"""
-    OPCODE = create_opcode(OGF.STATUS_PARAMS, StatusOCF.READ_LINK_QUALITY)
+    OPCODE = create_opcode(OGF.STATUS, StatusOCF.READ_LINK_QUALITY)
     EVENT_CODE = HciEventCode.COMMAND_COMPLETE  # This is a Command Complete event
     NAME = "Read_Link_Quality_Complete"
     
@@ -192,7 +192,7 @@ class ReadLinkQualityCompleteEvent(CommandCompleteEvent):
 
 class ReadAFHChannelMapCompleteEvent(CommandCompleteEvent):
     """Read AFH Channel Map Complete Event"""
-    OPCODE = create_opcode(OGF.STATUS_PARAMS, StatusOCF.READ_AFH_CHANNEL_MAP)
+    OPCODE = create_opcode(OGF.STATUS, StatusOCF.READ_AFH_CHANNEL_MAP)
     EVENT_CODE = HciEventCode.COMMAND_COMPLETE  # This is a Command Complete event
     NAME = "Read_AFH_Channel_Map_Complete"
     
@@ -292,7 +292,7 @@ class ReadAFHChannelMapCompleteEvent(CommandCompleteEvent):
 
 class ReadClockCompleteEvent(CommandCompleteEvent):
     """Read Clock Complete Event"""
-    OPCODE = create_opcode(OGF.STATUS_PARAMS, StatusOCF.READ_CLOCK)
+    OPCODE = create_opcode(OGF.STATUS, StatusOCF.READ_CLOCK)
     EVENT_CODE = HciEventCode.COMMAND_COMPLETE  # This is a Command Complete event
     NAME = "Read_Clock_Complete"
     

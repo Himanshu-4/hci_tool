@@ -42,7 +42,7 @@ class HciEvtBasePacket(HciEventPacket):
         length = len(param_bytes)
         
         # HCI Event packet format:
-        # - 1 byte: HCI Packet Type (not included here, added by transport layer)
+        # - 1 byte: HCI Packet Type (not included here, added by layer)
         # - 1 byte: Event Code
         # - 1 byte: Parameter Total Length
         # - N bytes: Parameters

@@ -61,7 +61,7 @@ class ReadLocalVersionInformation(HciCmdBasePacket):
 class ReadLocalSupportedCommands(HciCmdBasePacket):
     """Read Local Supported Commands Command"""
     
-    OPCODE = create_opcode(OGF.INFORMATION_PARAMS, InformationOCF.READ_LOCAL_SUPPORTED_COMMANDS)
+    OPCODE = create_opcode(OGF.INFORMATION, InformationOCF.READ_LOCAL_SUPPORTED_COMMANDS)
     NAME = "Read_Local_Supported_Commands"
     
     def __init__(self):

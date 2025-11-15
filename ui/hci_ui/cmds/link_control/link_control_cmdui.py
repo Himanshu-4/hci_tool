@@ -6,7 +6,6 @@ from PyQt5.QtGui import QIntValidator
 from PyQt5.QtCore import Qt
 
 from typing import Optional
-from transports.transport import Transport
 
 from hci.cmd.cmd_opcodes import create_opcode, OGF, LinkControlOCF
 import hci.cmd.link_controller as lc_cmds
@@ -21,8 +20,8 @@ class InquiryCommandUI(HCICmdUI):
     """UI for HCI Inquiry command"""
     OPCODE = create_opcode(OGF.LINK_CONTROL, LinkControlOCF.INQUIRY)
     NAME = "Inquiry Command"
-    def __init__(self, title, parent=None, transport : Optional[Transport] = None):
-        super().__init__(title, parent, transport)
+    def __init__(self, title, parent=None):
+        super().__init__(title, parent)
         
     def setup_ui(self):
         """Add Inquiry command specific UI components"""
@@ -54,26 +53,14 @@ class InquiryCommandUI(HCICmdUI):
         inquiry_length = self.inquiry_length.value()
         num_responses = self.num_responses.value()
         try:
-            lc_cmds.Inquiry(lap=lap, inquiry_length=inquiry_length,
-                    num_responses=num_responses)._validate_params()
+            self._cmd_instance = lc_cmds.Inquiry(lap=lap, inquiry_length=inquiry_length,
+                    num_responses=num_responses)
+            self._cmd_instance._validate_params()
         except Exception as e:
             self.log_error(f"Invalid parameters: {str(e)}")
             return False
         return True
     
-    def get_data_bytes(self) -> bytes:
-        """ get the parameter values from the UI and create a bytearray for the command"""
-        lap_str = self.lap_field.text().replace(':', '')
-        lap = int(lap_str, 16) & 0x00FFFFFF  # Extract 24-bit LAP value
-        
-        inquiry_length = self.inquiry_length.value()
-        num_responses = self.num_responses.value()
-        
-        return lc_cmds.Inquiry(
-            lap=lap,
-            inquiry_length=inquiry_length,
-            num_responses=num_responses
-        ).to_bytes()
 
 
 class CreateConnectionCommandUI(HCICmdUI):
@@ -81,8 +68,8 @@ class CreateConnectionCommandUI(HCICmdUI):
     OPCODE = create_opcode(OGF.LINK_CONTROL, LinkControlOCF.CREATE_CONNECTION)
     NAME = "Create Connection Command"
     
-    def __init__(self, title, parent=None, transport : Optional[Transport] = None):
-        super().__init__(title, parent, transport)
+    def __init__(self, title, parent=None):
+        super().__init__(title, parent)
         
     def setup_ui(self):
         """Add Create Connection command specific UI components"""
@@ -134,41 +121,27 @@ class CreateConnectionCommandUI(HCICmdUI):
         clock_offset = self.clock_offset.value()
         
         try:
-            lc_cmds.CreateConnection(
+            self._cmd_instance = lc_cmds.CreateConnection(
                 bd_addr=bd_addr_str_to_bytes(bd_addr),
                 packet_type=packet_type,
                 page_scan_repetition=page_scan_repetition,
                 clock_offset=clock_offset,
                 allow_role_switch=self.allow_role_switch.currentData()
-            )._validate_params()
+            )
+            self._cmd_instance._validate_params()
         except Exception as e:
             self.log_error(f"Invalid parameters: {str(e)}")
             return False
         return True
 
-    def get_data_bytes(self) -> bytes:
-        """Get the parameter values from the UI and create a bytearray for the command"""
-        bd_addr = self.bd_addr.text().strip()
-        packet_type = self.packet_type.value()
-        page_scan_repetition = self.page_scan_repetition.currentData()
-        clock_offset = self.clock_offset.value()
-        allow_role_switch = self.allow_role_switch.currentData()
 
-        return lc_cmds.CreateConnection(
-            bd_addr=bd_addr_str_to_bytes(bd_addr),
-            packet_type=packet_type,
-            page_scan_repetition=page_scan_repetition,
-            clock_offset=clock_offset,
-            allow_role_switch=allow_role_switch
-        ).to_bytes()
-        
 class AcceptConnectionCommandUI(HCICmdUI):
     """UI for HCI Accept Connection Request command"""
     OPCODE = create_opcode(OGF.LINK_CONTROL, LinkControlOCF.ACCEPT_CONNECTION_REQUEST)
     NAME = "Accept Connection Command"
     
-    def __init__(self, title, parent=None, transport : Optional[Transport] = None):
-        super().__init__(title, parent, transport)
+    def __init__(self, title, parent=None):
+        super().__init__(title, parent)
         
     def setup_ui(self):
         """Add Accept Connection Request command specific UI components"""
@@ -217,9 +190,9 @@ class DisconnectCommandUI(HCICmdUI):
     """UI for HCI Disconnect command"""
     OPCODE = create_opcode(OGF.LINK_CONTROL, LinkControlOCF.DISCONNECT)
     NAME = "Disconnect Command"
-    def __init__(self, title, parent=None, transport : Optional[Transport] = None):
-        super().__init__(title, parent, transport)
-        
+    def __init__(self, title, parent=None):
+        super().__init__(title, parent)
+
     def setup_ui(self):
         """Add Disconnect command specific UI components"""
         super().setup_ui()
@@ -274,8 +247,8 @@ class RejectConnectionCommandUI(HCICmdUI):
     """UI for HCI Reject Connection Request command"""
     OPCODE = create_opcode(OGF.LINK_CONTROL, LinkControlOCF.REJECT_CONNECTION_REQUEST)
     NAME = "Reject Connection Command"
-    def __init__(self, title, parent=None, transport : Optional[Transport] = None):
-        super().__init__(title, parent, transport)
+    def __init__(self, title, parent=None):
+        super().__init__(title, parent)
         
     def setup_ui(self):
         """Add Reject Connection Request command specific UI components"""
@@ -324,8 +297,8 @@ class ChangeConnectionPacketTypeCommandUI(HCICmdUI):
     """UI for HCI Change Connection Packet Type command"""
     OPCODE = create_opcode(OGF.LINK_CONTROL, LinkControlOCF.CHANGE_CONNECTION_PACKET_TYPE)
     NAME = "Change Connection Packet Type Command"
-    def __init__(self, title, parent=None, transport : Optional[Transport] = None):
-        super().__init__(title, parent, transport)
+    def __init__(self, title, parent=None):
+        super().__init__(title, parent)
         
     def setup_ui(self):
         """Add Change Connection Packet Type command specific UI components"""
@@ -380,8 +353,8 @@ class RemoteNameRequestCommandUI(HCICmdUI):
     """UI for HCI Remote Name Request command"""
     OPCODE = create_opcode(OGF.LINK_CONTROL, LinkControlOCF.REMOTE_NAME_REQUEST)
     NAME = "Remote Name Request Command"
-    def __init__(self, title, parent=None, transport : Optional[Transport] = None):
-        super().__init__(title, parent, transport)
+    def __init__(self, title, parent=None):
+        super().__init__(title, parent)
         
     def setup_ui(self):
         """Add Remote Name Request command specific UI components"""

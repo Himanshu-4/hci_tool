@@ -14,7 +14,6 @@ from PyQt5.QtCore import Qt, pyqtSignal
 
 
 from typing import Optional
-from transports.transport import Transport
 
 from hci.cmd.cmd_opcodes import create_opcode, OGF, LEControllerOCF
 import hci.cmd.le_cmds as le_cmds
@@ -24,16 +23,17 @@ from ..cmd_baseui import HCICmdUI
 from .. import register_command_ui
 
 
+#MARK: LE_set_adv_param
 class LeSetAdvParamsUI(HCICmdUI):
     """UI for the LE Set Advertising Parameters command"""
-    OPCODE = create_opcode(OGF.LE_CONTROLLER, LEControllerOCF.SET_ADVERTISING_PARAMETERS)
+    OPCODE = create_opcode(OGF.LE, LEControllerOCF.SET_ADVERTISING_PARAMETERS)
     NAME = "LE Set Advertising Parameters"
     
     AdressType = le_cmds.AddressType
     AdvertisingType = le_cmds.AdvertisingType
     
-    def __init__(self, title, parent=None, transport : Optional[Transport] = None):
-        super().__init__(title, parent, transport)
+    def __init__(self, title, parent=None):
+        super().__init__(title, parent)
     
     def setup_ui(self):
         """Add parameters specific to LE Set Advertising Parameters command"""
@@ -104,27 +104,44 @@ class LeSetAdvParamsUI(HCICmdUI):
     
     def validate_parameters(self) -> bool:
         """Validate parameters before sending by the LE Set Advertising Parameters command"""
+        
+        def _parse_peer_addr_or_raise(addr: str) -> bytes:
+            """
+            Convert a Bluetooth address string (hex) into bytes.
+            Example: 'A1B2C3D4E5F6' -> b'\xA1\xB2\xC3\xD4\xE5\xF6'
+
+            Raises:
+                ValueError: if the input format or size is invalid.
+            """
+            # Remove common separators like ':' or '-'
+            clean_addr = addr.replace(":", "").replace("-", "").strip()
+
+            # Validate length (Bluetooth address must be 6 bytes = 12 hex chars)
+            if len(clean_addr) != 12:
+                raise ValueError(f"Invalid Bluetooth address length: {len(clean_addr)//2} bytes (expected 6)")
+
+            try:
+                # Convert hex string to bytes
+                addr_bytes = bytes.fromhex(clean_addr)
+            except ValueError:
+                raise ValueError(f"Invalid Bluetooth address format: {addr!r}")
+
+            return addr_bytes
+        
         try:
             le_cmds.LeSetAdvParams(self.min_interval_input.value(), self.max_interval_input.value(),
                                    self.adv_type_input.currentData(), self.own_addr_type_input.currentData(),
-                                   self.peer_addr_type_input.currentData(), self.peer_addr_input.text().strip(),
-                                   self.channel_37_check.isChecked(), self.channel_38_check.isChecked(),
-                                   self.channel_39_check.isChecked(), self.filter_policy_input.currentData())._validate_params()
+                                   self.peer_addr_type_input.currentData(),
+                                   _parse_peer_addr_or_raise(self.peer_addr_input.text()),
+                               (self.channel_37_check.isChecked() << 2| self.channel_38_check.isChecked() << 1 | self.channel_39_check.isChecked()),
+                                self.filter_policy_input.currentData())._validate_params()
         except ValueError as e:
-            self.log_error(f"Validation error: {str(e)}")
             return False
         return True
     
     def get_data_bytes(self) -> Optional[bytes]:
         """Get parameter values"""
-        # Calculate channel map
-        channel_map = 0
-        if self.channel_37_check.isChecked():
-            channel_map |= 0x01
-        if self.channel_38_check.isChecked():
-            channel_map |= 0x02
-        if self.channel_39_check.isChecked():
-            channel_map |= 0x04
+
         
         # Convert peer address from hex string to bytes
         peer_addr_hex = self.peer_addr_input.text().strip()
@@ -147,10 +164,10 @@ class LeSetAdvParamsUI(HCICmdUI):
 
 class LeSetAdvDataUI(HCICmdUI):
     """UI for the LE Set Advertising Data command"""
-    OPCODE = create_opcode(OGF.LE_CONTROLLER, LEControllerOCF.SET_ADVERTISING_DATA)
+    OPCODE = create_opcode(OGF.LE, LEControllerOCF.SET_ADVERTISING_DATA)
     NAME = "LE Set Advertising Data"
-    def __init__(self, title, parent=None, transport : Optional[Transport] = None):
-        super().__init__(title, parent, transport)
+    def __init__(self, title, parent=None):
+        super().__init__(title, parent)
     
     def setup_ui(self):
         """Add parameters specific to LE Set Advertising Data command"""
@@ -224,10 +241,14 @@ class LeSetAdvDataUI(HCICmdUI):
 
 class LeSetScanParametersUI(HCICmdUI):
     """UI for the LE Set Scan Parameters command"""
-    OPCODE = create_opcode(OGF.LE_CONTROLLER, LEControllerOCF.SET_SCAN_PARAMETERS)
+    
+    OPCODE = create_opcode(OGF.LE, LEControllerOCF.SET_SCAN_PARAMETERS)
     NAME = "LE Set Scan Parameters"
-    def __init__(self, title, parent=None, transport : Optional[Transport] = None):
-        super().__init__(title, parent, transport)
+    
+    AdressType = le_cmds.AddressType
+    
+    def __init__(self, title, parent=None):
+        super().__init__(title, parent)
     
     def setup_ui(self):
         """Add parameters specific to LE Set Scan Parameters command"""
@@ -255,7 +276,7 @@ class LeSetScanParametersUI(HCICmdUI):
         
         # Own Address Type
         self.own_addr_type_input = QComboBox()
-        for addr_type in AddressType:
+        for addr_type in AdressType:
             self.own_addr_type_input.addItem(addr_type.name, addr_type.value)
         self.form_layout.addRow("Own Address Type:", self.own_addr_type_input)
         
@@ -279,10 +300,10 @@ class LeSetScanParametersUI(HCICmdUI):
 
 class LeSetScanEnableUI(HCICmdUI):
     """UI for the LE Set Scan Enable command"""
-    OPCODE = create_opcode(OGF.LE_CONTROLLER, LEControllerOCF.SET_SCAN_ENABLE)
+    OPCODE = create_opcode(OGF.LE, LEControllerOCF.SET_SCAN_ENABLE)
     NAME = "LE Set Scan Enable"
-    def __init__(self, title, parent=None, transport : Optional[Transport] = None):
-        super().__init__(title, parent, transport)
+    def __init__(self, title, parent=None):
+        super().__init__(title, parent)
     
     def setup_ui(self):
         """Add parameters specific to LE Set Scan Enable command"""

@@ -8,7 +8,6 @@ from PyQt5.QtCore import Qt
 import struct
 
 from typing import Optional
-from transports.transport import Transport
 
 from hci.cmd.cmd_opcodes import create_opcode, OGF, LinkPolicyOCF
 import hci.cmd.link_policy as lp_cmds
@@ -22,8 +21,8 @@ class HoldModeCommandUI(HCICmdUI):
     """UI for HCI Hold Mode command"""
     OPCODE = create_opcode(OGF.LINK_POLICY, LinkPolicyOCF.HOLD_MODE)
     NAME = "HCI Hold Mode Command"
-    def __init__(self, title, parent=None, transport : Optional[Transport] = None):
-        super().__init__(title, parent, transport)
+    def __init__(self, title, parent=None):
+        super().__init__(title, parent)
         
     def setup_ui(self):
         """Add Hold Mode command specific UI components"""

@@ -4,7 +4,6 @@ from typing import Any, Callable, Optional, Union, Coroutine, TypeVar, Set, Self
 from concurrent.futures import ThreadPoolExecutor, Future
 from functools import wraps
 
-from yaml import Event
 
 
 T = TypeVar('T')

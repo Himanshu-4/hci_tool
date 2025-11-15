@@ -24,14 +24,17 @@
     The factory also provides a method to close all open command windows, ensuring
     that resources are properly released when the user is done with the HCI commands.
 """
+
+from getopt import GetoptError
 import traceback
 import weakref
-
 from PyQt5.QtWidgets import  (QMdiSubWindow)
 
 # import the hci command for execution
-from hci.cmd import get_command_class, split_opcode, OGF
 from hci.cmd import hci_create_cmd_packet
+
+from hci.cmd import get_command_class
+from hci.cmd.cmd_opcodes import cmd_type, get_opcode_from_name, create_opcode, commands_list, OGF
 
 from .cmds import get_cmd_ui_class
 from .cmds import HCICmdUI
@@ -41,7 +44,7 @@ from typing import ClassVar, Optional, Dict, Type
 
 
 # Import other command classes as needed
-
+#MARK: cmd factory
 class HCICommandFactory:
     def __init__(self, title : str, parent_window : QMdiSubWindow, transport : Transport):
         self.title = title
@@ -65,6 +68,9 @@ class HCICommandFactory:
         self.close_all_command_windows()
         self.remove_from_parent()
     
+    
+    
+    #MARK: stats
     def get_parent(self):
         """Safely get the parent window"""
         # parent = self.parent
@@ -94,6 +100,7 @@ class HCICommandFactory:
         """Get a command window by its opcode"""
         return self.command_windows.get(cmd_opcode, None)
     
+    #MARK: cmd inits
     def create_command_window(self, cmd_opcode : int) -> Optional[HCICmdUI]:
         """Create a command window based on the OGF and OCF values"""
         if self._is_destroyed:
@@ -101,30 +108,42 @@ class HCICommandFactory:
             
         cmd_window = None
         parent = self.get_parent()
-        cmd_type = get_cmd_ui_class(cmd_opcode)
+        cmd_ui_class : HCICmdUI = get_cmd_ui_class(cmd_opcode)
         
-        if cmd_type is not None:
-            if cmd_opcode in self.command_windows:
-            # If the command window already exists, return it
-                cmd_window = self.command_windows[cmd_opcode]
-                # raise the window to the front
-                cmd_window.raise_()
-                cmd_window.activateWindow()
-                return cmd_window
-            
-            # Add to parent's tracking system
-            cmd_window = cmd_type(self.title, parent, self.transport)
-            cmd_window.window_closing.connect( lambda : self.close_command_window(cmd_opcode))
-            # Store in our local tracking
-            self.command_windows[cmd_opcode] = cmd_window
-            
-            # Position the window relative to main window
-            self.position_window(cmd_window)
-            
-            # Show the window
-            cmd_window.show()
+        if cmd_opcode in self.command_windows:
+        # If the command window already exists, return it
+            cmd_window = self.command_windows[cmd_opcode]
+            # raise the window to the front
             cmd_window.raise_()
             cmd_window.activateWindow()
+            return cmd_window
+        
+        # Add to parent's tracking system
+        cmd_window = cmd_ui_class(self.title, parent)
+
+        def _ok_btn_callback(instance : HCICmdUI) -> bool:
+            """ the OK button callback is used to send data through transport """
+            ret = False
+            if self.transport:
+                ret = self.transport.write(instance.get_data_bytes())
+                if ret :
+                    pass
+                    # replaced by the logger module this_logger.log(m,)
+                    # LogWindow.info(f"{self.transport.name}->" + str(instance.get_cmd_instance()))
+            return ret
+                
+        cmd_window.add_ok_btn_callback(_ok_btn_callback)
+        cmd_window.window_closing.connect( lambda : self.close_command_window(cmd_opcode))
+        # Store in our local tracking
+        self.command_windows[cmd_opcode] = cmd_window
+        
+        # Position the window relative to main window
+        self.position_window(cmd_window)
+        
+        # Show the window
+        cmd_window.show()
+        cmd_window.raise_()
+        cmd_window.activateWindow()
             
         return cmd_window
     
@@ -167,6 +186,13 @@ class HCICommandFactory:
                 continue
         return None
     
+    def get_command_window(self, cmd_opcode : int) -> Optional[HCICmdUI]:
+        """Get a command window by its opcode"""
+        return self.command_windows.get(cmd_opcode, None)
+
+    def get_all_command_windows(self) -> list[Optional[HCICmdUI]]:
+        """Get all command windows"""
+        return list[HCICmdUI | None](self.command_windows.values())
     
     def get_command_window_by_type(self, cmd_type: Type[HCICmdUI]) -> Optional[HCICmdUI]:
         """Get a command window by its type"""
@@ -175,6 +201,7 @@ class HCICommandFactory:
                 return window
         return None      
 
+    #MARK: wind control
     def add_to_parent(self):
         """Add this factory to the parent window's command tracking"""
         parent = self.get_parent()
@@ -195,18 +222,11 @@ class HCICommandFactory:
                 # Parent has been deleted, nothing to do
                 pass
     
-    def get_command_window(self, cmd_opcode : int) -> Optional[HCICmdUI]:
-        """Get a command window by its opcode"""
-        return self.command_windows.get(cmd_opcode, None)
 
-    def get_all_command_windows(self) -> list[Optional[HCICmdUI]]:
-        """Get all command windows"""
-        return list(self.command_windows.values())
-    
     def close_command_window(self, cmd_opcode : int):
         """Close a specific command window by its opcode"""
         if cmd_opcode in self.command_windows:
-            window = self.command_windows[cmd_opcode]
+            window = self.command_windows.get(cmd_opcode, None)
             try:
                 if window.isVisible():
                     # Close the window
@@ -220,22 +240,23 @@ class HCICommandFactory:
     
     def close_all_command_windows(self):
         """Close all open command windows"""
-        for cmd_opcode in list(self.command_windows.keys()):
+        for cmd_opcode in list[int](self.command_windows.keys()):
             self.close_command_window(cmd_opcode)
         self.command_windows.clear()
     
-    def raise_all_command_windows(self):
+    def raise_all_windows(self):
         """Raise all command windows to the front"""
-        for cmd_opcode, window in list(self.command_windows.items()):
+        for cmd_opcode, window in list[tuple[int, HCICmdUI]](self.command_windows.items()):
             try:
                 if window.isVisible():
                     window.raise_()
                     window.activateWindow()
             except RuntimeError:
                 # Window has been deleted, remove from tracking
-                del self.command_windows[cmd_opcode]
+                self.command_windows.pop(cmd_opcode, None)
 
 
+    #MARK: Cmds Executors
     def deafualt_base_cmd_executor(self, opcode : int  , **kwargs) -> bool:
         """Default command executor for HCI commands
         This method executes a command based on the opcode and command data.
@@ -244,11 +265,16 @@ class HCICommandFactory:
             opcode (int): The opcode of the command to execute.
             command_data (Optional[dict]): Additional data for the command.
         Returns:
-            bool: True if the command was executed successfully, False otherwise.
+            bool: Truedeafult_controller_baseband_cmd_executor if the command was executed successfully, False otherwise.
         """
-        # execute the command based on the opcode
-        cmd_instance = get_command_class(opcode)(**kwargs) if get_command_class(opcode) else hci_create_cmd_packet(opcode, params=kwargs.get('params', None), name=kwargs.get('name', None))
-        return self.transport.write(cmd_instance.to_bytes())
+        # handle the UI here also 
+        if get_cmd_ui_class(opcode) != None:
+            return self.create_command_window(opcode) != None
+        else :
+            # we created hci packet as there is no parametr for this command to have so no UI also
+            cmd_instance =  hci_create_cmd_packet(opcode, params=kwargs.get('params', None), name=kwargs.get('name', None))
+            # also log the transport value to log window
+            return self.transport.write(cmd_instance.to_bytes())
 
     def deafult_controller_baseband_cmd_executor(self, opcode: int, **kwargs) -> bool:
         """Default controller and baseband command executor
@@ -346,7 +372,7 @@ class HCICommandFactory:
         """
         return self.deafualt_base_cmd_executor(opcode, **kwargs)
     
-    def execute_command(self, cmd_opcode: int, **kwargs) -> bool:
+    def execute_command(self,category : str, opcode : str, **kwargs) -> bool:
         """ first fetch the command type and based on that select the executor
         Args:
             cmd_opcode (int): The opcode of the command to execute.
@@ -354,27 +380,31 @@ class HCICommandFactory:
         Returns:
             bool: True if the command was executed successfully, False otherwise.
         """
-        ogf, ocf = split_opcode(cmd_opcode)
-        
-        #execute the command based on the OGF and OCF values
-        if ogf == OGF.CONTROLLER_BASEBAND:
-            return self.deafualt_base_cmd_executor(cmd_opcode, **kwargs)
-        elif ogf == OGF.LINK_CONTROL:
-            return self.default_link_control_cmd_executor(cmd_opcode, **kwargs)
-        elif ogf == OGF.LINK_POLICY:
-            return self.default_link_policy_cmd_executor(cmd_opcode, **kwargs)
-        elif ogf == OGF.LE_CONTROLLER:
-            return self.default_le_cmd_executor(cmd_opcode, **kwargs)
-        elif ogf == OGF.INFORMATION_PARAMS:
-            return self.default_info_cmd_executor(cmd_opcode, **kwargs)
-        elif ogf == OGF.STATUS_PARAMS:
-            return self.default_status_cmd_executor(cmd_opcode, **kwargs)
-        elif ogf == OGF.TESTING:
-            return self.default_testing_cmd_executor(cmd_opcode, **kwargs)
-        elif ogf == OGF.VENDOR_SPECIFIC:
-            return self.default_vendor_cmd_executor(cmd_opcode, **kwargs)
-        else:
-            print(f"Unknown OGF {ogf} for opcode {cmd_opcode}")
-            return False
-        
-        
+        ogf = cmd_type.get_ogf(category)
+        # cmd_opcode = create_opcode(ogf, opcode)
+        cmd_opcode = get_opcode_from_name(cmd_type.get_ogf(category).name + '_' + opcode)
+        try:
+            #execute the command based on the OGF and OCF values
+            if ogf == OGF.CONTROLLER_BASEBAND:
+                return self.deafult_controller_baseband_cmd_executor(cmd_opcode, **kwargs)
+            elif ogf == OGF.LINK_CONTROL:
+                return self.default_link_control_cmd_executor(cmd_opcode, **kwargs)
+            elif ogf == OGF.LINK_POLICY:
+                return self.default_link_policy_cmd_executor(cmd_opcode, **kwargs)
+            elif ogf == OGF.LE:
+                return self.default_le_cmd_executor(cmd_opcode, **kwargs)
+            elif ogf == OGF.INFORMATION:
+                return self.default_info_cmd_executor(cmd_opcode, **kwargs)
+            elif ogf == OGF.STATUS:
+                return self.default_status_cmd_executor(cmd_opcode, **kwargs)
+            elif ogf == OGF.TESTING:
+                return self.default_testing_cmd_executor(cmd_opcode, **kwargs)
+            elif ogf == OGF.VENDOR_SPECIFIC:
+                return self.default_vendor_cmd_executor(cmd_opcode, **kwargs)
+            else:
+                print(f"Unknown OGF {ogf} for opcode {cmd_opcode}")
+        except Exception as e:
+            print(f"Error opening command UI: {e} ")
+            # also point where the error happened
+            traceback.print_exc()
+    

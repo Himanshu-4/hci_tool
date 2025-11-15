@@ -1,27 +1,33 @@
 """
     Defines opcodes for HCI commands
 """
-from enum import IntEnum, unique
+from dataclasses import dataclass
+from enum import IntEnum, unique, Enum
+
+from collections import namedtuple
 
 # OGF (OpCode Group Field) definitions
+#MARK:OGF
 @unique
 class OGF(IntEnum):
     LINK_CONTROL = 0x01
     LINK_POLICY = 0x02
     CONTROLLER_BASEBAND = 0x03
-    INFORMATION_PARAMS = 0x04
-    STATUS_PARAMS = 0x05
+    INFORMATION = 0x04
+    STATUS = 0x05
     TESTING = 0x06
-    LE_CONTROLLER = 0x08
+    LE = 0x08
     VENDOR_SPECIFIC = 0x3F
 
 
+#MARK:OCF
 @unique
 class OCF(IntEnum):
     # OCF values are defined in the specific command classes below
     pass
 # OCF (OpCode Command Field) definitions for each OGF
 
+#MARK:Linkctrlcmds
 # Link Control Commands (OGF = 0x01)
 @unique
 class LinkControlOCF(OCF):
@@ -71,6 +77,7 @@ class LinkControlOCF(OCF):
     READ_SYNCHRONIZATION_TRAIN = 0x0044
     REMOTE_OOB_EXTENDED_DATA_REQUEST_REPLY = 0x0045
     
+#MARK:Lnkplcycmds
 # Link Policy Commands (OGF = 0x02)
 @unique
 class LinkPolicyOCF(OCF):
@@ -87,6 +94,7 @@ class LinkPolicyOCF(OCF):
     FLOW_SPECIFICATION = 0x0010
     SNIFF_SUBRATING = 0x0011
     
+#MARK:CtrlBsbndCmds
 # Controller & Baseband Commands (OGF = 0x03)
 @unique
 class ControllerBasebandOCF(OCF):
@@ -186,6 +194,7 @@ class ControllerBasebandOCF(OCF):
     SET_MIN_ENCRYPTION_KEY_SIZE = 0x007A
     READ_MIN_ENCRYPTION_KEY_SIZE = 0x007B
 
+#MARK:Infocmds
 # Information Parameters Commands (OGF = 0x04)
 @unique
 class InformationOCF(OCF):
@@ -202,6 +211,7 @@ class InformationOCF(OCF):
     READ_LOCAL_SUPPORTED_CODECS_CAPABILITIES = 0x000E
     READ_LOCAL_SUPPORTED_CONTROLLER_DELAY = 0x000F
 
+#MARK:statuscmds
 # Status Parameters Commands (OGF = 0x05)
 @unique
 class StatusOCF(OCF):
@@ -218,6 +228,7 @@ class StatusOCF(OCF):
     READ_LOCAL_AMP_INFO = 0x000C
     READ_LOCAL_AMP_ASSOCIATED_CODING = 0x000D
 
+#MARK:Tstngcmds
 # Testing Commands (OGF = 0x06)
 @unique
 class TestingOCF(OCF):
@@ -227,6 +238,7 @@ class TestingOCF(OCF):
     WRITE_SIMPLE_PAIRING_DEBUG_MODE = 0x0004
     WRITE_SECURE_CONNECTIONS_TEST_MODE = 0x0005
 
+#MARK:Lecmds
 # LE Controller Commands (OGF = 0x08)
 @unique
 class LEControllerOCF(OCF):
@@ -392,10 +404,10 @@ class LEControllerOCF(OCF):
     READ_MONITORED_ADVERTISERS_LIST_SIZE = 0x0098
     FRAME_SPACE_UPDATE = 0x0099
 
-
+#MARK:vscmds
 # Vendor Specific Commands (OGF = 0x3F)
 @unique
-class VendorSpecificOCF(IntEnum):
+class VendorSpecificOCF(OCF):
     # Vendor specific opcodes can be defined here
     HCI_EXTENSION_SET_RX_GAIN = 0xFC00
     HCI_EXTENSION_SET_TX_POWER = 0xFC01
@@ -515,7 +527,6 @@ class VendorSpecificOCF(IntEnum):
 
     USER_PROFILES = 0xFF80
 
-
 # Dictionary of opcode to command name mappings
 OPCODE_TO_NAME = {}
 
@@ -525,10 +536,6 @@ def create_opcode(ogf : OGF, ocf : OCF) -> int:
     """Create HCI command opcode from OGF and OCF"""
     return ((ogf & 0x3F) << 10) | (ocf & 0x03FF)
 
-def get_opcode_name(opcode : int) -> str:
-    """Get the command name for a given opcode"""
-    global OPCODE_TO_NAME
-    return OPCODE_TO_NAME.get(opcode, "UNKNOWN_OPCODE")
 
 def split_opcode(opcode) -> tuple[OGF,OCF]:
     """Split opcode into OGF and OCF"""
@@ -536,6 +543,21 @@ def split_opcode(opcode) -> tuple[OGF,OCF]:
     ocf = opcode & 0x03FF
     return ogf, ocf    
 
+def get_opcode_name(opcode : int) -> str:
+    """Get the command name for a given opcode"""
+    global OPCODE_TO_NAME
+    return OPCODE_TO_NAME.get(opcode, "UNKNOWN_OPCODE")
+
+def get_opcode_from_name(name: str) -> int:
+    """
+    Search the name in the OPCODE_TO_NAME dictionary and return the opcode.
+    Returns None if not found.
+    """
+    name = name.upper()
+    for opcode, opcode_name in OPCODE_TO_NAME.items():
+        if opcode_name == name:
+            return opcode
+    return None
 
 # Generate opcodes for all commands
 def initialize_opcodes():
@@ -556,12 +578,12 @@ def initialize_opcodes():
     
     # Information Parameters Commands
     for ocf in InformationOCF:
-        opcode = create_opcode(OGF.INFORMATION_PARAMS, ocf)
+        opcode = create_opcode(OGF.INFORMATION, ocf)
         OPCODE_TO_NAME[opcode] = f"INFORMATION_{ocf.name}"
     
     # Status Parameters Commands
     for ocf in StatusOCF:
-        opcode = create_opcode(OGF.STATUS_PARAMS, ocf)
+        opcode = create_opcode(OGF.STATUS, ocf)
         OPCODE_TO_NAME[opcode] = f"STATUS_{ocf.name}"
     
     # Testing Commands
@@ -571,7 +593,7 @@ def initialize_opcodes():
     
     # LE Controller Commands
     for ocf in LEControllerOCF:
-        opcode = create_opcode(OGF.LE_CONTROLLER, ocf)
+        opcode = create_opcode(OGF.LE, ocf)
         OPCODE_TO_NAME[opcode] = f"LE_{ocf.name}"
         
     # Vendor Specific Commands
@@ -582,13 +604,99 @@ def initialize_opcodes():
 # Initialize the opcode to name dictionary
 initialize_opcodes()
 
+
+
+
+
+Bluetooth_cmd = namedtuple('Bluetooth_cmd', ['cmd', 'cmd_type', 'cmd_desc'])
+
+#MARK: cmd type
+@unique
+class cmd_type(IntEnum):
+    """Command types for Bluetooth commands"""
+    #expand all the values in OGF
+    LINK_CONTROL = OGF.LINK_CONTROL
+    LINK_POLICY = OGF.LINK_POLICY
+    CONTROLLER_BASEBAND = OGF.CONTROLLER_BASEBAND
+    INFORMATION = OGF.INFORMATION
+    STATUS = OGF.STATUS
+    TESTING = OGF.TESTING
+    LE = OGF.LE
+    VENDOR_SPECIFIC = OGF.VENDOR_SPECIFIC
+    
+    
+    # Add more command types as needed
+    def __repr__(self):
+        """String representation of command types"""
+        return {
+                self.LINK_CONTROL: "Link Control",
+                self.LINK_POLICY: "Link Policy",
+                self.CONTROLLER_BASEBAND: "Controller & Baseband",
+                self.INFORMATION: "Informational",
+                self.STATUS: "Status",
+                self.TESTING: "Testing",
+                self.LE: "LE",
+                self.VENDOR_SPECIFIC: 'vendor_specific'
+            }
+    
+    def __str__(self):
+        """String representation of command types"""
+        return {
+                self.LINK_CONTROL: "Link Control",
+                self.LINK_POLICY: "Link Policy",
+                self.CONTROLLER_BASEBAND: "Controller & Baseband",
+                self.INFORMATION: "Informational",
+                self.STATUS: "Status",
+                self.TESTING: "Testing",
+                self.LE: "LE",
+                self.VENDOR_SPECIFIC: 'vendor_specific'
+                }.get(self, "Unknown")
+    
+    @classmethod
+    def get_ogf(cls, category : str) -> OGF:
+        return {
+                "Link Control" : OGF.LINK_CONTROL ,
+                "Link Policy" : OGF.LINK_POLICY ,
+                "Controller & Baseband" : OGF.CONTROLLER_BASEBAND ,
+                "Informational" : OGF.INFORMATION,
+                "Status" : OGF.STATUS,
+                "Testing" : OGF.TESTING,
+                "LE" : OGF.LE,
+                "vendor_specific" : OGF.VENDOR_SPECIFIC
+                }[category]
+    
+
+        
+#MARK: commands
+@dataclass
+class commands_list:
+    #link control commands list 
+    LINK_CONTROL = [cmd.name for cmd in LinkControlOCF]
+    #link policy commands list
+    LINK_POLICY = [ cmd.name for cmd in LinkPolicyOCF ]
+    #controller baseband commands list
+    CONTROLLER_BASEBAND = [ cmd.name for cmd in ControllerBasebandOCF ]
+    #information commands list
+    INFORMATION = [ cmd.name for cmd in InformationOCF ]
+    #status commands list
+    STATUS = [ cmd.name for cmd in StatusOCF ]
+    #testing commands list
+    TESTING = [ cmd.name for cmd in TestingOCF ]
+    #le controller commands list
+    LE = [ cmd.name for cmd in LEControllerOCF ]
+    #vendor specific commands list
+    VENDOR_SPECIFIC = [ cmd.name for cmd in VendorSpecificOCF ]
+    # Add more command types as needed
+        
+        
+        
 # Common opcodes for easy reference
 class HciOpcode:
     # LE Controller opcodes
-    LE_SET_ADVERTISING_PARAMETERS = create_opcode(OGF.LE_CONTROLLER, LEControllerOCF.SET_ADVERTISING_PARAMETERS)
-    LE_SET_ADVERTISING_DATA = create_opcode(OGF.LE_CONTROLLER, LEControllerOCF.SET_ADVERTISING_DATA)
-    LE_SET_SCAN_PARAMETERS = create_opcode(OGF.LE_CONTROLLER, LEControllerOCF.SET_SCAN_PARAMETERS)
-    LE_SET_SCAN_ENABLE = create_opcode(OGF.LE_CONTROLLER, LEControllerOCF.SET_SCAN_ENABLE)
+    LE_SET_ADVERTISING_PARAMETERS = create_opcode(OGF.LE, LEControllerOCF.SET_ADVERTISING_PARAMETERS)
+    LE_SET_ADVERTISING_DATA = create_opcode(OGF.LE, LEControllerOCF.SET_ADVERTISING_DATA)
+    LE_SET_SCAN_PARAMETERS = create_opcode(OGF.LE, LEControllerOCF.SET_SCAN_PARAMETERS)
+    LE_SET_SCAN_ENABLE = create_opcode(OGF.LE, LEControllerOCF.SET_SCAN_ENABLE)
     
     # Controller & Baseband opcodes
     RESET = create_opcode(OGF.CONTROLLER_BASEBAND, ControllerBasebandOCF.RESET)
@@ -599,5 +707,5 @@ class HciOpcode:
     DISCONNECT = create_opcode(OGF.LINK_CONTROL, LinkControlOCF.DISCONNECT)
     
     # Information Parameters opcodes
-    READ_BD_ADDR = create_opcode(OGF.INFORMATION_PARAMS, InformationOCF.READ_BD_ADDR)
-    READ_LOCAL_VERSION_INFORMATION = create_opcode(OGF.INFORMATION_PARAMS, InformationOCF.READ_LOCAL_VERSION_INFORMATION)
+    READ_BD_ADDR = create_opcode(OGF.INFORMATION, InformationOCF.READ_BD_ADDR)
+    READ_LOCAL_VERSION_INFORMATION = create_opcode(OGF.INFORMATION, InformationOCF.READ_LOCAL_VERSION_INFORMATION)

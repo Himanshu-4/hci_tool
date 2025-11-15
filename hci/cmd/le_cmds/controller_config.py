@@ -121,7 +121,7 @@ class LeSetAdvParams(HciCmdBasePacket):
                         self.params['adv_type'],
                         self.params['own_addr_type'],
                         self.params['peer_addr_type'],
-                        *reversed(self.params['peer_addr']),  # Reverse for little-endian
+                        *reversed[Any](self.params['peer_addr']),  # Reverse for little-endian
                         self.params['adv_channel_map'],
                         self.params['adv_filter_policy'])
     

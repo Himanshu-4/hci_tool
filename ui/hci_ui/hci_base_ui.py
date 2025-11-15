@@ -20,17 +20,20 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtGui import QTextCursor, QIntValidator, QFont, QCloseEvent
 from PyQt5.QtCore import Qt, pyqtSignal, QObject
 
-from transports.transport import Transport
-
-
 from abc import ABC, abstractmethod
-from typing import ClassVar, Type, Optional, Dict, Any, Union, Tuple
+from typing import Callable, ClassVar, Type, Optional, Dict, Any, Union, Tuple
 
 
 # Import HCI library 
 import hci.cmd as hci_cmd
 import hci.evt as hci_evt
 
+
+# @todo method to log window need to shift to logger only 
+from ui.exts.log_window import LogWindow
+
+
+#MARK: HCIBaseUI
 class HciBaseUI(QDialog):
     """Base class for HCI UI components"""
     OPCODE: ClassVar[int]  # The command opcode (2 bytes)
@@ -253,7 +256,7 @@ class HciBaseUI(QDialog):
 ##### HCI Command and Event UI Classes
 # These classes are specific implementations of the HciBaseUI for commands and events
 
-
+#MARK: HCI Cmd UI
 class HCICmdBaseUI(HciBaseUI):
     """Base class for HCI command UI components"""
     
@@ -262,10 +265,10 @@ class HCICmdBaseUI(HciBaseUI):
     NAME: ClassVar[str]    # Human-readable name of the command
     command_sent = pyqtSignal(bytes)
     
-    def __init__(self, title="HCI Command", parent=None, transport : Optional[Transport] = None):
+    def __init__(self, title="HCI Command", parent=None):
         """Initialize the HCI command UI with a title and parent widget"""
+        self._callback = None
         super().__init__(title, parent) 
-        self.transport = transport
         
     def setup_ui(self):
         """Set up the UI for command input"""
@@ -283,29 +286,39 @@ class HCICmdBaseUI(HciBaseUI):
         else:
             raise ValueError("Command class does not have an OPCODE defined")
     
+    def add_ok_btn_callback(self, callback :Callable ):
+        """" add the callback for the ok btn functionality """
+        self._callback = callback
+        
     @abstractmethod
     def validate_parameters(self) -> bool:
         """Validate the parameters entered in the UI"""
         # This is a placeholder - subclasses should implement this
         pass
-        
+    
+    @abstractmethod
+    def get_cmd_instance(self):
+        """ get the cmd instance """
+        # cmd instance we get from the child class 
+        pass
+    
     def on_ok_button_clicked(self):
         """Handle OK button click - send the command"""
         if self._is_destroyed:
             return
-        ret = None
+        ret = False
         byte_data = b''
         try:
             if not self.validate_parameters():
                 return
-            byte_data = self.get_data_bytes()
-            if self.transport:
-                ret = self.transport.write(byte_data)
+            # execute the callback
+            ret = self._callback(self.get_cmd_instance()) if self._callback else None
             
         except Exception as e:
             self.log(f"Error OK btn: {str(e)}")
             self.log_error(f"Error : {str(e)}")
             return None
+        # try clossing the window
         try:
             self.close()
             if ret:
@@ -337,7 +350,7 @@ class HCICmdBaseUI(HciBaseUI):
 
 
 
-
+#MARK: HCI evt UI
 class HCIEvtBaseUI(HciBaseUI):
     """Base class for HCI event UI components"""
     

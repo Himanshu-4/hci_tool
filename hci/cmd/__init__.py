@@ -13,7 +13,7 @@ import sys
 from pathlib import Path
 
 from .cmd_base_packet import HciCmdBasePacket
-from .cmd_opcodes import OPCODE_TO_NAME, OGF, split_opcode, create_opcode
+from .cmd_opcodes import OPCODE_TO_NAME, get_opcode_from_name, OGF, split_opcode, create_opcode, cmd_type, commands_list, Bluetooth_cmd
 
 # Command registry - maps opcodes to command classes
 _cmd_registry: Dict[int, Type[HciCmdBasePacket]] = {}
@@ -104,9 +104,10 @@ from .cmd_parser import hci_cmd_parse_from_bytes
 
 __all__ = [
     'OGF',
-    'OPCODE_TO_NAME',
     'split_opcode',
     'create_opcode',
+    'OPCODE_TO_NAME', 'get_opcode_from_name',
+    'cmd_type', 'commands_list', 'Bluetooth_cmd',
     'register_command',
     'get_command_class',
     'hci_create_cmd_packet',

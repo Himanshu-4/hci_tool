@@ -17,7 +17,6 @@ from hci.cmd.cmd_opcodes import create_opcode, OGF, StatusOCF
 import hci.cmd.status as st_cmds
 
 from typing import Optional, Union, List
-from transports.transport import Transport
 
 from ..cmd_baseui import HCICmdUI
 
@@ -27,10 +26,10 @@ from .. import register_command_ui
 
 class ReadRssi(HCICmdUI):
     """UI for the Write Local Name command"""
-    OPCODE = create_opcode(OGF.STATUS_PARAMS, StatusOCF.READ_RSSI)
+    OPCODE = create_opcode(OGF.STATUS, StatusOCF.READ_RSSI)
     NAME = "Read RSSI"
-    def __init__(self, title, parent=None, transport : Optional[Transport] = None):
-        super().__init__(title, parent, transport)
+    def __init__(self, title, parent=None):
+        super().__init__(title, parent)
     
     def setup_ui(self):
         """Add ui specific to Write Local Name command"""

@@ -14,7 +14,7 @@ from .. import register_command
 class ReadRssi(HciCmdBasePacket):
     """Read RSSI Command"""
     
-    OPCODE: ClassVar[int] = create_opcode(OGF.STATUS_PARAMS, StatusOCF.READ_RSSI)
+    OPCODE: ClassVar[int] = create_opcode(OGF.STATUS, StatusOCF.READ_RSSI)
     NAME: ClassVar[str] = "Read_RSSI"
     
     def __init__(self, conn_handle: int):
