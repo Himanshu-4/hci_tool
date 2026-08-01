@@ -1,0 +1,4 @@
+# HCI Tool runtime dependencies
+pyserial>=3.5
+PyQt5>=5.15
+PyYAML>=6.0

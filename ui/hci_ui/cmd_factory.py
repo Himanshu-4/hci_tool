@@ -46,9 +46,14 @@ from typing import ClassVar, Optional, Dict, Type
 # Import other command classes as needed
 #MARK: cmd factory
 class HCICommandFactory:
-    def __init__(self, title : str, parent_window : QMdiSubWindow, transport : Transport):
+    def __init__(self, title : str, parent_window : QMdiSubWindow,
+                 transport : Transport, session = None):
         self.title = title
         self.transport = transport
+        # When a session is available, commands go through it so they honour
+        # the controller's command credits and get correlated to their
+        # completion. Without one we fall back to writing bytes directly.
+        self.session = session
         self.parent = parent_window
         self._is_destroyed = False
         # create a dictionary to track command windows and structure as {opcode: HCICmdUI}
@@ -122,15 +127,8 @@ class HCICommandFactory:
         cmd_window = cmd_ui_class(self.title, parent)
 
         def _ok_btn_callback(instance : HCICmdUI) -> bool:
-            """ the OK button callback is used to send data through transport """
-            ret = False
-            if self.transport:
-                ret = self.transport.write(instance.get_data_bytes())
-                if ret :
-                    pass
-                    # replaced by the logger module this_logger.log(m,)
-                    # LogWindow.info(f"{self.transport.name}->" + str(instance.get_cmd_instance()))
-            return ret
+            """The OK button callback: send the command the dialog just built"""
+            return self.send_command(instance)
                 
         cmd_window.add_ok_btn_callback(_ok_btn_callback)
         cmd_window.window_closing.connect( lambda : self.close_command_window(cmd_opcode))
@@ -147,6 +145,24 @@ class HCICommandFactory:
             
         return cmd_window
     
+    def send_command(self, instance : HCICmdUI) -> bool:
+        """
+        Send the command a dialog built.
+
+        Prefers the session: it queues against the controller's command credits
+        and correlates the completion back. Falls back to a raw transport write
+        when there is no session (the older per-transport windows).
+        """
+        command = instance.get_cmd_instance
+        if self.session is not None and command is not None:
+            self.session.send(command)
+            return True
+
+        data = instance.get_data_bytes()
+        if not data:
+            return False
+        return bool(self.transport and self.transport.write(data))
+
     def position_window(self, window : HCICmdUI):
         """Position the window relative to the main window"""
         #@todo this operation is not handling properly and every window should be positioned near main window
@@ -271,9 +287,11 @@ class HCICommandFactory:
         if get_cmd_ui_class(opcode) != None:
             return self.create_command_window(opcode) != None
         else :
-            # we created hci packet as there is no parametr for this command to have so no UI also
+            # No UI for this command -- it takes no parameters, so build and send it directly
             cmd_instance =  hci_create_cmd_packet(opcode, params=kwargs.get('params', None), name=kwargs.get('name', None))
-            # also log the transport value to log window
+            if self.session is not None:
+                self.session.send(cmd_instance)
+                return True
             return self.transport.write(cmd_instance.to_bytes())
 
     def deafult_controller_baseband_cmd_executor(self, opcode: int, **kwargs) -> bool:

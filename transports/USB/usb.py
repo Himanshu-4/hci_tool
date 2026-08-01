@@ -183,7 +183,7 @@ class usb_transfer:
         
         
 from typing import Dict, Any, Optional
-from ..base_lib import TransportInterface, TransportError, ConfigurationError, ConnectionError
+from ..base_lib import TransportInterface, TransportError, ConfigurationError, ConnectionError, TransportState, TransportEvent
 
 class USBTransport(TransportInterface):
     """USB transport implementation (placeholder)"""
@@ -231,17 +231,17 @@ class USBTransport(TransportInterface):
             if self.is_connected():
                 return True
             
-            self.status = ConnectionStatus.CONNECTING
+            self.status = TransportState.CONNECTING
             
             # TODO: Implement actual USB connection logic using pyusb or similar
             print("USB connect() - Not implemented yet")
             
             # For now, just simulate connection failure
-            self.status = ConnectionStatus.ERROR
+            self.status = TransportState.ERROR
             raise ConnectionError("USB interface not implemented")
             
         except Exception as e:
-            self.status = ConnectionStatus.ERROR
+            self.status = TransportState.ERROR
             raise ConnectionError(f"USB connection failed: {str(e)}")
     
     def disconnect(self) -> bool:
@@ -253,13 +253,13 @@ class USBTransport(TransportInterface):
             # TODO: Implement actual USB disconnection logic
             print("USB disconnect() - Not implemented yet")
             
-            self.status = ConnectionStatus.DISCONNECTED
-            self._trigger_callbacks('disconnect', self)
+            self.status = TransportState.DISCONNECTED
+            self._trigger_callbacks(TransportEvent.DISCONNECT, self)
             
             return True
             
         except Exception as e:
-            self.status = ConnectionStatus.ERROR
+            self.status = TransportState.ERROR
             raise ConnectionError(f"USB disconnect failed: {str(e)}")
     
     def read(self, size: int = -1) -> Optional[bytes]:

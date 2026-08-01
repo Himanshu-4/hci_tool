@@ -55,19 +55,20 @@ class SetEventMaskUI(HCICmdUI):
         help_label.setMaximumHeight(150)
         self.form_layout.addRow("Event Mask Info:", help_label)
     
-    def get_data_bytes(self) -> bytes:
-        """Get parameter values"""
+    def validate_parameters(self) -> bool:
+        """Build the Set Event Mask command from the hex input"""
         # Convert hex string to integer
         event_mask_hex = self.event_mask_input.text().strip()
         # Remove any spaces and '0x' prefixes
         event_mask_hex = event_mask_hex.replace(' ', '').replace('0x', '')
         # Add leading zeros if needed to make 16 hex digits (8 bytes)
         event_mask_hex = event_mask_hex.zfill(16)
-        event_mask = int(event_mask_hex, 16)
-        
-        return {
-            'event_mask': event_mask
-        }
+        try:
+            event_mask = int(event_mask_hex, 16)
+        except ValueError:
+            raise ValueError(f"Event mask is not valid hex: {event_mask_hex!r}")
+
+        self._cmd_instance = cb_cmds.SetEventMask(event_mask=event_mask)
 
 class WriteLocalNameUI(HCICmdUI):
     """UI for the Write Local Name command"""
@@ -80,7 +81,7 @@ class WriteLocalNameUI(HCICmdUI):
         """Add ui specific to Write Local Name command"""
         super().setup_ui()
         # Local Name (up to 248 bytes)
-        self.local_name_input = QLineEdit()
+        self.local_name_input = QLineEdit("HCI Tool")
         self.local_name_input.setPlaceholderText("Enter device name (e.g., My Bluetooth Device)")
         self.local_name_input.setMaxLength(248)  # Maximum allowed by the spec
         self.form_layout.addRow("Local Name:", self.local_name_input)
@@ -96,24 +97,13 @@ class WriteLocalNameUI(HCICmdUI):
         self.char_count_label.setText(f"{count} / 248 characters")
     
     def validate_parameters(self) -> bool:
-        """Validate parameters before sending by the WritelocalName command"""
-        try:
-            cb_cmds.WriteLocalName(self.local_name_input.text().strip())._validate_params()
-        except ValueError as e:
-            self.log_error(f"Validation error: {str(e)}")
-            return False
-        return True
-
-    
-    def get_data_bytes(self) -> Optional[bytes]:
-        """Get parameter values"""
+        """Build the Write Local Name command from the input"""
         local_name = self.local_name_input.text().strip()
         if not local_name:
-            self.log_error("Local Name cannot be empty")
-            return
+            raise ValueError("Local Name cannot be empty")
 
-        return cb_cmds.WriteLocalName(local_name).to_bytes()
-        
+        self._cmd_instance = cb_cmds.WriteLocalName(local_name=local_name)
+
 
 
 # Additional UI classes can be added for other Controller & Baseband commands

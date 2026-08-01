@@ -22,8 +22,21 @@ from .link_control_events import (
     read_remote_version_information_complete,
 )
 
+from .poc_events import (
+    DisconnectionCompleteEvent,
+    EncryptionChangeEvent,
+    ExtendedInquiryResultEvent,
+    HardwareErrorEvent,
+    InquiryResultWithRssiEvent,
+)
+
 # Re-export everything to make public API cleaner
 __all__ = [
+    'DisconnectionCompleteEvent',
+    'InquiryResultWithRssiEvent',
+    'ExtendedInquiryResultEvent',
+    'EncryptionChangeEvent',
+    'HardwareErrorEvent',
     # Event classes
     'InquiryCompleteEvent',
     'InquiryResultEvent',

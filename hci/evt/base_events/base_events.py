@@ -37,11 +37,12 @@ class CommandStatusEvent(HciEvtBasePacket):
         return cls(status, num_packets, opcode)
     
     def __str__(self) -> str:
-        status_desc = get_status_description(self.params['status'])
-        return (f"Command_Status: "
-                f"Opcode=0x{self.params['opcode']:04X}, \r\n"
-                f"NumPackets={self.params['num_hci_command_packets']}, \r\n"
-                f"Status={status_desc} (0x{self.params['status']:02X}), \r\n" )
+        opcode = self.params['opcode']
+        name = OPCODE_TO_NAME.get(opcode, f"Opcode_0x{opcode:04X}")
+        status = self.params['status']
+        return (f"Command_Status: {name} (0x{opcode:04X}), "
+                f"NumPackets={self.params['num_hci_command_packets']}, "
+                f"Status={get_status_description(status)} (0x{status:02X})")
 
 
 
@@ -87,13 +88,21 @@ class CommandCompleteEvent(HciEvtBasePacket):
        pass  # No specific validation needed for this event
    
     @classmethod
-    def from_bytes(cls, data: bytes) -> 'CommandCompleteEvent':
-        """Create Command Complete Event from parameter bytes (excluding header)"""
-        if len(data) < 4:
-            raise ValueError(f"Invalid data length: {len(data)}, expected 4 bytes")
-        
-        num_hci_command_packets, opcode, status = struct.unpack("<BHB", data[:4])
-        return cls(num_hci_command_packets, opcode, status)
+    def from_bytes(cls, data: bytes, sub_event_code: Optional[int] = None) -> 'CommandCompleteEvent':
+        """
+        Create Command Complete Event from parameter bytes (header excluded).
+
+        Anything past the status byte is command-specific and is kept verbatim in
+        `return_params` -- callers that know the opcode (e.g. Read_BD_ADDR) can
+        decode it; everyone else can still log it.
+        """
+        if len(data) < 3:
+            raise ValueError(f"Invalid data length: {len(data)}, expected at least 3 bytes")
+
+        num_hci_command_packets, opcode = struct.unpack("<BH", data[:3])
+        status = data[3] if len(data) > 3 else None
+        return cls(num_hci_command_packets, opcode, status,
+                   return_params=bytes(data[4:]))
     
     @classmethod
     def get_basic_event_data(cls, data: bytes) -> tuple[int, int, int, bytes]:
@@ -107,16 +116,29 @@ class CommandCompleteEvent(HciEvtBasePacket):
 
     def __str__(self) -> str:
         """String representation of the command complete event"""
-        status_desc = get_status_description(self.params['status']) if self.params.get('status') is not None else "Unknown"
-        name = getattr(self.__class__, 'NAME', OPCODE_TO_NAME.get(self.params['opcode'], 'UNKNOWN'))
-        return (f"Command_Complete: 0x{(self.EVENT_CODE or 0xFF):02X} \r\n"
-                f"{name}->0x{self.params['opcode']:04X}, \r\n"
-                f"NumPackets={self.params['num_hci_command_packets']}, \r\n"
-                f"Status={status_desc} (0x{self.params['status']:02X}), \r\n")
+        opcode = self.params.get('opcode', 0)
+        # A per-opcode subclass carries a meaningful NAME; the generic fallback
+        # does not, so resolve from the opcode table in that case.
+        name = getattr(self.__class__, 'NAME', None)
+        if not name or name in ("Unknown_Event", "Command_Complete"):
+            name = OPCODE_TO_NAME.get(opcode, f"Opcode_0x{opcode:04X}")
+        status = self.params.get('status')
+
+        text = (f"Command_Complete: {name} (0x{opcode:04X}), "
+                f"NumPackets={self.params.get('num_hci_command_packets')}")
+        if status is not None:
+            text += f", Status={get_status_description(status)} (0x{status:02X})"
+        extra = self.params.get('return_params')
+        if extra:
+            text += f", ReturnParams={extra.hex(' ')}"
+        return text
         
 
 
 register_event(CommandStatusEvent)
 
-# we should not register the as multiple flavours are there of it
-# register_event(CommandCompleteEvent)
+# Registered as the *fallback* decoder for event code 0x0E. Per-opcode flavours
+# (ReadBdAddrComplete and friends) live in `_cmd_complete_evt_registery` and win
+# the lookup; this one catches every other opcode so a plain
+# "status only" Command Complete still parses instead of raising.
+register_event(CommandCompleteEvent)

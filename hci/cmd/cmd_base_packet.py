@@ -19,39 +19,46 @@ class HciCmdBasePacket(HciCommandPacket):
     def __init__(self, **kwargs):
         """Initialize command with parameters"""
         super().__init__(**kwargs)
-        print(f"Initializing command {self.__class__.__name__} with params {self.params}")
         if self.params.get('opcode'):
-            self.OPCODE =  self.params.get('opcode')
+            self.OPCODE =  self.params['opcode']
         if self.params.get('name'):
-            self.NAME =  self.params.get('name')
+            self.NAME =  self.params['name']
         if self.params.get('params'):
-            self.PARAMS =  self.params.get('params')
+            self.PARAMS =  self.params['params']
+            
+        # can call validate params here 
+        self._validate_params()
     
     def to_bytes(self) -> bytes:
         """Convert command to bytes, including header"""
-        # print the types of PARAMS and _serialize_params
-        param_bytes = self._serialize_params()
-        
-        # Get class attributes from the derived class
-        params = getattr(self.__class__, 'PARAMS', None)
-        if params:
-            param_bytes += params
-        
+        param_bytes = self._serialize_params() or b''
 
-        opcode = getattr(self.__class__, 'OPCODE', self.params.get('opcode', 0))
+        # Raw parameter blocks handed to `create_cmd_packet` live on the
+        # *instance*, so read them from there. Reading the class attribute
+        # instead silently dropped them, producing a valid-looking but
+        # parameterless packet.
+        raw = getattr(self, 'PARAMS', None)
+        if raw and not param_bytes:
+            param_bytes = bytes(raw)
+
+        opcode = getattr(self, 'OPCODE', None)
+        if opcode is None:
+            opcode = self.params.get('opcode', 0)
         packet_type = getattr(self.__class__, 'PACKET_TYPE')
-        name = getattr(self.__class__, 'NAME', OPCODE_TO_NAME.get(opcode, 'UNKNOWN'))
-        
-        length = len(param_bytes) if param_bytes else 0
-        
+
         # HCI Command packet format:
         # - 1 byte: HCI Packet Type
         # - 2 bytes: Opcode (OGF:6 bits, OCF:10 bits)
         # - 1 byte: Parameter Total Length
         # - N bytes: Parameters
-        print(f" {packet_type}  Serializing command {name} with opcode 0x{opcode} and params length {length}")
-        header = struct.pack("<BHB", packet_type.value, opcode, length)
-        return header + param_bytes if param_bytes else header
+        if len(param_bytes) > 0xFF:
+            raise ValueError(
+                f"command parameters are {len(param_bytes)} bytes; "
+                "the HCI length field is one byte (max 255)"
+            )
+
+        header = struct.pack("<BHB", int(packet_type), int(opcode), len(param_bytes))
+        return header + param_bytes
     
     def __str__(self) -> str:
         """String representation of the command packet"""
@@ -78,9 +85,9 @@ class HciCmdBasePacket(HciCommandPacket):
         return f"{name} : 0x{opcode:04X}"
         
     def _serialize_params(self) -> bytes:
-        """Serialize parameters to bytes"""
-        pass
-    
+        """Serialize parameters to bytes. Default: no parameters."""
+        return b''
+
 
     def _validate_params(self) -> None:
         """Validate command parameters"""

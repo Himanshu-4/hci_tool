@@ -9,4 +9,10 @@ __all__ = [
     'exit_sniff_mode',
     'SniffMode',
     'ExitSniffMode',
+    'HoldMode',
+    'QosSetup',
+    'RoleDiscovery',
+    'SwitchRole',
+    'ReadLinkPolicySettings',
+    'WriteLinkPolicySettings',
 ]

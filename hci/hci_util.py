@@ -44,7 +44,21 @@ class AddressUtil:
     
     @staticmethod
     def bd_addr_str_to_bytes(bd_addr_str: str) -> bytes:
-        """Convert BD_ADDR string to bytes"""
+        """
+        Convert BD_ADDR string to bytes.
+
+        Already-decoded addresses pass straight through: the `from_bytes`
+        constructors rebuild a command from the wire and hand back 6 raw bytes,
+        and every one of them would otherwise fail here.
+        """
+        if isinstance(bd_addr_str, (bytes, bytearray)):
+            if len(bd_addr_str) != 6:
+                raise ValueError(f"BD_ADDR must be 6 bytes long, got {len(bd_addr_str)}")
+            return bytes(bd_addr_str)
+
+        if not bd_addr_str or len(bd_addr_str) != 17 or not all(c in "0123456789ABCDEF:" for c in bd_addr_str.upper()):
+            raise ValueError ("Invalid BD_ADDR format. Use XX:XX:XX:XX:XX:XX")
+        
         if len(bd_addr_str) != 17 or bd_addr_str.count(':') != 5:
             raise ValueError("Invalid BD_ADDR format. Use XX:XX:XX:XX:XX:XX")
         try:

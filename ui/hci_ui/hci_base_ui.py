@@ -51,7 +51,9 @@ class HciBaseUI(QDialog):
         self._main_layout = None
         self.content_layout = None
         self._is_destroyed = False  # Flag to track if the window is destroyed
-        self.parent = weakref.ref(parent) if parent else None
+        # NOTE: keep this off `self.parent` -- QWidget.parent() is a method, and
+        # shadowing it with a weakref breaks every Qt-internal call to it.
+        self._parent_ref = weakref.ref(parent) if parent else None
          # Make windows stay on top of main window but not system-wide
         if parent:
             self.setWindowFlags(Qt.Window | Qt.WindowStaysOnTopHint | Qt.WindowCloseButtonHint)
@@ -173,9 +175,9 @@ class HciBaseUI(QDialog):
     
     def get_parent(self):
         """Safely get the parent window"""
-        if self.parent is None:
+        if self._parent_ref is None:
             return None
-        parent = self.parent()
+        parent = self._parent_ref()
         # Check if the parent still exists and hasn't been deleted
         if parent is None:
             return None
@@ -186,18 +188,19 @@ class HciBaseUI(QDialog):
         except RuntimeError:
             # Object has been deleted by Qt
             return None
-        
+
     def add_to_parent(self):
         """Add this window to the parent's tracking system"""
-        if self.parent and hasattr(self.parent, 'register_subwindow'):
+        parent = self.get_parent()
+        if parent and hasattr(parent, 'register_subwindow'):
             # Determine window type based on class hierarchy
             window_type = 'unknown'
             if 'Cmd' in self.__class__.__name__:
                 window_type = 'command'
             elif 'Evt' in self.__class__.__name__:
                 window_type = 'event'
-                
-            self.parent.register_subwindow(self, window_type)
+
+            parent.register_subwindow(self, window_type)
             
     def closeEvent(self, event):
         """Handle window close event"""
@@ -222,10 +225,10 @@ class HciBaseUI(QDialog):
         """Handle focus events"""
         try:
             super().focusInEvent(event)
-            parent = self.parent()
+            parent = self.get_parent()
             # Update the parent that this window is now active
             if parent and hasattr(parent, 'status_bar'):
-                self.parent.status_bar.showMessage(f"Active: {self.windowTitle()}")
+                parent.status_bar.showMessage(f"Active: {self.windowTitle()}")
         except RuntimeError:
             pass
      #logging function to log messages to the console or UI
@@ -296,12 +299,13 @@ class HCICmdBaseUI(HciBaseUI):
         # This is a placeholder - subclasses should implement this
         pass
     
+    @property
     @abstractmethod
     def get_cmd_instance(self):
         """ get the cmd instance """
-        # cmd instance we get from the child class 
+        # cmd instance we get from the child class
         pass
-    
+
     def on_ok_button_clicked(self):
         """Handle OK button click - send the command"""
         if self._is_destroyed:
@@ -309,11 +313,14 @@ class HCICmdBaseUI(HciBaseUI):
         ret = False
         byte_data = b''
         try:
-            if not self.validate_parameters():
-                return
-            # execute the callback
-            ret = self._callback(self.get_cmd_instance()) if self._callback else None
-            
+            self.validate_parameters()
+
+            # The callback is handed this UI, not the packet: it needs both the
+            # built command (`get_cmd_instance`) and its bytes (`get_data_bytes`).
+            if self._callback:
+                byte_data = self.get_data_bytes() or b''
+                ret = self._callback(self)
+
         except Exception as e:
             self.log(f"Error OK btn: {str(e)}")
             self.log_error(f"Error : {str(e)}")

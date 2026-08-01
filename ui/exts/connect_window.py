@@ -73,19 +73,27 @@ class ConnectionDialog(QDialog):
         self.sdio_radio = QRadioButton("SDIO")
         self.uart_radio = QRadioButton("UART")
         self.usb_radio = QRadioButton("USB")
-        
+        # Emulated controller: lets the whole stack be driven with no hardware
+        # attached, which is also how the flows are exercised during development.
+        self.virtual_radio = QRadioButton("Virtual")
+        self.virtual_radio.setToolTip(
+            "Emulated controller - responds to HCI commands with synthetic "
+            "events. No hardware required.")
+
         # Set UART as default
         self.uart_radio.setChecked(True)
-        
+
         # Add to button group
         self.interface_button_group.addButton(self.sdio_radio, 0)
         self.interface_button_group.addButton(self.uart_radio, 1)
         self.interface_button_group.addButton(self.usb_radio, 2)
-        
+        self.interface_button_group.addButton(self.virtual_radio, 3)
+
         # Add to layout
         layout.addWidget(self.sdio_radio)
         layout.addWidget(self.uart_radio)
         layout.addWidget(self.usb_radio)
+        layout.addWidget(self.virtual_radio)
     
     def setup_parameters_group(self):
         self.parameters_group = QGroupBox("Connection Parameters")
@@ -305,7 +313,7 @@ class ConnectionDialog(QDialog):
     def get_selected_interface(self):
         """Get the currently selected interface"""
         selected_id = self.interface_button_group.checkedId()
-        interfaces = {0: "SDIO", 1: "UART", 2: "USB"}
+        interfaces = {0: "SDIO", 1: "UART", 2: "USB", 3: "VIRTUAL"}
         return interfaces.get(selected_id, "UART")
     
     def get_uart_config(self):
@@ -349,7 +357,9 @@ class ConnectionDialog(QDialog):
             if interface == "UART":
                 config = self.get_uart_config()
                 transport.configure(config)
-            
+            elif interface == "VIRTUAL":
+                transport.configure({})
+
             if transport.connect():
                 self.show_message("Connection test successful!", msg_type.info)
                 transport.disconnect()
@@ -374,6 +384,8 @@ class ConnectionDialog(QDialog):
                     self.show_message("Please select a COM port!",msg_type.error)
                     return
                 self.transport.configure(config)
+            elif interface == "VIRTUAL":
+                self.transport.configure({})
             elif interface in ["SDIO", "USB"]:
                 self.show_message(f"{interface} interface is not yet implemented!",msg_type.warning)
                 return

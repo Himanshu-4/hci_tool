@@ -1,420 +1,309 @@
-from PyQt5.QtWidgets import (
-    QWidget, QVBoxLayout, QTextEdit, 
-    QMainWindow, QLabel, QGridLayout, QGroupBox
-)
-from PyQt5.QtGui import QTextCursor
-from PyQt5.QtCore import Qt, pyqtSignal
-from hci import bd_addr_bytes_to_str
+"""
+Event windows for the BR/EDR link-control events.
 
-from ..evt_baseui import HCIEvtUI
+The interesting one is `ConnectionRequestEventUI`: an incoming connection is a
+question the controller is asking, and it will time out if nobody answers. That
+window pops with Accept and Reject buttons wired to the real commands.
+"""
 
-import struct
+from __future__ import annotations
 
+from PyQt5.QtWidgets import QComboBox, QLabel
 
-class ConnectionCompleteEventUI(HCIEvtUI):
-    """UI for HCI Connection Complete Event"""
-    
-    def __init__(self):
-        super().__init__("HCI Connection Complete Event")
-        
-    def add_event_ui(self):
-        """Add Connection Complete event specific UI components"""
-        super().add_event_ui()
-        
-        # Initialize parameter labels
-        self.status_label = self.add_parameter(0, "Status:", "Unknown")
-        self.handle_label = self.add_parameter(1, "Connection Handle:", "Unknown")
-        self.bd_addr_label = self.add_parameter(2, "BD_ADDR:", "Unknown")
-        self.link_type_label = self.add_parameter(3, "Link Type:", "Unknown")
-        self.encryption_label = self.add_parameter(4, "Encryption Enabled:", "Unknown")
-        
-    def process_event(self, event_data):
-        """Process a Connection Complete event"""
-        if len(event_data) < 11:
-            self.log("Invalid Connection Complete event data length", "red")
-            return
-        
-        # Parse the event data
-        status = event_data[0]
-        connection_handle = struct.unpack("<H", event_data[1:3])[0]
-        bd_addr = event_data[3:9]
-        link_type = event_data[9]
-        encryption_enabled = event_data[10]
-        
-        # Update the UI
-        self.status_label.setText("0x{:02X} ({})".format(
-            status, "Success" if status == 0 else "Error"))
-        self.handle_label.setText("0x{:04X}".format(connection_handle))
-        self.bd_addr_label.setText(bd_addr_bytes_to_str(bd_addr))
-        
-        link_type_str = "Unknown"
-        if link_type == 0:
-            link_type_str = "SCO"
-        elif link_type == 1:
-            link_type_str = "ACL"
-        self.link_type_label.setText("{} (0x{:02X})".format(link_type_str, link_type))
-        
-        self.encryption_label.setText("{}".format(
-            "Enabled" if encryption_enabled == 1 else "Disabled"))
-        
-        # Log the event
-        self.log("Connection Complete event received:")
-        self.log("  Status: 0x{:02X} ({})".format(
-            status, "Success" if status == 0 else "Error"))
-        self.log("  Connection Handle: 0x{:04X}".format(connection_handle))
-        self.log("  BD_ADDR: {}".format(bd_addr_bytes_to_str(bd_addr)))
-        self.log("  Link Type: {}".format(link_type_str))
-        self.log("  Encryption Enabled: {}".format(
-            "Enabled" if encryption_enabled == 1 else "Disabled"))
+from hci.evt.evt_codes import HciEventCode
+from hci.cmd.link_controller import AcceptConnectionRequest, RejectConnectionRequest
+
+from ..evt_baseui import AggregatingEvtUI, HCIEvtUI, addr_str
+from .. import register_event_ui
 
 
+_LINK_TYPES = {0x00: "SCO", 0x01: "ACL", 0x02: "eSCO"}
+
+
+def _status_text(status: int) -> str:
+    return "Success" if status == 0x00 else f"Error 0x{status:02X}"
+
+
+@register_event_ui
 class ConnectionRequestEventUI(HCIEvtUI):
-    """UI for HCI Connection Request Event"""
-    
-    def __init__(self):
-        super().__init__("HCI Connection Request Event")
-        
-    def add_event_ui(self):
-        """Add Connection Request event specific UI components"""
-        super().add_event_ui()
-        
-        # Initialize parameter labels
-        self.bd_addr_label = self.add_parameter(0, "BD_ADDR:", "Unknown")
-        self.class_of_device_label = self.add_parameter(1, "Class of Device:", "Unknown")
-        self.link_type_label = self.add_parameter(2, "Link Type:", "Unknown")
-        
-    def process_event(self, event_data):
-        """Process a Connection Request event"""
-        if len(event_data) < 10:
-            self.log("Invalid Connection Request event data length", "red")
+    """Incoming BR/EDR connection -- needs an answer from the user."""
+
+    EVENT_KEYS = ((HciEventCode.CONNECTION_REQUEST, None),)
+    NAME = "Connection Request"
+    AUTO_POPUP = True
+    ACTION_REQUIRED = True
+
+    def build_content(self):
+        self.addr_label = QLabel("-")
+        self.cod_label = QLabel("-")
+        self.link_type_label = QLabel("-")
+        self.form_layout.addRow("BD_ADDR:", self.addr_label)
+        self.form_layout.addRow("Class of Device:", self.cod_label)
+        self.form_layout.addRow("Link Type:", self.link_type_label)
+
+        self.role_combo = QComboBox()
+        self.role_combo.addItem("Become central (do not switch)", 0x00)
+        self.role_combo.addItem("Remain peripheral (allow switch)", 0x01)
+        self.form_layout.addRow("Accept as:", self.role_combo)
+
+        self.reason_combo = QComboBox()
+        self.reason_combo.addItem("Limited resources (0x0D)", 0x0D)
+        self.reason_combo.addItem("Security reasons (0x0E)", 0x0E)
+        self.reason_combo.addItem("Unacceptable BD_ADDR (0x0F)", 0x0F)
+        self.form_layout.addRow("Reject with:", self.reason_combo)
+
+        # This dialog answers rather than dismisses.
+        self.ok_button.setText("Accept")
+        self.cancel_button.setText("Reject")
+        self.cancel_button.setVisible(True)
+
+    def render(self, event):
+        self._bd_addr = event.params.get('bd_addr')
+        cod = event.params.get('class_of_device')
+        if isinstance(cod, (bytes, bytearray)):
+            cod = int.from_bytes(cod, 'little')
+
+        self.addr_label.setText(addr_str(self._bd_addr))
+        self.cod_label.setText("-" if cod is None else f"0x{cod:06X}")
+        link_type = event.params.get('link_type')
+        self.link_type_label.setText(
+            _LINK_TYPES.get(link_type, f"0x{link_type:02X}" if link_type is not None else "-"))
+        self.clear_error()
+
+    def on_ok_button_clicked(self):
+        """Accept the connection."""
+        if self._accepted_address() is None:
             return
-        
-        # Parse the event data
-        bd_addr = event_data[0:6]
-        class_of_device = struct.unpack("<L", event_data[6:9] + b'\x00')[0]
-        link_type = event_data[9]
-        
-        # Update the UI
-        self.bd_addr_label.setText(bd_addr_bytes_to_str(bd_addr))
-        self.class_of_device_label.setText("0x{:06X}".format(class_of_device))
-        
-        link_type_str = "Unknown"
-        if link_type == 0:
-            link_type_str = "SCO"
-        elif link_type == 1:
-            link_type_str = "ACL"
-        self.link_type_label.setText("{} (0x{:02X})".format(link_type_str, link_type))
-        
-        # Log the event
-        self.log("Connection Request event received:")
-        self.log("  BD_ADDR: {}".format(bd_addr_bytes_to_str(bd_addr)))
-        self.log("  Class of Device: 0x{:06X}".format(class_of_device))
-        self.log("  Link Type: {}".format(link_type_str))
+        if self.send(AcceptConnectionRequest(
+                bd_addr=self._accepted_address(),
+                role=self.role_combo.currentData())):
+            self.close()
+
+    def on_cancel_button_clicked(self):
+        """Reject the connection."""
+        if self._accepted_address() is None:
+            return
+        if self.send(RejectConnectionRequest(
+                bd_addr=self._accepted_address(),
+                reason=self.reason_combo.currentData())):
+            self.close()
+
+    def _accepted_address(self):
+        addr = getattr(self, '_bd_addr', None)
+        if addr is None:
+            self.log_error("no address in the request -- cannot answer")
+            return None
+        return addr
 
 
+@register_event_ui
+class ConnectionCompleteEventUI(HCIEvtUI):
+    """BR/EDR connection established (or failed)."""
+
+    EVENT_KEYS = ((HciEventCode.CONNECTION_COMPLETE, None),)
+    NAME = "Connection Complete"
+    AUTO_POPUP = True
+
+    def build_content(self):
+        self.status_label = QLabel("-")
+        self.handle_label = QLabel("-")
+        self.addr_label = QLabel("-")
+        self.link_type_label = QLabel("-")
+        self.encryption_label = QLabel("-")
+        self.form_layout.addRow("Status:", self.status_label)
+        self.form_layout.addRow("Connection Handle:", self.handle_label)
+        self.form_layout.addRow("BD_ADDR:", self.addr_label)
+        self.form_layout.addRow("Link Type:", self.link_type_label)
+        self.form_layout.addRow("Encryption:", self.encryption_label)
+
+    def render(self, event):
+        params = event.params
+        status = params.get('status', 0xFF)
+        self.status_label.setText(_status_text(status))
+        self.status_label.setStyleSheet(
+            "color: #2e7d32;" if status == 0 else "color: #c62828;")
+        handle = params.get('connection_handle')
+        self.handle_label.setText("-" if handle is None else f"0x{handle:04X}")
+        self.addr_label.setText(addr_str(params.get('bd_addr')))
+        link_type = params.get('link_type')
+        self.link_type_label.setText(
+            _LINK_TYPES.get(link_type, f"0x{link_type:02X}" if link_type is not None else "-"))
+        self.encryption_label.setText(
+            "enabled" if params.get('encryption_enabled') else "disabled")
+
+
+@register_event_ui
 class DisconnectionCompleteEventUI(HCIEvtUI):
-    """UI for HCI Disconnection Complete Event"""
-    
-    def __init__(self):
-        super().__init__("HCI Disconnection Complete Event")
-        
-    def add_event_ui(self):
-        """Add Disconnection Complete event specific UI components"""
-        super().add_event_ui()
-        
-        # Initialize parameter labels
-        self.status_label = self.add_parameter(0, "Status:", "Unknown")
-        self.handle_label = self.add_parameter(1, "Connection Handle:", "Unknown")
-        self.reason_label = self.add_parameter(2, "Reason:", "Unknown")
-        
-    def process_event(self, event_data):
-        """Process a Disconnection Complete event"""
-        if len(event_data) < 4:
-            self.log("Invalid Disconnection Complete event data length", "red")
-            return
-        
-        # Parse the event data
-        status = event_data[0]
-        connection_handle = struct.unpack("<H", event_data[1:3])[0]
-        reason = event_data[3]
-        
-        # Update the UI
-        self.status_label.setText("0x{:02X} ({})".format(
-            status, "Success" if status == 0 else "Error"))
-        self.handle_label.setText("0x{:04X}".format(connection_handle))
-        
-        reason_str = "Unknown"
-        reason_descriptions = {
-            0x05: "Authentication Failure",
-            0x13: "Remote User Terminated Connection",
-            0x14: "Remote Device Terminated Connection due to Low Resources",
-            0x15: "Remote Device Terminated Connection due to Power Off",
-            0x16: "Connection Terminated by Local Host",
-            0x1A: "Unsupported Remote Feature",
-            0x3B: "Unacceptable Connection Parameters"
-        }
-        
-        if reason in reason_descriptions:
-            reason_str = reason_descriptions[reason]
-        
-        self.reason_label.setText("0x{:02X} ({})".format(reason, reason_str))
-        
-        # Log the event
-        self.log("Disconnection Complete event received:")
-        self.log("  Status: 0x{:02X} ({})".format(
-            status, "Success" if status == 0 else "Error"))
-        self.log("  Connection Handle: 0x{:04X}".format(connection_handle))
-        self.log("  Reason: 0x{:02X} ({})".format(reason, reason_str))
+    """A link went away."""
+
+    EVENT_KEYS = ((HciEventCode.DISCONNECTION_COMPLETE, None),)
+    NAME = "Disconnection Complete"
+    AUTO_POPUP = True
+
+    def build_content(self):
+        self.status_label = QLabel("-")
+        self.handle_label = QLabel("-")
+        self.reason_label = QLabel("-")
+        self.form_layout.addRow("Status:", self.status_label)
+        self.form_layout.addRow("Connection Handle:", self.handle_label)
+        self.form_layout.addRow("Reason:", self.reason_label)
+
+    def render(self, event):
+        params = event.params
+        self.status_label.setText(_status_text(params.get('status', 0xFF)))
+        handle = params.get('connection_handle')
+        self.handle_label.setText("-" if handle is None else f"0x{handle:04X}")
+        reason = params.get('reason')
+        self.reason_label.setText("-" if reason is None else f"0x{reason:02X}")
 
 
+@register_event_ui
 class RemoteNameRequestCompleteEventUI(HCIEvtUI):
-    """UI for HCI Remote Name Request Complete Event"""
-    
-    def __init__(self):
-        super().__init__("HCI Remote Name Request Complete Event")
-        
-    def add_event_ui(self):
-        """Add Remote Name Request Complete event specific UI components"""
-        super().add_event_ui()
-        
-        # Initialize parameter labels
-        self.status_label = self.add_parameter(0, "Status:", "Unknown")
-        self.bd_addr_label = self.add_parameter(1, "BD_ADDR:", "Unknown")
-        self.remote_name_label = self.add_parameter(2, "Remote Name:", "Unknown")
-        
-    def process_event(self, event_data):
-        """Process a Remote Name Request Complete event"""
-        if len(event_data) < 7:
-            self.log("Invalid Remote Name Request Complete event data length", "red")
-            return
-        
-        # Parse the event data
-        status = event_data[0]
-        bd_addr = event_data[1:7]
-        
-        # Remote name is a null-terminated string (max 248 bytes)
-        remote_name = ""
-        if len(event_data) > 7:
-            # Find the null terminator
-            null_pos = event_data.find(0, 7)
-            if null_pos != -1:
-                remote_name = event_data[7:null_pos].decode('utf-8', errors='replace')
-            else:
-                remote_name = event_data[7:].decode('utf-8', errors='replace')
-        
-        # Update the UI
-        self.status_label.setText("0x{:02X} ({})".format(
-            status, "Success" if status == 0 else "Error"))
-        self.bd_addr_label.setText(bd_addr_bytes_to_str(bd_addr))
-        self.remote_name_label.setText(remote_name)
-        
-        # Log the event
-        self.log("Remote Name Request Complete event received:")
-        self.log("  Status: 0x{:02X} ({})".format(
-            status, "Success" if status == 0 else "Error"))
-        self.log("  BD_ADDR: {}".format(bd_addr_bytes_to_str(bd_addr)))
-        self.log("  Remote Name: {}".format(remote_name))
+    """The answer to a Remote Name Request."""
+
+    EVENT_KEYS = ((HciEventCode.REMOTE_NAME_REQUEST_COMPLETE, None),)
+    NAME = "Remote Name Request Complete"
+    AUTO_POPUP = True
+
+    def build_content(self):
+        self.status_label = QLabel("-")
+        self.addr_label = QLabel("-")
+        self.name_label = QLabel("-")
+        self.form_layout.addRow("Status:", self.status_label)
+        self.form_layout.addRow("BD_ADDR:", self.addr_label)
+        self.form_layout.addRow("Remote Name:", self.name_label)
+
+    def render(self, event):
+        params = event.params
+        self.status_label.setText(_status_text(params.get('status', 0xFF)))
+        self.addr_label.setText(addr_str(params.get('bd_addr')))
+        name = params.get('remote_name', b'')
+        if isinstance(name, (bytes, bytearray)):
+            name = name.split(b'\x00', 1)[0].decode('utf-8', 'replace')
+        self.name_label.setText(name or "(none)")
 
 
-class InquiryCompleteEventUI(HCIEvtUI):
-    """UI for HCI Inquiry Complete Event"""
-    
-    def __init__(self):
-        super().__init__("HCI Inquiry Complete Event")
-        
-    def add_event_ui(self):
-        """Add Inquiry Complete event specific UI components"""
-        super().add_event_ui()
-        
-        # Initialize parameter labels
-        self.status_label = self.add_parameter(0, "Status:", "Unknown")
-        
-    def process_event(self, event_data):
-        """Process an Inquiry Complete event"""
-        if len(event_data) < 1:
-            self.log("Invalid Inquiry Complete event data length", "red")
-            return
-        
-        # Parse the event data
-        status = event_data[0]
-        
-        # Update the UI
-        self.status_label.setText("0x{:02X} ({})".format(
-            status, "Success" if status == 0 else "Error"))
-        
-        # Log the event
-        self.log("Inquiry Complete event received:")
-        self.log("  Status: 0x{:02X} ({})".format(
-            status, "Success" if status == 0 else "Error"))
+@register_event_ui
+class EncryptionChangeEventUI(HCIEvtUI):
+    """Encryption turned on or off on a link."""
+
+    EVENT_KEYS = ((HciEventCode.ENCRYPTION_CHANGE, None),)
+    NAME = "Encryption Change"
+    AUTO_POPUP = True
+
+    _STATES = {0: "off", 1: "on (E0 / AES-CCM)", 2: "on (AES-CCM)"}
+
+    def build_content(self):
+        self.status_label = QLabel("-")
+        self.handle_label = QLabel("-")
+        self.state_label = QLabel("-")
+        self.form_layout.addRow("Status:", self.status_label)
+        self.form_layout.addRow("Connection Handle:", self.handle_label)
+        self.form_layout.addRow("Encryption:", self.state_label)
+
+    def render(self, event):
+        params = event.params
+        self.status_label.setText(_status_text(params.get('status', 0xFF)))
+        handle = params.get('connection_handle')
+        self.handle_label.setText("-" if handle is None else f"0x{handle:04X}")
+        enabled = params.get('encryption_enabled')
+        self.state_label.setText(self._STATES.get(enabled, f"0x{enabled:02X}"
+                                                  if enabled is not None else "-"))
 
 
-class InquiryResultEventUI(HCIEvtUI):
-    """UI for HCI Inquiry Result Event"""
-    
-    def __init__(self):
-        super().__init__("HCI Inquiry Result Event")
-        
-    def add_event_ui(self):
-        """Add Inquiry Result event specific UI components"""
-        super().add_event_ui()
-        
-        # Create a group for the inquiry results
-        self.results_group = QGroupBox("Inquiry Results")
-        self.results_layout = QVBoxLayout()
-        self.results_group.setLayout(self.results_layout)
-        self.content_layout.addWidget(self.results_group)
-        
-    def process_event(self, event_data):
-        """Process an Inquiry Result event"""
-        if len(event_data) < 1:
-            self.log("Invalid Inquiry Result event data length", "red")
-            return
-        
-        # Parse the event data
-        num_responses = event_data[0]
-        
-        # Check if the data length is consistent with the number of responses
-        expected_length = 1 + (num_responses * 14)  # 1 byte for num_responses + 14 bytes per response
-        if len(event_data) < expected_length:
-            self.log("Invalid Inquiry Result event data length for {} responses".format(num_responses), "red")
-            return
-        
-        # Clear previous results
-        for i in reversed(range(self.results_layout.count())):
-            self.results_layout.itemAt(i).widget().deleteLater()
-        
-        # Log the event
-        self.log("Inquiry Result event received with {} device(s)".format(num_responses))
-        
-        # Process each response
-        for i in range(num_responses):
-            # Extract data for this response
-            offset = 1 + (i * 14)
-            bd_addr = event_data[offset:offset+6]
-            page_scan_repetition_mode = event_data[offset+6]
-            reserved = event_data[offset+7:offset+9]
-            class_of_device = struct.unpack("<L", event_data[offset+9:offset+12] + b'\x00')[0]
-            clock_offset = struct.unpack("<H", event_data[offset+12:offset+14])[0]
-            
-            # Create a widget for this result
-            result_widget = QGroupBox("Device {}".format(i+1))
-            result_layout = QGridLayout()
-            
-            # Add the device information
-            result_layout.addWidget(QLabel("BD_ADDR:"), 0, 0)
-            result_layout.addWidget(QLabel(bd_addr_bytes_to_str(bd_addr)), 0, 1)
-            
-            result_layout.addWidget(QLabel("Page Scan Repetition Mode:"), 1, 0)
-            mode_str = "Unknown"
-            if page_scan_repetition_mode == 0:
-                mode_str = "R0"
-            elif page_scan_repetition_mode == 1:
-                mode_str = "R1"
-            elif page_scan_repetition_mode == 2:
-                mode_str = "R2"
-            result_layout.addWidget(QLabel("{} (0x{:02X})".format(mode_str, page_scan_repetition_mode)), 1, 1)
-            
-            result_layout.addWidget(QLabel("Class of Device:"), 2, 0)
-            result_layout.addWidget(QLabel("0x{:06X}".format(class_of_device)), 2, 1)
-            
-            result_layout.addWidget(QLabel("Clock Offset:"), 3, 0)
-            result_layout.addWidget(QLabel("0x{:04X}".format(clock_offset)), 3, 1)
-            
-            result_widget.setLayout(result_layout)
-            self.results_layout.addWidget(result_widget)
-            
-            # Log this result
-            self.log("  Device {}:".format(i+1))
-            self.log("    BD_ADDR: {}".format(bd_addr_bytes_to_str(bd_addr)))
-            self.log("    Page Scan Repetition Mode: {}".format(mode_str))
-            self.log("    Class of Device: 0x{:06X}".format(class_of_device))
-            self.log("    Clock Offset: 0x{:04X}".format(clock_offset))
+@register_event_ui
+class InquiryResultsUI(AggregatingEvtUI):
+    """
+    Every inquiry response, in one table.
+
+    All three result event codes land here -- a controller may send plain,
+    with-RSSI and extended results in the same inquiry, and they describe the
+    same devices.
+    """
+
+    EVENT_KEYS = (
+        (HciEventCode.INQUIRY_RESULT, None),
+        (HciEventCode.INQUIRY_RESULT_WITH_RSSI, None),
+        (HciEventCode.EXTENDED_INQUIRY_RESULT, None),
+        (HciEventCode.INQUIRY_COMPLETE, None),
+    )
+    WINDOW_KEY = "inquiry_results"
+    NAME = "Inquiry Results"
+    AUTO_POPUP = True
+
+    COLUMNS = ("BD_ADDR", "Name", "RSSI", "Class of Device", "Clock Offset")
+    STRETCH_COLUMN = 1
+
+    def build_content(self):
+        super().build_content()
+        self.state_label = QLabel("inquiry running")
+        self.content_layout.addWidget(self.state_label)
+
+    def rows_for(self, event):
+        code = int(getattr(event, 'EVENT_CODE', 0))
+        params = event.params
+
+        if code == HciEventCode.INQUIRY_COMPLETE:
+            self.state_label.setText(
+                f"inquiry complete ({_status_text(params.get('status', 0))})")
+            return ()
+
+        self.state_label.setText("inquiry running")
+
+        if code == HciEventCode.EXTENDED_INQUIRY_RESULT:
+            return (self._row(
+                addr=params.get('bd_addr'),
+                rssi=params.get('rssi'),
+                cod=params.get('class_of_device'),
+                clock=params.get('clock_offset'),
+                eir=params.get('extended_inquiry_response'),
+            ),)
+
+        if code == HciEventCode.INQUIRY_RESULT_WITH_RSSI:
+            return tuple(self._row(
+                addr=r.get('bd_addr'),
+                rssi=r.get('rssi'),
+                cod=r.get('class_of_device'),
+                clock=r.get('clock_offset'),
+            ) for r in params.get('responses', ()))
+
+        # Plain Inquiry Result: parallel lists, no RSSI.
+        addrs = params.get('bd_addrs', ())
+        cods = params.get('class_of_devices', ())
+        clocks = params.get('clock_offsets', ())
+        rows = []
+        for index, addr in enumerate(addrs):
+            cod = cods[index] if index < len(cods) else None
+            if isinstance(cod, (bytes, bytearray)):
+                cod = int.from_bytes(cod, 'little')
+            rows.append(self._row(
+                addr=addr,
+                rssi=None,
+                cod=cod,
+                clock=clocks[index] if index < len(clocks) else None,
+            ))
+        return tuple(rows)
+
+    def _row(self, addr, rssi, cod, clock, eir=None):
+        name = ""
+        if eir:
+            # An EIR payload is AD structures, same encoding as LE adv data.
+            from hci.evt.le.adv_data import parse_adv_data
+            name = parse_adv_data(bytes(eir)).local_name or ""
+        return (
+            addr_str(addr),
+            name,
+            "" if rssi is None else f"{rssi} dBm",
+            "" if cod is None else f"0x{cod:06X}",
+            "" if clock is None else f"0x{clock:04X}",
+        )
 
 
-class InquiryResultWithRSSIEventUI(HCIEvtUI):
-    """UI for HCI Inquiry Result with RSSI Event"""
-    
-    def __init__(self):
-        super().__init__("HCI Inquiry Result with RSSI Event")
-        
-    def add_event_ui(self):
-        """Add Inquiry Result with RSSI event specific UI components"""
-        super().add_event_ui()
-        
-        # Create a group for the inquiry results
-        self.results_group = QGroupBox("Inquiry Results with RSSI")
-        self.results_layout = QVBoxLayout()
-        self.results_group.setLayout(self.results_layout)
-        self.content_layout.addWidget(self.results_group)
-        
-    def process_event(self, event_data):
-        """Process an Inquiry Result with RSSI event"""
-        if len(event_data) < 1:
-            self.log("Invalid Inquiry Result with RSSI event data length", "red")
-            return
-        
-        # Parse the event data
-        num_responses = event_data[0]
-        
-        # Check if the data length is consistent with the number of responses
-        expected_length = 1 + (num_responses * 15)  # 1 byte for num_responses + 15 bytes per response
-        if len(event_data) < expected_length:
-            self.log("Invalid Inquiry Result with RSSI event data length for {} responses".format(num_responses), "red")
-            return
-        
-        # Clear previous results
-        for i in reversed(range(self.results_layout.count())):
-            self.results_layout.itemAt(i).widget().deleteLater()
-        
-        # Log the event
-        self.log("Inquiry Result with RSSI event received with {} device(s)".format(num_responses))
-        
-        # Process each response
-        for i in range(num_responses):
-            # Extract data for this response
-            offset = 1 + (i * 15)
-            bd_addr = event_data[offset:offset+6]
-            page_scan_repetition_mode = event_data[offset+6]
-            reserved = event_data[offset+7]
-            class_of_device = struct.unpack("<L", event_data[offset+8:offset+11] + b'\x00')[0]
-            clock_offset = struct.unpack("<H", event_data[offset+11:offset+13])[0]
-            rssi = struct.unpack("<b", bytes([event_data[offset+13]]))[0]  # signed byte
-            
-            # Create a widget for this result
-            result_widget = QGroupBox("Device {}".format(i+1))
-            result_layout = QGridLayout()
-            
-            # Add the device information
-            result_layout.addWidget(QLabel("BD_ADDR:"), 0, 0)
-            result_layout.addWidget(QLabel(bd_addr_bytes_to_str(bd_addr)), 0, 1)
-            
-            result_layout.addWidget(QLabel("Page Scan Repetition Mode:"), 1, 0)
-            mode_str = "Unknown"
-            if page_scan_repetition_mode == 0:
-                mode_str = "R0"
-            elif page_scan_repetition_mode == 1:
-                mode_str = "R1"
-            elif page_scan_repetition_mode == 2:
-                mode_str = "R2"
-            result_layout.addWidget(QLabel("{} (0x{:02X})".format(mode_str, page_scan_repetition_mode)), 1, 1)
-            
-            result_layout.addWidget(QLabel("Class of Device:"), 2, 0)
-            result_layout.addWidget(QLabel("0x{:06X}".format(class_of_device)), 2, 1)
-            
-            result_layout.addWidget(QLabel("Clock Offset:"), 3, 0)
-            result_layout.addWidget(QLabel("0x{:04X}".format(clock_offset)), 3, 1)
-            
-            result_layout.addWidget(QLabel("RSSI:"), 4, 0)
-            result_layout.addWidget(QLabel("{} dBm".format(rssi)), 4, 1)
-            
-            result_widget.setLayout(result_layout)
-            self.results_layout.addWidget(result_widget)
-            
-            # Log this result
-            self.log("  Device {}:".format(i+1))
-            self.log("    BD_ADDR: {}".format(bd_addr_bytes_to_str(bd_addr)))
-            self.log("    Page Scan Repetition Mode: {}".format(mode_str))
-            self.log("    Class of Device: 0x{:06X}".format(class_of_device))
-            self.log("    Clock Offset: 0x{:04X}".format(clock_offset))
-            self.log("    RSSI: {} dBm".format(rssi))
-
+__all__ = [
+    "ConnectionRequestEventUI",
+    "ConnectionCompleteEventUI",
+    "DisconnectionCompleteEventUI",
+    "RemoteNameRequestCompleteEventUI",
+    "EncryptionChangeEventUI",
+    "InquiryResultsUI",
+]

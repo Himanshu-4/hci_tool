@@ -115,13 +115,15 @@ class LeSetAdvParams(HciCmdBasePacket):
     
     def _serialize_params(self) -> bytes:
         """Serialize parameters to bytes"""
-        return struct.pack("<HHBBBB6sBB",
+        # peer_addr is held in display order (MSB first); the wire wants it
+        # little-endian.
+        return struct.pack("<HHBBB6sBB",
                         self.params['adv_interval_min'],
                         self.params['adv_interval_max'],
                         self.params['adv_type'],
                         self.params['own_addr_type'],
                         self.params['peer_addr_type'],
-                        *reversed[Any](self.params['peer_addr']),  # Reverse for little-endian
+                        bytes(reversed(self.params['peer_addr'])),
                         self.params['adv_channel_map'],
                         self.params['adv_filter_policy'])
     

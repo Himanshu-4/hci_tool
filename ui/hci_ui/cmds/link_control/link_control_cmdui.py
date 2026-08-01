@@ -9,7 +9,6 @@ from typing import Optional
 
 from hci.cmd.cmd_opcodes import create_opcode, OGF, LinkControlOCF
 import hci.cmd.link_controller as lc_cmds
-from hci import bd_addr_str_to_bytes
 
 from ..cmd_baseui import HCICmdUI
 from .. import register_command_ui
@@ -50,16 +49,9 @@ class InquiryCommandUI(HCICmdUI):
         lap_str = self.lap_field.text().replace(':', '')
         lap = int(lap_str, 16) & 0x00FFFFFF  # Extract 24-bit LAP value
         
-        inquiry_length = self.inquiry_length.value()
-        num_responses = self.num_responses.value()
-        try:
-            self._cmd_instance = lc_cmds.Inquiry(lap=lap, inquiry_length=inquiry_length,
-                    num_responses=num_responses)
-            self._cmd_instance._validate_params()
-        except Exception as e:
-            self.log_error(f"Invalid parameters: {str(e)}")
-            return False
-        return True
+
+        self._cmd_instance = lc_cmds.Inquiry(lap=lap, inquiry_length=self.inquiry_length.value(),
+                    num_responses=self.num_responses.value())
     
 
 
@@ -107,32 +99,14 @@ class CreateConnectionCommandUI(HCICmdUI):
         self.form_layout.addRow("Allow Role Switch:", self.allow_role_switch)
         
     def validate_parameters(self) -> bool:
-        bd_addr = self.bd_addr.text().strip()
-        if not bd_addr or len(bd_addr) != 17 or not all(c in "0123456789ABCDEF:" for c in bd_addr.upper()):
-            self.log_error("Invalid BD_ADDR format. Use XX:XX:XX:XX:XX:XX")
-            return False
-        
-        packet_type = self.packet_type.value()
-        if packet_type < 0 or packet_type > 0xFFFF:
-            self.log_error("Packet Type must be between 0 and 0xFFFF")
-            return False
-        
-        page_scan_repetition = self.page_scan_repetition.currentData()
-        clock_offset = self.clock_offset.value()
-        
-        try:
-            self._cmd_instance = lc_cmds.CreateConnection(
-                bd_addr=bd_addr_str_to_bytes(bd_addr),
-                packet_type=packet_type,
-                page_scan_repetition=page_scan_repetition,
-                clock_offset=clock_offset,
+        self._cmd_instance = lc_cmds.CreateConnection(
+                bd_addr = self.bd_addr.text().strip(),
+                packet_type=self.packet_type.value(),
+                page_scan_repetition_mode=self.page_scan_repetition.currentData(),
+                clock_offset=self.clock_offset.value(),
                 allow_role_switch=self.allow_role_switch.currentData()
             )
-            self._cmd_instance._validate_params()
-        except Exception as e:
-            self.log_error(f"Invalid parameters: {str(e)}")
-            return False
-        return True
+       
 
 
 class AcceptConnectionCommandUI(HCICmdUI):
@@ -159,32 +133,11 @@ class AcceptConnectionCommandUI(HCICmdUI):
         self.form_layout.addRow( "Role:", self.role)
      
     def validate_parameters(self) -> bool:
-        bd_addr = self.bd_addr.text().strip()
-        if not bd_addr or len(bd_addr) != 17 or not all(c in "0123456789ABCDEF:" for c in bd_addr.upper()):
-            self.log_error("Invalid BD_ADDR format. Use XX:XX:XX:XX:XX:XX")
-            return False
-        
-        role = self.role.currentData()
-        try:
-            lc_cmds.AcceptConnectionRequest(
-                bd_addr=bd_addr_str_to_bytes(bd_addr),
-                role=role
-            )._validate_params()
-        except Exception as e:
-            self.log_error(f"Invalid parameters: {str(e)}")
-            return False
-        return True
+        self._cmd_instance = lc_cmds.AcceptConnectionRequest(
+            bd_addr=self.bd_addr.text().strip(),
+                role=self.role.currentData())
 
-    def get_data_bytes(self) -> bytes:
-        """Get the parameter values from the UI and create a bytearray for the command"""
-        bd_addr = self.bd_addr.text().strip()
-        role = self.role.currentData()
 
-        return lc_cmds.AcceptConnectionRequest(
-            bd_addr=bd_addr_str_to_bytes(bd_addr),
-            role=role
-        ).to_bytes()
-        
 
 class DisconnectCommandUI(HCICmdUI):
     """UI for HCI Disconnect command"""
@@ -215,32 +168,9 @@ class DisconnectCommandUI(HCICmdUI):
         self.form_layout.addRow( "Reason:", self.reason)
         
     def validate_parameters(self) -> bool:
-        connection_handle = self.connection_handle.value()
-        if connection_handle < 0 or connection_handle > 0x0EFF:
-            self.log_error("Connection Handle must be between 0 and 0x0EFF")
-            return False
-        
-        reason = self.reason.currentData()
-        try:
-            lc_cmds.Disconnect(
-                connection_handle=connection_handle,
-                reason=reason
-            )._validate_params()
-        except Exception as e:
-            self.log_error(f"Invalid parameters: {str(e)}")
-            return False
-        return True
-    
-    def get_data_bytes(self) -> bytes:
-        """Get the parameter values from the UI and create a bytearray for the command"""
-        connection_handle = self.connection_handle.value()
-        reason = self.reason.currentData()
-
-        return lc_cmds.Disconnect(
-            connection_handle=connection_handle,
-            reason=reason
-        ).to_bytes()
-
+        self._cmd_instance = lc_cmds.Disconnect(
+                connection_handle=self.connection_handle.value(),
+                reason=self.reason.currentData())
 
 
 class RejectConnectionCommandUI(HCICmdUI):
@@ -267,31 +197,10 @@ class RejectConnectionCommandUI(HCICmdUI):
         self.form_layout.addRow( "Reason:", self.reason)
         
     def validate_parameters(self) -> bool:
-        bd_addr = self.bd_addr.text().strip()
-        if not bd_addr or len(bd_addr) != 17 or not all(c in "0123456789ABCDEF:" for c in bd_addr.upper()):
-            self.log_error("Invalid BD_ADDR format. Use XX:XX:XX:XX:XX:XX")
-            return False
-        
-        reason = self.reason.currentData()
-        try:
-            lc_cmds.RejectConnectionRequest(
-                bd_addr=bd_addr_str_to_bytes(bd_addr),
-                reason=reason
-            )._validate_params()
-        except Exception as e:
-            self.log_error(f"Invalid parameters: {str(e)}")
-            return False
-        return True
+        self._cmd_instance =  lc_cmds.RejectConnectionRequest(
+                bd_addr = self.bd_addr.text().strip(),
+                reason=self.reason.currentData())
     
-    def get_data_bytes(self) -> bytes:
-        """Get the parameter values from the UI and create a bytearray for the command"""
-        bd_addr = self.bd_addr.text().strip()
-        reason = self.reason.currentData()
-
-        return lc_cmds.RejectConnectionRequest(
-            bd_addr=bd_addr_str_to_bytes(bd_addr),
-            reason=reason
-        ).to_bytes()
 
 class ChangeConnectionPacketTypeCommandUI(HCICmdUI):
     """UI for HCI Change Connection Packet Type command"""
@@ -318,35 +227,9 @@ class ChangeConnectionPacketTypeCommandUI(HCICmdUI):
         self.form_layout.addRow( "Packet Type:", self.packet_type)
         
     def validate_parameters(self) -> bool:
-        connection_handle = self.connection_handle.value()
-        if connection_handle < 0 or connection_handle > 0x0EFF:
-            self.log_error("Connection Handle must be between 0 and 0x0EFF")
-            return False
-        
-        packet_type = self.packet_type.value()
-        if packet_type < 0 or packet_type > 0xFFFF:
-            self.log_error("Packet Type must be between 0 and 0xFFFF")
-            return False
-        
-        try:
-            lc_cmds.ChangeConnectionPacketType(
-                connection_handle=connection_handle,
-                packet_type=packet_type
-            )._validate_params()
-        except Exception as e:
-            self.log_error(f"Invalid parameters: {str(e)}")
-            return False
-        return True
-    
-    def get_data_bytes(self) -> bytes:
-        """Get the parameter values from the UI and create a bytearray for the command"""
-        connection_handle = self.connection_handle.value()
-        packet_type = self.packet_type.value()
-
-        return lc_cmds.ChangeConnectionPacketType(
-            connection_handle=connection_handle,
-            packet_type=packet_type
-        ).to_bytes()
+        self._cmd_instance = lc_cmds.ChangeConnectionPacketType(
+                connection_handle=self.connection_handle.value(),
+                packet_type=self.packet_type.value())
         
 
 class RemoteNameRequestCommandUI(HCICmdUI):
@@ -378,37 +261,11 @@ class RemoteNameRequestCommandUI(HCICmdUI):
         self.clock_offset.setValue(0)
         self.form_layout.addRow( "Clock Offset:", self.clock_offset)
     
-    def validate_parameters(self) -> bool:
-        bd_addr = self.bd_addr.text().strip()
-        if not bd_addr or len(bd_addr) != 17 or not all(c in "0123456789ABCDEF:" for c in bd_addr.upper()):
-            self.log_error("Invalid BD_ADDR format. Use XX:XX:XX:XX:XX:XX")
-            return False
-        
-        page_scan_repetition = self.page_scan_repetition.currentData()
-        clock_offset = self.clock_offset.value()
-        
-        try:
-            lc_cmds.RemoteNameRequest(
-                bd_addr=bd_addr_str_to_bytes(bd_addr),
-                page_scan_repetition=page_scan_repetition,
-                clock_offset=clock_offset
-            )._validate_params()
-        except Exception as e:
-            self.log_error(f"Invalid parameters: {str(e)}")
-            return False
-        return True
-    
-    def get_data_bytes(self) -> bytes:
-        """Get the parameter values from the UI and create a bytearray for the command"""
-        bd_addr = self.bd_addr.text().strip()
-        page_scan_repetition = self.page_scan_repetition.currentData()
-        clock_offset = self.clock_offset.value()
-
-        return lc_cmds.RemoteNameRequest(
-            bd_addr=bd_addr_str_to_bytes(bd_addr),
-            page_scan_repetition=page_scan_repetition,
-            clock_offset=clock_offset
-        ).to_bytes()
+    def validate_parameters(self) -> bool:        
+        self._cmd_instance = lc_cmds.RemoteNameRequest(
+                bd_addr=self.bd_addr.text().strip(),
+                page_scan_repetition_mode=self.page_scan_repetition.currentData(),
+                clock_offset=self.clock_offset.value())
     
 # register the UI classes with the command handler
 register_command_ui(InquiryCommandUI)

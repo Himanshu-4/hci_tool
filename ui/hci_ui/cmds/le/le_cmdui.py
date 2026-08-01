@@ -23,6 +23,22 @@ from ..cmd_baseui import HCICmdUI
 from .. import register_command_ui
 
 
+def _parse_bd_addr(text: str) -> bytes:
+    """
+    Accept an address as 'AA:BB:CC:DD:EE:FF', 'AA-BB-...' or bare hex.
+
+    Raises ValueError with a message the dialog can show as-is.
+    """
+    clean = text.replace(":", "").replace("-", "").replace(" ", "").strip()
+    if len(clean) != 12:
+        raise ValueError(
+            f"Address must be 6 bytes (12 hex digits), got {len(clean)} digits")
+    try:
+        return bytes.fromhex(clean)
+    except ValueError:
+        raise ValueError(f"Address is not valid hex: {text!r}")
+
+
 #MARK: LE_set_adv_param
 class LeSetAdvParamsUI(HCICmdUI):
     """UI for the LE Set Advertising Parameters command"""
@@ -103,64 +119,25 @@ class LeSetAdvParamsUI(HCICmdUI):
         self.form_layout.addRow("Advertising Filter Policy:", self.filter_policy_input)
     
     def validate_parameters(self) -> bool:
-        """Validate parameters before sending by the LE Set Advertising Parameters command"""
-        
-        def _parse_peer_addr_or_raise(addr: str) -> bytes:
-            """
-            Convert a Bluetooth address string (hex) into bytes.
-            Example: 'A1B2C3D4E5F6' -> b'\xA1\xB2\xC3\xD4\xE5\xF6'
+        """Build the LE Set Advertising Parameters command from the inputs"""
+        # Bit 0 is channel 37, bit 2 is channel 39 -- the spec order, which is
+        # the reverse of how the checkboxes read top to bottom.
+        channel_map = (
+            (0x01 if self.channel_37_check.isChecked() else 0x00)
+            | (0x02 if self.channel_38_check.isChecked() else 0x00)
+            | (0x04 if self.channel_39_check.isChecked() else 0x00)
+        )
 
-            Raises:
-                ValueError: if the input format or size is invalid.
-            """
-            # Remove common separators like ':' or '-'
-            clean_addr = addr.replace(":", "").replace("-", "").strip()
-
-            # Validate length (Bluetooth address must be 6 bytes = 12 hex chars)
-            if len(clean_addr) != 12:
-                raise ValueError(f"Invalid Bluetooth address length: {len(clean_addr)//2} bytes (expected 6)")
-
-            try:
-                # Convert hex string to bytes
-                addr_bytes = bytes.fromhex(clean_addr)
-            except ValueError:
-                raise ValueError(f"Invalid Bluetooth address format: {addr!r}")
-
-            return addr_bytes
-        
-        try:
-            le_cmds.LeSetAdvParams(self.min_interval_input.value(), self.max_interval_input.value(),
-                                   self.adv_type_input.currentData(), self.own_addr_type_input.currentData(),
-                                   self.peer_addr_type_input.currentData(),
-                                   _parse_peer_addr_or_raise(self.peer_addr_input.text()),
-                               (self.channel_37_check.isChecked() << 2| self.channel_38_check.isChecked() << 1 | self.channel_39_check.isChecked()),
-                                self.filter_policy_input.currentData())._validate_params()
-        except ValueError as e:
-            return False
-        return True
-    
-    def get_data_bytes(self) -> Optional[bytes]:
-        """Get parameter values"""
-
-        
-        # Convert peer address from hex string to bytes
-        peer_addr_hex = self.peer_addr_input.text().strip()
-        # Remove any spaces and '0x' prefixes
-        peer_addr_hex = peer_addr_hex.replace(' ', '').replace('0x', '')
-        # Add leading zeros if needed to make 12 hex digits (6 bytes)
-        peer_addr_hex = peer_addr_hex.zfill(12)
-        peer_addr = bytes.fromhex(peer_addr_hex)
-        
-        return {
-            'adv_interval_min': self.min_interval_input.value(),
-            'adv_interval_max': self.max_interval_input.value(),
-            'adv_type': self.adv_type_input.currentData(),
-            'own_addr_type': self.own_addr_type_input.currentData(),
-            'peer_addr_type': self.peer_addr_type_input.currentData(),
-            'peer_addr': peer_addr,
-            'adv_channel_map': channel_map,
-            'adv_filter_policy': self.filter_policy_input.currentData()
-        }
+        self._cmd_instance = le_cmds.LeSetAdvParams(
+            adv_interval_min=self.min_interval_input.value(),
+            adv_interval_max=self.max_interval_input.value(),
+            adv_type=self.adv_type_input.currentData(),
+            own_addr_type=self.own_addr_type_input.currentData(),
+            peer_addr_type=self.peer_addr_type_input.currentData(),
+            peer_addr=_parse_bd_addr(self.peer_addr_input.text()),
+            adv_channel_map=channel_map,
+            adv_filter_policy=self.filter_policy_input.currentData(),
+        )
 
 class LeSetAdvDataUI(HCICmdUI):
     """UI for the LE Set Advertising Data command"""
@@ -222,8 +199,8 @@ class LeSetAdvDataUI(HCICmdUI):
         """Set an example advertising data value"""
         self.adv_data_input.setText(example_hex)
     
-    def get_data_bytes(self) -> Optional[bytes]:
-        """Get parameter values"""
+    def validate_parameters(self) -> bool:
+        """Build the LE Set Advertising Data command from the hex input"""
         # Get advertising data from hex string
         hex_str = self.adv_data_input.text().strip()
         # Remove any spaces and '0x' prefixes
@@ -231,13 +208,13 @@ class LeSetAdvDataUI(HCICmdUI):
         # Add leading zero if odd length
         if len(hex_str) % 2 != 0:
             hex_str = '0' + hex_str
-        
-        adv_data = bytes.fromhex(hex_str)
-        
-        return {
-            'data': adv_data,
-            'data_length': len(adv_data)
-        }
+
+        try:
+            adv_data = bytes.fromhex(hex_str)
+        except ValueError:
+            raise ValueError(f"Advertising data is not valid hex: {hex_str!r}")
+
+        self._cmd_instance = le_cmds.LeSetAdvData(data=adv_data)
 
 class LeSetScanParametersUI(HCICmdUI):
     """UI for the LE Set Scan Parameters command"""
@@ -276,7 +253,7 @@ class LeSetScanParametersUI(HCICmdUI):
         
         # Own Address Type
         self.own_addr_type_input = QComboBox()
-        for addr_type in AdressType:
+        for addr_type in self.AdressType:
             self.own_addr_type_input.addItem(addr_type.name, addr_type.value)
         self.form_layout.addRow("Own Address Type:", self.own_addr_type_input)
         
@@ -288,15 +265,15 @@ class LeSetScanParametersUI(HCICmdUI):
         self.filter_policy_input.addItem("Accept only from White List (use extended scan_request filtering)", 0x03)
         self.form_layout.addRow("Scanning Filter Policy:", self.filter_policy_input)
     
-    def get_data_bytes(self) -> Optional[bytes]:
-        """Get parameter values"""
-        return {
-            'scan_type': self.scan_type_input.currentData(),
-            'scan_interval': self.scan_interval_input.value(),
-            'scan_window': self.scan_window_input.value(),
-            'own_addr_type': self.own_addr_type_input.currentData(),
-            'scanning_filter_policy': self.filter_policy_input.currentData()
-        }
+    def validate_parameters(self) -> bool:
+        """Build the LE Set Scan Parameters command from the inputs"""
+        self._cmd_instance = le_cmds.LeSetScanParameters(
+            scan_type=self.scan_type_input.currentData(),
+            scan_interval=self.scan_interval_input.value(),
+            scan_window=self.scan_window_input.value(),
+            own_addr_type=self.own_addr_type_input.currentData(),
+            scanning_filter_policy=self.filter_policy_input.currentData(),
+        )
 
 class LeSetScanEnableUI(HCICmdUI):
     """UI for the LE Set Scan Enable command"""
@@ -318,12 +295,12 @@ class LeSetScanEnableUI(HCICmdUI):
         self.filter_duplicates_input.setChecked(True)
         self.form_layout.addRow("Filter Duplicates:", self.filter_duplicates_input)
     
-    def get_data_bytes(self):
-        """Get parameter values"""
-        return {
-            'scan_enable': self.scan_enable_input.isChecked(),
-            'filter_duplicates': self.filter_duplicates_input.isChecked()
-        }
+    def validate_parameters(self) -> bool:
+        """Build the LE Set Scan Enable command from the inputs"""
+        self._cmd_instance = le_cmds.LeSetScanEnable(
+            scan_enable=self.scan_enable_input.isChecked(),
+            filter_duplicates=self.filter_duplicates_input.isChecked(),
+        )
 
 # Additional UI classes can be added for other LE commands
 

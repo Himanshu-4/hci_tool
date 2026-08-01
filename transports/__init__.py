@@ -1,64 +1,68 @@
 """
-Transport Package
+Transport package.
 
-This package provides a unified interface for different transport protocols
-including UART, SDIO, and USB communications.
+Layered, event-driven transport for HCI:
 
-Main Classes:
-- Transport: Main transport manager class
-- TransportInterface: Abstract base class for all transport implementations
-- UARTTransport: UART communication implementation
-- SDIOTransport: SDIO communication implementation (placeholder)
-- USBTransport: USB communication implementation (placeholder)
+    Transport            named facade the UI holds
+      └─ TransportInterface   UART | VIRTUAL | USB | SDIO
+           ├─ IoReactor       interrupt-style I/O engine (no polling)
+           └─ H4Framer        byte stream -> whole HCI packets
 
-Usage Example:
-    from transport import Transport
-    
-    # Create transport instance
-    transport = Transport()
-    
-    # Select UART interface
-    transport.select_interface('UART')
-    
-    # Configure UART parameters
-    config = {
-        'port': 'COM3',
-        'baudrate': 115200,
-        'timeout': 1
-    }
-    transport.configure(config)
-    
-    # Connect
-    if transport.connect():
-        # Send data
-        transport.write(b'Hello World')
-        
-        # Read data
-        data = transport.read()
-        
-        # Disconnect
-        transport.disconnect()
+The receive path is push-based. Subscribe to `TransportEvent.READ` to get one
+complete H4 packet per callback; callbacks run on the I/O thread, so use
+`transports.qt_bridge.QtTransportBridge` when the consumer is a Qt widget.
+
+Example::
+
+    from transports import Transport, TransportEvent
+
+    transport = Transport.get_instance("dongle")
+    transport.select_interface("UART")
+    transport.configure({"port": "/dev/tty.usbserial-1", "baudrate": 115200,
+                         "rtscts": True})
+    transport.add_callback(TransportEvent.READ, lambda pkt: print(pkt.hex()))
+    transport.connect()
+    transport.write(bytes.fromhex("01030c00"))   # HCI_Reset
 """
 
+from .base_lib import (
+    ConfigurationError,
+    ConnectionError,
+    TransportError,
+    TransportEvent,
+    TransportInterface,
+    TransportState,
+)
+from .h4 import H4Framer, H4Packet, H4PacketType
+from .reactor import BlockingReactor, IoReactor, ReactorError, SelectorReactor
+from .SDIO.sdio import SDIOTransport
 from .transport import Transport
-from .base_lib import TransportInterface, TransportState, TransportError, ConfigurationError, ConnectionError, TransportState, TransportEvent
-from .UART.uart import UARTTransport
-from .SDIO.sdio import SDIOTransport  
+from .UART.uart import COMMON_BAUDRATES, UARTConfig, UARTTransport
 from .USB.usb import USBTransport
+from .virtual import VirtualControllerTransport, VirtualDevice
 
-__version__ = "1.0.0"
-__module__ = "Transport Module"
+__version__ = "2.0.0"
 
 __all__ = [
-    'Transport',
-    'TransportInterface',
-    'TransportState',
-    'TransportError',
-    'ConfigurationError', 
-    'ConnectionError',
-    'UARTTransport',
-    'SDIOTransport',
-    'USBTransport',
-    'TransportState',
-    'TransportEvent'
+    "Transport",
+    "TransportInterface",
+    "TransportState",
+    "TransportEvent",
+    "TransportError",
+    "ConfigurationError",
+    "ConnectionError",
+    "UARTTransport",
+    "UARTConfig",
+    "COMMON_BAUDRATES",
+    "SDIOTransport",
+    "USBTransport",
+    "VirtualControllerTransport",
+    "VirtualDevice",
+    "H4Framer",
+    "H4Packet",
+    "H4PacketType",
+    "IoReactor",
+    "SelectorReactor",
+    "BlockingReactor",
+    "ReactorError",
 ]

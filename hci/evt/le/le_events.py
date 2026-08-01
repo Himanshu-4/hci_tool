@@ -13,6 +13,7 @@ from ..evt_codes import HciEventCode, LeMetaEventSubCode
 from ..event_types import LEEventType
 from ..error_codes import StatusCode
 from .. import register_event
+from .adv_data import parse_adv_data
 
 class LeConnectionCompleteEvent(HciEvtBasePacket):
     """LE Connection Complete Event"""
@@ -74,23 +75,30 @@ class LeConnectionCompleteEvent(HciEvtBasePacket):
         # Validate status
         if not (0 <= self.params['status'] <= 0xFF):
             raise ValueError(f"Invalid status: {self.params['status']}, must be between 0 and 0xFF")
-        
+
+        # On a failed connection attempt every other parameter is undefined and
+        # the controller sends zeros. Validating them would reject the very
+        # event that reports the failure, so the host would sit waiting for a
+        # connection that is never coming.
+        if self.params['status'] != 0x00:
+            return
+
         # Validate connection handle
         if not (0x0000 <= self.params['connection_handle'] <= 0x0EFF):
             raise ValueError(f"Invalid connection_handle: {self.params['connection_handle']}, must be between 0x0000 and 0x0EFF")
-        
+
         # Validate role
         if self.params['role'] not in (0x00, 0x01):
             raise ValueError(f"Invalid role: {self.params['role']}, must be 0x00 (Master) or 0x01 (Slave)")
-        
+
         # Validate peer address type
         if not (0 <= self.params['peer_address_type'] <= 3):
             raise ValueError(f"Invalid peer_address_type: {self.params['peer_address_type']}, must be between 0 and 3")
-        
+
         # Validate peer address
         if len(self.params['peer_address']) != 6:
             raise ValueError(f"Invalid peer_address length: {len(self.params['peer_address'])}, must be 6 bytes")
-        
+
         # Validate connection interval
         if not (0x0006 <= self.params['conn_interval'] <= 0x0C80):
             raise ValueError(f"Invalid conn_interval: {self.params['conn_interval']}, must be between 0x0006 and 0x0C80")
@@ -177,10 +185,11 @@ class LeAdvertisingReportEvent(HciEvtBasePacket):
                  address: bytes,
                  data_length: int,
                  data: bytes,
-                 rssi: int):
+                 rssi: int,
+                 reports: Optional[list] = None):
         """
         Initialize LE Advertising Report Event
-        
+
         Args:
             num_reports: Number of reports in this event
             event_type: Type of advertising report
@@ -189,11 +198,15 @@ class LeAdvertisingReportEvent(HciEvtBasePacket):
             data_length: Length of advertising data
             data: Advertising data
             rssi: RSSI value (signed byte, 127 = not available)
+            reports: All reports carried by this event. The top-level fields
+                mirror reports[0]; controllers routinely batch several
+                advertisers into one event, so consumers should iterate
+                `reports` rather than read the flat fields.
         """
         # Convert enum value to integer if needed
         if isinstance(event_type, self.EventType):
             event_type = event_type.value
-            
+
         super().__init__(
             num_reports=num_reports,
             event_type=event_type,
@@ -201,7 +214,8 @@ class LeAdvertisingReportEvent(HciEvtBasePacket):
             address=address,
             data_length=data_length,
             data=data,
-            rssi=rssi
+            rssi=rssi,
+            reports=reports if reports is not None else [],
         )
     
     def _validate_params(self) -> None:
@@ -258,37 +272,78 @@ class LeAdvertisingReportEvent(HciEvtBasePacket):
     
     @classmethod
     def from_bytes_sub_event(cls, data: bytes, sub_event_code: int) -> 'LeAdvertisingReportEvent':
-        """Create event from parameter bytes (excluding header)"""
-        if len(data) < 12:  # Need at least basic parameters
-            raise ValueError(f"Invalid data length: {len(data)}, expected at least 12 bytes")
-        # Parse beginning parameters
-        subevent_code, num_reports, event_type, address_type = struct.unpack("<BBBB", data[:4])
-        
-        # Extract address (6 bytes, reversed for little-endian)
-        address = bytes(reversed(data[4:10]))
-        
-        # Get data length
-        data_length = data[10]
-        
-        # Make sure we have enough bytes for the data and RSSI
-        if len(data) < 12 + data_length:
-            raise ValueError(f"Invalid data length: need {12 + data_length} bytes, got {len(data)}")
-        
-        # Extract advertising data
-        adv_data = data[11:11+data_length]
-        
-        # Extract RSSI
-        rssi = struct.unpack("<b", data[11+data_length:12+data_length])[0]
-        
+        """
+        Create event from parameter bytes (header excluded).
+
+        One event can carry several reports, laid out back to back as
+        ``event_type, addr_type, addr[6], data_len, data[data_len], rssi``.
+        Parsing stops early on a truncated tail rather than raising -- a partial
+        batch is still worth showing in a scan list.
+        """
+        if len(data) < 2:
+            raise ValueError(f"Invalid data length: {len(data)}, expected at least 2 bytes")
+
+        num_reports = data[1]
+        reports = []
+        off = 2
+
+        for _ in range(num_reports):
+            if off + 9 > len(data):
+                break
+            event_type = data[off]
+            address_type = data[off + 1]
+            address = bytes(reversed(data[off + 2:off + 8]))
+            data_length = data[off + 8]
+            if off + 9 + data_length + 1 > len(data):
+                break
+            adv_data = bytes(data[off + 9:off + 9 + data_length])
+            rssi = struct.unpack_from("<b", data, off + 9 + data_length)[0]
+            off += 10 + data_length
+
+            reports.append({
+                'event_type': event_type,
+                'address_type': address_type,
+                'address': address,
+                'address_str': ":".join(f"{b:02X}" for b in address),
+                'data_length': data_length,
+                'data': adv_data,
+                'rssi': rssi,
+                'adv_data': parse_adv_data(adv_data),
+            })
+
+        if not reports:
+            raise ValueError(f"LE_Advertising_Report: no complete report in {len(data)} bytes")
+
+        first = reports[0]
         return cls(
-            num_reports=num_reports,
-            event_type=event_type,
-            address_type=address_type,
-            address=address,
-            data_length=data_length,
-            data=adv_data,
-            rssi=rssi
+            num_reports=len(reports),
+            event_type=first['event_type'],
+            address_type=first['address_type'],
+            address=first['address'],
+            data_length=first['data_length'],
+            data=first['data'],
+            rssi=first['rssi'],
+            reports=reports,
         )
+
+    @property
+    def reports(self) -> list:
+        """Every advertising report carried by this event."""
+        return self.params.get('reports', [])
+
+    def __str__(self) -> str:
+        lines = []
+        for r in self.reports:
+            kind = cls_name = self.EventType(r['event_type']).name \
+                if r['event_type'] in [e.value for e in self.EventType] \
+                else f"0x{r['event_type']:02X}"
+            addr_kind = "random" if r['address_type'] in (0x01, 0x03) else "public"
+            lines.append(
+                f"{r['address_str']} ({addr_kind}) {kind} "
+                f"RSSI={r['rssi']}dBm {r['adv_data'].summary()}"
+            )
+        head = f"LE_Advertising_Report [{len(self.reports)}]"
+        return head + ": " + " | ".join(lines) if lines else head
 
 class LeConnectionUpdateCompleteEvent(HciEvtBasePacket):
     """LE Connection Update Complete Event"""

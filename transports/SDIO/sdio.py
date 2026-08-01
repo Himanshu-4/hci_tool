@@ -129,7 +129,7 @@ class sdio_transfer:
         return speed
     
 from typing import Dict, Any, Optional
-from ..base_lib import TransportInterface, TransportError, ConfigurationError, ConnectionError
+from ..base_lib import TransportInterface, TransportError, ConfigurationError, ConnectionError, TransportState, TransportEvent
 
 class SDIOTransport(TransportInterface):
     """SDIO transport implementation (placeholder)"""
@@ -171,17 +171,17 @@ class SDIOTransport(TransportInterface):
             if self.is_connected():
                 return True
             
-            self.status = ConnectionStatus.CONNECTING
+            self.status = TransportState.CONNECTING
             
             # TODO: Implement actual SDIO connection logic
             print("SDIO connect() - Not implemented yet")
             
             # For now, just simulate connection failure
-            self.status = ConnectionStatus.ERROR
+            self.status = TransportState.ERROR
             raise ConnectionError("SDIO interface not implemented")
             
         except Exception as e:
-            self.status = ConnectionStatus.ERROR
+            self.status = TransportState.ERROR
             raise ConnectionError(f"SDIO connection failed: {str(e)}")
     
     def disconnect(self) -> bool:
@@ -193,13 +193,13 @@ class SDIOTransport(TransportInterface):
             # TODO: Implement actual SDIO disconnection logic
             print("SDIO disconnect() - Not implemented yet")
             
-            self.status = ConnectionStatus.DISCONNECTED
-            self._trigger_callbacks('disconnect', self)
+            self.status = TransportState.DISCONNECTED
+            self._trigger_callbacks(TransportEvent.DISCONNECT, self)
             
             return True
             
         except Exception as e:
-            self.status = ConnectionStatus.ERROR
+            self.status = TransportState.ERROR
             raise ConnectionError(f"SDIO disconnect failed: {str(e)}")
     
     def read(self, size: int = -1) -> Optional[bytes]:

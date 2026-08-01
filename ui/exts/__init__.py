@@ -11,6 +11,7 @@ from .hid_test import *
 from .le_iso_test import *
 from .log_window import *
 from .log_window_async import *
+from .quick_connect import *
 from .sco_test import *
 from .throughput_test import *
 from .util_screen import *
@@ -25,6 +26,7 @@ __all__ = [
     'le_iso_test',
     'log_window', # deprecated
     'log_window_async', # deprecated
+    'quick_connect',
     'sco_test',
     'throughput_test',
     'util_screen',

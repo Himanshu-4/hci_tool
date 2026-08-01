@@ -5,6 +5,7 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtGui import (QTextCursor, QIntValidator)
 
 from PyQt5.QtCore import Qt
+import html
 import time
 
 
@@ -157,8 +158,11 @@ class LogWindow(QWidget):
         #     message = wrapped
             
         timestamp = time.strftime("%H:%M:%S")
-        # Replace \n, \r, \n\r with <br> for HTML formatting
-        message = message.replace("\r\n", "<br>").replace("\r", "<br>").replace("\r", "<br>")
+        # The log pane renders HTML, so escape first -- otherwise a message
+        # containing '<' (e.g. an RX direction marker) is swallowed as a tag.
+        message = html.escape(str(message), quote=False)
+        # Replace \n, \r, \r\n with <br> for HTML formatting
+        message = message.replace("\r\n", "\n").replace("\r", "\n").replace("\n", "<br>")
         message = message.replace("\t", "&nbsp;&nbsp;&nbsp;&nbsp;")  # Replace tabs with spaces for HTML
         message = message.replace(" ", "&nbsp;")  # Replace spaces with non-breaking spaces for HTML
         # Format the message with timestamp and color

@@ -10,6 +10,7 @@ import struct
 
 # Import event base packet and codes
 from .evt_base_packet import HciEvtBasePacket
+from .generic import GenericEventPacket, MalformedEventPacket
 from .evt_codes import HciEventCode, LeMetaEventSubCode
 from .error_codes import StatusCode, get_status_description
 from .event_types import (
@@ -66,77 +67,82 @@ def register_event(evt_class: Type[HciEvtBasePacket]) -> None:
         _sub_evt_registry[sub_event_code] = evt_class
    
 
-def get_cmd_complete_event_class(opcode: int) -> Optional[HciEvtBasePacket]:
-    """Get command complete event class from opcode"""
+def get_cmd_complete_event_class(opcode: int) -> Optional[Type[HciEvtBasePacket]]:
+    """Get the Command Complete flavour registered for an opcode, if any."""
     return _cmd_complete_evt_registery.get(opcode)
 
-def get_event_class(event_code: int, sub_evnt_code : Optional[int] = None, opcode : Optional[int] = None) -> Optional[HciEvtBasePacket]:
-    """Get event class from event code"""
+def get_event_class(event_code: int, sub_evnt_code : Optional[int] = None, opcode : Optional[int] = None) -> Optional[Type[HciEvtBasePacket]]:
+    """
+    Resolve an event class.
+
+    Command Complete falls back to the generic `CommandCompleteEvent` when no
+    per-opcode class is registered -- there are hundreds of opcodes and only a
+    handful will ever get bespoke decoders, so the common case must still parse.
+    """
     if sub_evnt_code is not None:
         return _sub_evt_registry.get(sub_evnt_code)
-    
-    if opcode is not None and event_code == HciEventCode.COMMAND_COMPLETE:
-        # If an opcode is provided, check the command complete event registry
-        return get_cmd_complete_event_class(opcode)
-    # If no sub-event code or opcode, check the main event registry
+
+    if event_code == HciEventCode.COMMAND_COMPLETE:
+        if opcode is not None:
+            specific = get_cmd_complete_event_class(opcode)
+            if specific is not None:
+                return specific
+        return _evt_registry.get(HciEventCode.COMMAND_COMPLETE)
+
     return _evt_registry.get(event_code)
 
 
 def evt_from_bytes(data: bytes) -> Optional[HciEvtBasePacket]:
     """
-    Parse HCI event from complete event bytes
-    
-    Args:
-        data: Complete event bytes including header
-        
-    Returns:
-        Parsed event object or None if parsing failed
-    """
-    if len(data) < 4:  # Need at least packet ID, event code (1 byte) and length (1 byte)
-        return None
-    
-    # extract the event code and subevent code if present and then get the event class
-    evt_class = None
-    sub_event_code = None
-    # First byte is event code, second byte is length
-    # If the event code is LE_META_EVENT, we need to check the sub_event_code
-    packetid, event_code, param_len, sub_event_code = struct.unpack("<BBBB", data[:4])
-    opcode = None
-    #check if the packet ID is valid
-    if packetid != HciEvtBasePacket.PACKET_TYPE:
-        raise ValueError(f"Invalid packet ID: {packetid}, expected {HciEvtBasePacket.PACKET_TYPE}")
-    if param_len != len(data) - 3:  # Length should match the remaining bytes after header
-        raise ValueError(f"Invalid parameter length: {param_len}, expected {len(data) - 4}")
-    if event_code not in HciEventCode:
-        raise ValueError(f"Invalid event code: {event_code}, must be between 0x00 and 0xFF")
-    
-    sub_event_code = opcode = None
-    # Check if the event code is LE_META_EVENT
-    if event_code == HciEventCode.LE_META_EVENT:
-        # For LE Meta Event, use sub_event_code to determine the specific event class
-        if len(data) < 4:
-            raise ValueError("LE Meta Event data too short")
-        sub_event_code = data[3]  # Sub-event code is the 4th byte
-    
-    elif event_code == HciEventCode.COMMAND_COMPLETE:
-        # For Command Complete Event, we need to extract the opcode
-        if len(data) < 7:
-            raise ValueError("Command Complete Event data too short")
-        # Opcode is the next 2 bytes after the event code and length
-        opcode = struct.unpack("<H", data[4:6])[0]
+    Parse a complete HCI event packet (H4 type byte included).
 
-    else:
-        sub_event_code = None
-    
-    # Get the event class based on the event code and sub-event code
-    # If the event code is LE_META_EVENT, we need to check the sub_event_code
+    **This function never raises.** It runs on the receive path, where an
+    exception would kill the link for the rest of the session. Anything it cannot
+    decode comes back as a `GenericEventPacket` or `MalformedEventPacket` so the
+    caller can log it and move on.
+
+    Args:
+        data: complete event bytes, starting with the 0x04 packet indicator
+
+    Returns:
+        A parsed event, or None if `data` is too short to be an event at all.
+    """
+    if data is None or len(data) < 3:
+        return None
+
+    packet_id, event_code, param_len = data[0], data[1], data[2]
+
+    if packet_id != HciEvtBasePacket.PACKET_TYPE:
+        return MalformedEventPacket(data, f"bad packet indicator 0x{packet_id:02X}")
+
+    params = data[3:]
+    if len(params) != param_len:
+        return MalformedEventPacket(
+            data, f"length mismatch: header says {param_len}, got {len(params)}"
+        )
+
+    sub_event_code: Optional[int] = None
+    opcode: Optional[int] = None
+
+    if event_code == HciEventCode.LE_META_EVENT and params:
+        sub_event_code = params[0]
+    elif event_code == HciEventCode.COMMAND_COMPLETE and len(params) >= 3:
+        opcode = struct.unpack_from("<H", params, 1)[0]
+
     evt_class = get_event_class(event_code, sub_evnt_code=sub_event_code, opcode=opcode)
-    
+
     if evt_class is None:
-        raise ValueError(f"Unknown event with code 0x{event_code:02X} and sub-event code 0x{(sub_event_code or 0xFF):02X} (if applicable)")
-    # If we have a valid event class, create an instance from the remaining data
-    return evt_class.from_bytes(data[3:])
- 
+        return GenericEventPacket(event_code, params, sub_event_code)
+
+    try:
+        return evt_class.from_bytes(params)
+    except Exception as exc:
+        # A decoder bug or an unexpected vendor layout: degrade to a hex dump
+        # rather than taking down the receive path.
+        print(f"[hci.evt] {evt_class.__name__} failed to parse "
+              f"0x{event_code:02X}: {exc!r}")
+        return GenericEventPacket(event_code, params, sub_event_code)
+
 
 def hci_evt_parse_from_bytes(data: bytes) -> Optional[HciEvtBasePacket]:
     """

@@ -14,7 +14,7 @@ from collections import namedtuple
 
 from ui.exts import (a2dp_test, diagnostic, hci_window, hid_test,
                           le_iso_test, sco_test, throughput_test, firmware_download,
-                          config_chip, log_window, util_screen)
+                          config_chip, log_window, util_screen, quick_connect)
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -39,7 +39,7 @@ class MainWindow(QMainWindow):
         self.create_menu("File", ["New", "Open log", "Save log"])
         self.create_menu("Edit", [ "Copy", "Find", "Find Next", "Find Previous", "save app log" ])
         self.create_menu("View", ["Zoom In", "Zoom Out", "Log Window", "clear log"])
-        self.create_menu("Tools", ["HCI", "Diagnostics", "Throughput Test", "SCO Test", "LE ISO Test", "HID Test", "A2DP Test", "Firmware Download", "util screen"])
+        self.create_menu("Tools", ["HCI", "Quick Connect", "Diagnostics", "Throughput Test", "SCO Test", "LE ISO Test", "HID Test", "A2DP Test", "Firmware Download", "util screen"])
         self.create_menu("setting", ["Close All", "app setting", "config chip"])
         self.create_menu("Help", ["about","Paths" ,"Documentation"])
         
@@ -66,6 +66,7 @@ class MainWindow(QMainWindow):
         # Define a mapping of titles to child window classes
         WINDOW_MAP = {
             "HCI":           ChildFactory(module=hci_window,    cls_name="HCIControl"),
+            "Quick Connect": ChildFactory(module=quick_connect,  cls_name="QuickConnectWindow"),
             "Diagnostics":  ChildFactory(module=diagnostic,     cls_name="DiagnosticWindow"),
             "Throughput Test": ChildFactory(module=throughput_test, cls_name="ThroughputWindow"),
             "SCO Test":     ChildFactory(module=sco_test,        cls_name="ScoTestWindow"),

@@ -4,7 +4,7 @@ from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QSizePolicy,
     QListWidget, QListWidgetItem, QMdiArea, QMdiSubWindow,
     QSplitter, QMainWindow, QGroupBox, QPushButton,
-    QCheckBox, QComboBox, QLineEdit, QFrame
+    QCheckBox, QComboBox, QLineEdit, QFrame, QTabWidget
 )
 
 from PyQt5.QtWidgets import (
@@ -25,6 +25,7 @@ from .evt_factory import HCIEventFactory
 from .cmds.cmd_baseui import HCICmdUI
 
 from hci.cmd.cmd_opcodes import cmd_type, commands_list
+from hci.session import HciSession
 
 
 
@@ -305,10 +306,20 @@ class HciCommandSelector(QWidget):
 #MARK: HciMainUI
 class HciMainUI(QWidget):
     """Main UI for HCI command selection and management"""
-    
+
     # Static list to track all open windows
     open_instances : list['HciMainUI'] =  []
-    
+
+    # Emitted just before the session is torn down, so attached windows
+    # (Quick Connect) can detach instead of holding a dead session.
+    session_closing = pyqtSignal(object)
+
+    @classmethod
+    def get_live_sessions(cls) -> list['HciMainUI']:
+        """Open HCI windows that still have a usable session."""
+        return [inst for inst in cls.get_open_instances()
+                if getattr(inst, 'session', None) is not None]
+
     @classmethod
     def create_instance(cls, main_window, title: Optional[str] = "HCI Command Center", transport: Optional[Transport] = None) -> 'HciMainUI':
         """Create a new instance of HciMainUI"""
@@ -459,7 +470,18 @@ class HciMainUI(QWidget):
             return
             
         self._is_destroyed = True
-        
+
+        # Anything attached to this session (the Quick Connect window) must let
+        # go before the session closes under it.
+        self.session_closing.emit(self)
+
+        if getattr(self, 'session', None):
+            try:
+                self.session.close()
+            except Exception:
+                pass
+            self.session = None
+
         if hasattr(self, '_cmd_factory') and self._cmd_factory:
             self._cmd_factory.cleanup()
             self._cmd_factory = None
@@ -498,7 +520,12 @@ class HciMainUI(QWidget):
         # Main layout
         main_layout = QVBoxLayout()
         self.setLayout(main_layout)
-        
+
+        # The session owns command flow control, correlation and connection
+        # state. It lives here, with the transport -- Tools > Quick Connect
+        # attaches to it to drive the guided procedures.
+        self.session = HciSession(self.transport, name=self.title)
+
         # Window title with unique ID
         # title_layout = QHBoxLayout()
         # title_label = QLabel(f"HCI Command Center [{self.window_id[:8]}]")
@@ -507,7 +534,8 @@ class HciMainUI(QWidget):
         # title_layout.addStretch(1)
         # main_layout.addLayout(title_layout)
              # Command selector
-        self.command_selector = HciCommandSelector(self.transport.transport_instance.get_config["baudrate"])
+        baudrate = self.transport.get_config().get("baudrate", 115200)
+        self.command_selector = HciCommandSelector(baudrate)
         self.command_selector.command_selected.connect(lambda category_opcode, command_opcode : self._cmd_factory.execute_command(category=category_opcode, opcode=command_opcode))
         def _on_enable_changed(state) -> None:
             """Handle enable checkbox state change"""
@@ -518,9 +546,10 @@ class HciMainUI(QWidget):
                 self.transport.disconnect()
         self.command_selector.enable_checkbox.stateChanged.connect(_on_enable_changed)
         
-        # command selector will set the widget properly
+        # This window is the per-command view. The guided flows live in
+        # Tools > Quick Connect, which attaches to this window's session.
         main_layout.addWidget(self.command_selector)
-        
+
         # Add a separator
         # line = QFrame()
         # line.setFrameShape(QFrame.HLine)
@@ -543,9 +572,13 @@ class HciMainUI(QWidget):
         self.sub_window.setAttribute(Qt.WA_DeleteOnClose, True)  # Enable deletion on close
         
         
-        # define the command and event factories
-        self._cmd_factory = HCICommandFactory(self.title, self.sub_window, self.transport)
-        self._evt_factory = HCIEventFactory(self.title, self.sub_window, self.transport)
+        # define the command and event factories. Both go through the session:
+        # commands so they respect the controller's command credits, events so
+        # the windows get objects that are already parsed.
+        self._cmd_factory = HCICommandFactory(self.title, self.sub_window,
+                                              self.transport, self.session)
+        self._evt_factory = HCIEventFactory(self.title, self.sub_window,
+                                            self.transport, self.session)
         
         # callbacks when transport state changes
         self.transport.add_callback(TransportEvent.CONNECT, self.command_selector._on_device_connected)

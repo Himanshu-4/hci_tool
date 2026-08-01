@@ -1,189 +1,270 @@
+"""
+HCI Event Factory.
 
+Owns the event windows for one session: decides which arriving events deserve a
+window, creates and reuses those windows, and feeds each one the parsed event.
+
+Two rules shape it:
+
+* **Parsing happens once.** Events arrive already decoded from `HciSession`;
+  the factory never re-parses bytes.
+* **Widgets are only touched on the Qt thread.** Session callbacks run on the
+  reactor/I-O thread, so everything crosses `_SessionBridge`, a QObject whose
+  signal is delivered queued to the main thread.
+
+Which events pop a window is deliberately curated (`AUTO_POPUP` on the UI
+class): advertising reports and inquiry results aggregate into one live table,
+Connection Request pops with Accept/Reject, and the rest stay in the log until
+someone asks for them via `open_event_window()`.
 """
-    HCI Event Factory
-    This module provides a factory for creating HCI event windows.
-    It manages the creation, positioning, and lifecycle of event windows.
-    Each event window is associated with a specific HCI event type.
-    The factory ensures that event windows are opened in a consistent manner,
-    and provides functionality to close all event windows when needed.
-    The event windows are created based on the event code and are positioned
-    relative to the main window. The factory also keeps track of all open event
-    windows, allowing for easy management and cleanup.
-    The event windows are created using the appropriate classes from the
-    hci_ui.evts module, which contains the definitions for each event type.
-    The event types include:
-    - Link Control events
-    - Link Policy events
-    - Controller and Baseband events
-    - Information events
-    - Status events
-    - Testing events
-    - LE events
-    - Vendor-specific events
-    The event windows are displayed in a cascading manner, with each new window
-    offset from the previous one. This provides a clear and organized layout for
-    the user to interact with multiple event windows simultaneously.
-    The factory also provides a method to close all open event windows, ensuring
-    that resources are properly released when the user is done with the HCI events.
-"""
+
+from __future__ import annotations
+
 import traceback
-from ui.hci_ui.evts.evt_baseui import HCIEvtUI
 import weakref
+from typing import Dict, Optional, Type
 
-from PyQt5.QtWidgets import (QMdiSubWindow)
+from PyQt5.QtCore import QObject, pyqtSignal
+from PyQt5.QtWidgets import QMdiSubWindow
 
-# import the hci event for processing
-from hci.evt import get_event_class
-from hci.evt import hci_evt_parse_from_bytes, HciEvtBasePacket
-from hci.evt.event_types import EventCategory, EVENT_CODE_TO_CATEGORY
+from hci.session.session import EVT_COMMAND_SENT, EVT_EVENT
 
-from .evts import get_event_ui_class
-from .evts import HCIEvtUI
+from .evts import get_event_ui_class, get_event_ui_class_for, window_key_of
+from .evts.evt_baseui import HCIEvtUI
 
-from transports.transport import Transport, TransportEvent
-from typing import ClassVar, Optional, Dict, Type
+from transports.transport import Transport
 
-# @todo : move this to a separate module for logging the events 
+# @todo : move this to a separate module for logging the events
 from ui.exts.log_window import LogWindow
+
+
+class _SessionBridge(QObject):
+    """Re-emits session events on the Qt main thread."""
+
+    event_received = pyqtSignal(object)
+    command_sent = pyqtSignal(object)
+
+    def __init__(self, session, parent: Optional[QObject] = None):
+        super().__init__(parent)
+        self.session = session
+        self._attached = False
+        self.attach()
+
+    def attach(self) -> None:
+        if self._attached or self.session is None:
+            return
+        self.session.on(EVT_EVENT, self._on_event)
+        self.session.on(EVT_COMMAND_SENT, self._on_command_sent)
+        self._attached = True
+
+    def detach(self) -> None:
+        if not self._attached or self.session is None:
+            return
+        for channel, handler in ((EVT_EVENT, self._on_event),
+                                 (EVT_COMMAND_SENT, self._on_command_sent)):
+            try:
+                self.session.off(channel, handler)
+            except Exception:
+                pass
+        self._attached = False
+
+    def _on_event(self, event) -> None:
+        # I/O thread: emit and get out.
+        self.event_received.emit(event)
+
+    def _on_command_sent(self, command, _raw) -> None:
+        self.command_sent.emit(command)
+
 
 #MARK: Event factory
 class HCIEventFactory:
-    """
-    Handler for HCI events - processes raw HCI packets and routes them to the appropriate
-    event UI manager.
-    """
-    def __init__(self, title : str, parent_window : QMdiSubWindow, transport : Optional[Transport] = None):
+    """Creates and feeds the event windows for one HCI session."""
+
+    def __init__(self,
+                 title: str,
+                 parent_window: QMdiSubWindow,
+                 transport: Optional[Transport] = None,
+                 session=None):
         self.title = title
         self.transport = transport
+        self.session = session
         self.parent = weakref.ref(parent_window) if parent_window else None
         self._is_destroyed = False
-        # create a dictionary to track event windows and structure as {event_code: HCIEvtUI}
-        self.event_windows : dict[int, HCIEvtUI] = {}
-        
-        # @todo: must be adding callbacks in hci_main_ui add the process_hci_evt_packet method to the transport's event handler
-        if self.transport:
-            self.transport.add_callback(TransportEvent.READ, lambda data: self.process_hci_evt_packet(data))
-            
-    def __del__(self):  
+
+        # window key -> live window. Several event codes may share a key.
+        self.event_windows: Dict[str, HCIEvtUI] = {}
+
+        self._bridge: Optional[_SessionBridge] = None
+        if session is not None:
+            self._bridge = _SessionBridge(session)
+            self._bridge.event_received.connect(self.handle_event)
+            self._bridge.event_received.connect(self._log_rx)
+            self._bridge.command_sent.connect(self._log_tx)
+
+    def __del__(self):
         """Destructor to ensure all event windows are closed"""
         if not self._is_destroyed:
             self.cleanup()
-        
+
     def cleanup(self):
         """Explicit cleanup method to be called before destruction"""
         if self._is_destroyed:
             return
-            
+
         self._is_destroyed = True
+        if self._bridge is not None:
+            self._bridge.detach()
+            self._bridge = None
         self.close_all_event_windows()
         self.remove_from_parent()
-    
+
     def get_parent(self):
         """Safely get the parent window"""
-        # parent = self.parent
-        # # Check if the parent still exists and hasn't been deleted
-        # if parent is None:
-        #     return None
-        # try:
-        #     # Try to access a property to see if the object is still valid
-        #     _ = parent.title()
-        #     return parent
-        # except RuntimeError:
-        #     # Object has been deleted by Qt
-        #     return None
-        return self.parent if self.parent and not self._is_destroyed else None
-    
+        if self.parent is None or self._is_destroyed:
+            return None
+        return self.parent()   # weakref -- deref it, do not hand back the ref
+
     def __repr__(self):
-        return f"<HCIEventFactory parent={self.parent}, windows={len(self.event_windows)}>"
-        
+        return f"<HCIEventFactory title={self.title}, windows={len(self.event_windows)}>"
+
     def __str__(self):
-        return f"HCIEventFactory(parent={self.parent}, windows={len(self.event_windows)})"
-        
+        return f"HCIEventFactory(title={self.title}, windows={len(self.event_windows)})"
+
     def __len__(self):
         """Return the number of event windows currently managed"""
         return len(self.event_windows)
-        
-    def __contains__(self, event_code: int) -> bool:
-        """Check if an event window with the given event code exists"""
-        return event_code in self.event_windows
-        
-    def __getitem__(self, event_code: int) -> Optional[HCIEvtUI]:
-        """Get an event window by its event code"""
-        return self.event_windows.get(event_code, None)
-    
-    def create_event_window(self, event_code : int) -> Optional[HCIEvtUI]:
-        """Create an event window based on the event code"""
-        if self._is_destroyed:
+
+    def __contains__(self, window_key: str) -> bool:
+        """Check if an event window with the given key exists"""
+        return window_key in self.event_windows
+
+    def __getitem__(self, window_key: str) -> Optional[HCIEvtUI]:
+        """Get an event window by its key"""
+        return self.event_windows.get(window_key, None)
+
+    #MARK: logging
+    def _log_rx(self, event) -> None:
+        """Every received event, decoded, in the log window."""
+        try:
+            LogWindow.info(f"{self.title} < {event}")
+        except Exception:
+            pass
+
+    def _log_tx(self, command) -> None:
+        """Every command the session sends, decoded, in the log window."""
+        try:
+            LogWindow.info(f"{self.title} > {command}")
+        except Exception:
+            pass
+
+    #MARK: dispatch
+    def handle_event(self, event) -> Optional[HCIEvtUI]:
+        """
+        Route one parsed event to its window.
+
+        Returns the window it went to, or None when the event has no window
+        class or is not one of the curated auto-popup events and none is open.
+        """
+        if self._is_destroyed or event is None:
             return None
-            
-        event_window = None
+
+        try:
+            ui_class = get_event_ui_class_for(event)
+            if ui_class is None:
+                return None
+
+            key = window_key_of(ui_class, (getattr(event, 'EVENT_CODE', 0),
+                                           getattr(event, 'SUB_EVENT_CODE', None)))
+            window = self.event_windows.get(key)
+
+            if window is None:
+                # Only curated events open a window by themselves. Everything
+                # else is already in the log; opening a window per Command
+                # Complete would bury the screen.
+                if not (ui_class.AUTO_POPUP or ui_class.ACTION_REQUIRED):
+                    return None
+                window = self._create_window(ui_class, key)
+                if window is None:
+                    return None
+
+            window.update_event(event)
+            if ui_class.ACTION_REQUIRED:
+                # A question the user has to answer -- put it in front.
+                window.bring_to_front()
+            return window
+        except Exception as exc:            # noqa: BLE001 - never break the RX path
+            print(f"Error handling event UI: {exc}")
+            traceback.print_exc()
+            return None
+
+    #MARK: window control
+    def open_event_window(self, event_code: int,
+                          sub_event_code: Optional[int] = None) -> Optional[HCIEvtUI]:
+        """Open (or raise) the window for an event code, on demand."""
+        ui_class = get_event_ui_class(event_code, sub_event_code)
+        if ui_class is None:
+            return None
+        key = window_key_of(ui_class, (event_code, sub_event_code))
+        window = self.event_windows.get(key)
+        if window is not None:
+            window.bring_to_front()
+            return window
+        return self._create_window(ui_class, key)
+
+    def _create_window(self, ui_class: Type[HCIEvtUI], key: str) -> Optional[HCIEvtUI]:
         parent = self.get_parent()
-        evt_type = get_event_ui_class(event_code)
-        
-        if evt_type is not None:
-            if event_code in self.event_windows:
-                # Window already exists, just show and raise it
-                existing_window = self.event_windows[event_code]
-                existing_window.show()
-                existing_window.raise_()
-                existing_window.activateWindow()
-                return existing_window
-            
-            # Add to parent's tracking system
-            event_window = evt_type(self.title, parent, self.transport)
-            event_window.window_closing.connect(lambda : self.close_event_window(event_code))
-            # Store in our local tracking
-            self.event_windows[event_code] = event_window
-            
-            # Position the window relative to main window
-            self.position_window(event_window)
-            
-            # Show the window
-            event_window.show()
-            event_window.raise_()
-            event_window.activateWindow()
-            
-        return event_window
-    
-    def position_window(self, window : HCIEvtUI):
+        try:
+            window = ui_class(self.title, parent, self.session)
+        except Exception as exc:            # noqa: BLE001
+            print(f"Could not build event window {ui_class.__name__}: {exc}")
+            traceback.print_exc()
+            return None
+
+        window.window_closing.connect(lambda *_: self.close_event_window(key))
+        self.event_windows[key] = window
+
+        self.position_window(window)
+        window.show()
+        window.raise_()
+        window.activateWindow()
+        return window
+
+    def position_window(self, window: HCIEvtUI):
         """Position the window relative to the main window"""
         parent = self.get_parent()
         if parent:
             try:
-                # Get main window geometry
                 main_rect = parent.geometry()
-                
-                # Calculate offset position
-                offset_x = 50 + (len(self.event_windows) * 30)
-                offset_y = 50 + (len(self.event_windows) * 30)
-                
-                # Set new position
-                new_x = main_rect.x() + offset_x
-                new_y = main_rect.y() + offset_y
-                
-                window.move(new_x, new_y)
+                offset = 50 + (len(self.event_windows) * 30)
+                window.move(main_rect.x() + offset, main_rect.y() + offset)
             except RuntimeError:
                 # Parent window has been deleted, skip positioning
                 pass
-    
-    
-    def get_event_window_by_code(self, event_code: int) -> Optional[HCIEvtUI]:
-        """Get an event window by its event code"""
-        return self.event_windows.get(event_code, None)
-    
+
+    def get_event_window(self, window_key: str) -> Optional[HCIEvtUI]:
+        """Get an event window by its key"""
+        return self.event_windows.get(window_key, None)
+
     def get_event_window_by_name(self, window_name: str) -> Optional[HCIEvtUI]:
-        """Get an event window by its name"""
+        """Get an event window by its human-readable name"""
         for window in self.event_windows.values():
-            if window.NAME == window_name:
-                return window
+            try:
+                if window.NAME == window_name:
+                    return window
+            except RuntimeError:
+                continue
         return None
-    
+
     def get_event_window_by_type(self, evt_type: Type[HCIEvtUI]) -> Optional[HCIEvtUI]:
         """Get an event window by its type"""
         for window in self.event_windows.values():
             if isinstance(window, evt_type):
                 return window
-        return None      
+        return None
+
+    def get_all_event_windows(self) -> list:
+        """Get all event windows"""
+        return list(self.event_windows.values())
 
     def add_to_parent(self):
         """Add this factory to the parent window's event tracking"""
@@ -194,7 +275,7 @@ class HCIEventFactory:
             except RuntimeError:
                 # Parent has been deleted
                 pass
-            
+
     def remove_from_parent(self):
         """Remove this factory from the parent window's event tracking"""
         parent = self.get_parent()
@@ -204,235 +285,34 @@ class HCIEventFactory:
             except RuntimeError:
                 # Parent has been deleted, nothing to do
                 pass
-    
-    
-    def get_event_window(self, event_code : int) -> Optional[HCIEvtUI]:
-        """Get an event window by its event code"""
-        return self.event_windows.get(event_code, None)
 
-    def get_all_event_windows(self) -> list[Optional[HCIEvtUI]]:
-        """Get all event windows"""
-        return list[HCIEvtUI | None](self.event_windows.values())
-    
     def raise_all_windows(self):
         """Raise all event windows to the front"""
-        for event_code, window in list[tuple[int, HCIEvtUI]](self.event_windows.items()):
+        for key, window in list(self.event_windows.items()):
             try:
                 if window.isVisible():
                     window.raise_()
                     window.activateWindow()
             except RuntimeError:
                 # Window has been deleted, remove from tracking
-                self.event_windows.pop(event_code, None)
-    
-    
-    def close_event_window(self, event_code : int):
-        """Close a specific event window by its event code"""
-        if event_code in self.event_windows:
-            window = self.event_windows[event_code]
-            try:
-                window.close()
-            except RuntimeError:
-                # Window already deleted
-                pass
-            del self.event_windows[event_code]
-    
+                self.event_windows.pop(key, None)
+
+    def close_event_window(self, window_key: str):
+        """Close a specific event window by its key"""
+        window = self.event_windows.pop(window_key, None)
+        if window is None:
+            return
+        try:
+            window.close()
+        except RuntimeError:
+            # Window already deleted
+            pass
+
     def close_all_event_windows(self):
         """Close all open event windows"""
-        for event_code in list(self.event_windows.keys()):
-            self.close_event_window(event_code)
+        for window_key in list(self.event_windows.keys()):
+            self.close_event_window(window_key)
         self.event_windows.clear()
 
-    def process_hci_evt_packet(self, packet_data : Optional[bytes]):
-        """
-        Process an HCI event packet and route it to the appropriate event manager.
-        
-        Args:
-            packet_data: Raw HCI packet data as bytes or bytearray
-        
-        Returns:
-            True if the packet was successfully processed, False otherwise
-        """
-        try:
-            event = hci_evt_parse_from_bytes(packet_data)
-            if event:
-                LogWindow.warning(self.transport.name + "->" + str(event))
-            else:
-                LogWindow.warning(self.transport.name + "->" + "Error parsing event")
-        except Exception as e:
-            print(f"Error processing event {e}")
-            traceback.print_exc()
 
-    def default_base_event_handler(self, event_code: int, event_data: Optional[bytearray] = None) -> bool:
-        """Default base event handler
-        This method handles base events based on the event code and event data.
-        Args:
-            event_code (int): The event code of the base event to handle.
-            event_data (Optional[bytearray]): Additional data for the event.
-        Returns:
-            bool: True if the event was handled successfully, False otherwise.
-        """
-        raise NotImplementedError(
-            "Default base event handler not implemented. "
-            "Please implement this method in the subclass."
-        )
-
-    def default_link_control_event_handler(self, event_code: int, event_data: Optional[bytearray] = None) -> bool:
-        """Default link control event handler
-        This method handles link control events based on the event code and event data.
-        Args:
-            event_code (int): The event code of the link control event to handle.
-            event_data (Optional[bytearray]): Additional data for the event.
-        Returns:
-            bool: True if the event was handled successfully, False otherwise.
-        """
-        return self.default_base_event_handler(event_code, event_data)
-
-    def default_link_policy_event_handler(self, event_code: int, event_data: Optional[bytearray] = None) -> bool:
-        """Default link policy event handler
-        This method handles link policy events based on the event code and event data.
-        Args:
-            event_code (int): The event code of the link policy event to handle.
-            event_data (Optional[bytearray]): Additional data for the event.
-        Returns:
-            bool: True if the event was handled successfully, False otherwise.
-        """
-        return self.default_base_event_handler(event_code, event_data)
-
-    def default_controller_baseband_event_handler(self, event_code: int, event_data: Optional[bytearray] = None) -> bool:
-        """Default controller and baseband event handler
-        This method handles controller and baseband events based on the event code and event data.
-        Args:
-            event_code (int): The event code of the controller and baseband event to handle.
-            event_data (Optional[bytearray]): Additional data for the event.
-        Returns:
-            bool: True if the event was handled successfully, False otherwise.
-        """
-        return self.default_base_event_handler(event_code, event_data)
-    
-    def default_le_event_handler(self, event_code: int, event_data: Optional[bytearray] = None) -> bool:
-        """Default LE event handler
-        This method handles LE events based on the event code and event data.
-        Args:
-            event_code (int): The event code of the LE event to handle.
-            event_data (Optional[bytearray]): Additional data for the event.
-        Returns:
-            bool: True if the event was handled successfully, False otherwise.
-        """
-        return self.default_base_event_handler(event_code, event_data)
-    
-    def default_info_event_handler(self, event_code: int, event_data: Optional[bytearray] = None) -> bool:
-        """Default information event handler
-        This method handles information events based on the event code and event data.
-        Args:
-            event_code (int): The event code of the information event to handle.
-            event_data (Optional[bytearray]): Additional data for the event.
-        Returns:
-            bool: True if the event was handled successfully, False otherwise.
-        """
-        return self.default_base_event_handler(event_code, event_data)
-    
-    def default_status_event_handler(self, event_code: int, event_data: Optional[bytearray] = None) -> bool:
-        """Default status event handler
-        This method handles status events based on the event code and event data.
-        Args:
-            event_code (int): The event code of the status event to handle.
-            event_data (Optional[bytearray]): Additional data for the event.
-        Returns:
-            bool: True if the event was handled successfully, False otherwise.
-        """
-        return self.default_base_event_handler(event_code, event_data)
-    
-    def default_testing_event_handler(self, event_code: int, event_data: Optional[bytearray] = None) -> bool:
-        """Default testing event handler
-        This method handles testing events based on the event code and event data.
-        Args:
-            event_code (int): The event code of the testing event to handle.
-            event_data (Optional[bytearray]): Additional data for the event.
-        Returns:
-            bool: True if the event was handled successfully, False otherwise.
-        """
-        return self.default_base_event_handler(event_code, event_data)
-    
-    def default_vendor_event_handler(self, event_code: int, event_data: Optional[bytearray] = None) -> bool:
-        """Default vendor event handler
-        This method handles vendor-specific events based on the event code and event data.
-        Args:
-            event_code (int): The event code of the vendor event to handle.
-            event_data (Optional[bytearray]): Additional data for the event.
-        Returns:
-            bool: True if the event was handled successfully, False otherwise.
-        """
-        return self.default_base_event_handler(event_code, event_data)
-
-    def default_base_event_handler(self, event_code : int, event_data: Optional[bytearray] = None) -> bool:
-        """Default event handler for HCI events
-        This method handles an event based on the event code and event data.
-        It retrieves the event class from the hci.evt module and processes it.
-        Args:
-            event_code (int): The event code of the event to handle.
-            event_data (Optional[bytearray]): Additional data for the event.
-        Returns:
-            bool: True if the event was handled successfully, False otherwise.
-        """
-        if event_data is None:
-            event_data = bytearray()
-        
-        # Handle the event based on the event code
-        # if event is registered event in hci.evt 
-        try:
-            # For LE Meta Events, we need to extract the sub-event code
-            sub_event_code = None
-            if event_code == HciEventCode.LE_META_EVENT and len(event_data) > 0:
-                sub_event_code = event_data[0]
-            
-            event_class = get_event_class(event_code, sub_event_code)
-            if event_class is None:
-                print(f"No event class found for event code 0x{event_code:02X}")
-                return False
-        
-            # Create an instance of the event class
-            event_instance = event_class.from_bytes(event_data)
-            
-            # Process the event (could be logged, displayed, etc.)
-            print(f"Processed event: {event_instance.NAME}")
-            return True
-            
-        except Exception as e:
-            print(f"Error handling event 0x{event_code:02X}: {e}")
-            return False
-
-    def handle_event(self, event_code: int, event_data: Optional[bytearray] = None) -> bool:
-        """ Handle an event by selecting the appropriate handler based on event category
-        Args:
-            event_code (int): The event code of the event to handle.
-            event_data (Optional[bytearray]): Additional data for the event.
-        Returns:
-            bool: True if the event was handled successfully, False otherwise.
-        """
-        # Get the event category from the event code
-        event_category = EVENT_CODE_TO_CATEGORY.get(event_code, None)
-        
-        # Handle the event based on the category
-        if event_category == EventCategory.LINK_CONTROL:
-            return self.default_link_control_event_handler(event_code, event_data)
-        elif event_category == EventCategory.LINK_POLICY:
-            return self.default_link_policy_event_handler(event_code, event_data)
-        elif event_category == EventCategory.CONTROLLER_BASEBAND:
-            return self.default_controller_baseband_event_handler(event_code, event_data)
-        elif event_category == EventCategory.LE:
-            return self.default_le_event_handler(event_code, event_data)
-        elif event_category == EventCategory.INFORMATION:
-            return self.default_info_event_handler(event_code, event_data)
-        elif event_category == EventCategory.STATUS:
-            return self.default_status_event_handler(event_code, event_data)
-        elif event_category == EventCategory.TESTING:
-            return self.default_testing_event_handler(event_code, event_data)
-        elif event_category == EventCategory.VENDOR_SPECIFIC:
-            return self.default_vendor_event_handler(event_code, event_data)
-        else:
-            # Unknown category, use default handler
-            return self.default_base_event_handler(event_code, event_data)
-    
-    
-    
+__all__ = ["HCIEventFactory"]

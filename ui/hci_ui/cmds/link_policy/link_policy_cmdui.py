@@ -17,6 +17,25 @@ from ..cmd_baseui import HCICmdUI
 from .. import register_command_ui
 
 
+def _u32_field(default: str, tooltip: str) -> QLineEdit:
+    """A text field for a 32-bit value -- QSpinBox cannot hold one."""
+    field = QLineEdit(default)
+    field.setToolTip(f"{tooltip}. Decimal, or hex with a 0x prefix.")
+    return field
+
+
+def _parse_u32(text: str, label: str) -> int:
+    """Parse a decimal or 0x-hex string into a 32-bit unsigned value."""
+    raw = text.strip()
+    try:
+        value = int(raw, 16) if raw.lower().startswith("0x") else int(raw, 10)
+    except ValueError:
+        raise ValueError(f"{label}: '{raw}' is not a number")
+    if not (0 <= value <= 0xFFFFFFFF):
+        raise ValueError(f"{label}: {value} does not fit in 32 bits")
+    return value
+
+
 class HoldModeCommandUI(HCICmdUI):
     """UI for HCI Hold Mode command"""
     OPCODE = create_opcode(OGF.LINK_POLICY, LinkPolicyOCF.HOLD_MODE)
@@ -49,38 +68,19 @@ class HoldModeCommandUI(HCICmdUI):
         self.form_layout.addRow( "Hold Mode Min Interval:", self.min_interval)
         
     def validate_parameters(self):
-        """ validate the Hold mode cmd by the hci.cmd.link_policy.HoldModeCmd.validate_parameters()"""
-        connection_handle = self.connection_handle.value()
-        max_interval = self.max_interval.value()
-        min_interval = self.min_interval.value()
-        
-        try:
-            lp_cmds.HoldMode(
-                connection_handle, max_interval, min_interval
-            )._validate_params()
-        except ValueError as e:
-            self.log_error(f"Inavalid parametrs: {e}")
-            return False
-        return True
-    
-    def get_data_bytes(self):
-        """ get the Hold Mode command data bytes from the hci.cmd.link_policy.HoldModeCmd.to_bytes()"""
-        connection_handle = self.connection_handle.value()
-        max_interval = self.max_interval.value()
-        min_interval = self.min_interval.value()
-        
-        return lp_cmds.HoldMode(
-                connection_handle, max_interval, min_interval
-            ).to_bytes()
+        """Build the Hold Mode command; the packet validates its own parameters"""
+        self._cmd_instance = lp_cmds.HoldMode(
+            connection_handle=self.connection_handle.value(),
+            hold_mode_max_interval=self.max_interval.value(),
+            hold_mode_min_interval=self.min_interval.value(),
+        )
 
-       
+
+
 class SniffModeCommandUI(HCICmdUI):
     """UI for HCI Sniff Mode command"""
     OPCODE = create_opcode(OGF.LINK_POLICY, LinkPolicyOCF.SNIFF_MODE)
     NAME = "HCI Sniff Mode Command"
-    def __init__(self):
-        super().__init__("HCI Sniff Mode Command")
-        
     def setup_ui(self):
         """Add Sniff Mode command specific UI components"""
         super().setup_ui()
@@ -120,42 +120,20 @@ class SniffModeCommandUI(HCICmdUI):
         self.form_layout.addRow( "Sniff Timeout:", self.sniff_timeout)
         
     def validate_parameters(self):
-        """ validate the Sniff mode cmd by the hci.cmd.link_policy.SniffModeCmd.validate_parameters()"""
-        connection_handle = self.connection_handle.value()
-        max_interval = self.max_interval.value()
-        min_interval = self.min_interval.value()
-        sniff_attempt = self.sniff_attempt.value()
-        sniff_timeout = self.sniff_timeout.value()
-        
-        try:
-            lp_cmds.SniffMode(
-                connection_handle, max_interval, min_interval, sniff_attempt, sniff_timeout
-            )._validate_params()
-        except ValueError as e:
-            self.log_error(f"Inavalid parametrs: {e}")
-            return False
-        return True
-    
-    def get_data_bytes(self):
-        """ get the Sniff Mode command data bytes from the hci.cmd.link_policy.SniffModeCmd.to_bytes()"""
-        connection_handle = self.connection_handle.value()
-        max_interval = self.max_interval.value()
-        min_interval = self.min_interval.value()
-        sniff_attempt = self.sniff_attempt.value()
-        sniff_timeout = self.sniff_timeout.value()
-        
-        return lp_cmds.SniffMode(
-                connection_handle, max_interval, min_interval, sniff_attempt, sniff_timeout
-            ).to_bytes()
+        """Build the Sniff Mode command from the inputs"""
+        self._cmd_instance = lp_cmds.SniffMode(
+            connection_handle=self.connection_handle.value(),
+            sniff_max_interval=self.max_interval.value(),
+            sniff_min_interval=self.min_interval.value(),
+            sniff_attempt=self.sniff_attempt.value(),
+            sniff_timeout=self.sniff_timeout.value(),
+        )
 
 
 class ExitSniffModeCommandUI(HCICmdUI):
     """UI for HCI Exit Sniff Mode command"""
     OPCODE = create_opcode(OGF.LINK_POLICY, LinkPolicyOCF.EXIT_SNIFF_MODE)
     NAME = "HCI Exit Sniff Mode Command"
-    def __init__(self):
-        super().__init__("HCI Exit Sniff Mode Command")
-        
     def setup_ui(self):
         """Add Exit Sniff Mode command specific UI components"""
         super().setup_ui()
@@ -167,29 +145,14 @@ class ExitSniffModeCommandUI(HCICmdUI):
         self.form_layout.addRow( "Connection Handle:", self.connection_handle)
         
     def validate_parameters(self):
-        """ validate the Exit Sniff Mode cmd by the hci.cmd.link_policy.ExitSniffModeCmd.validate_parameters()"""
-        connection_handle = self.connection_handle.value()
-        
-        try:
-            lp_cmds.ExitSniffMode(connection_handle)._validate_params()
-        except ValueError as e:
-            self.log_error(f"Inavalid parametrs: {e}")
-            return False
-        return True
-    
-    def get_data_bytes(self):
-        """ get the Exit Sniff Mode command data bytes from the hci.cmd.link_policy.ExitSniffModeCmd.to_bytes()"""
-        connection_handle = self.connection_handle.value()
-        
-        return lp_cmds.ExitSniffMode(connection_handle).to_bytes()
+        """Build the Exit Sniff Mode command from the inputs"""
+        self._cmd_instance = lp_cmds.ExitSniffMode(
+            connection_handle=self.connection_handle.value())
 
 class QosSetupCommandUI(HCICmdUI):
     """UI for HCI QoS Setup command"""
     OPCODE = create_opcode(OGF.LINK_POLICY, LinkPolicyOCF.QOS_SETUP)
     NAME = "HCI QoS Setup Command"
-    def __init__(self):
-        super().__init__("HCI QoS Setup Command")
-        
     def setup_ui(self):
         """Add QoS Setup command specific UI components"""
         super().setup_ui()
@@ -214,76 +177,36 @@ class QosSetupCommandUI(HCICmdUI):
         self.service_type.addItem("Guaranteed", 2)
         self.form_layout.addRow( "Service Type:", self.service_type)
         
-        # Token Rate
-        self.token_rate = QSpinBox()
-        self.token_rate.setRange(0, 0xFFFFFFFF)
-        self.token_rate.setValue(0)
-        self.token_rate.setToolTip("Token Rate (bytes/second)")
+        # These four are 32-bit; QSpinBox tops out at int32, so they are
+        # free-text fields accepting decimal or 0x-prefixed hex.
+        self.token_rate = _u32_field("0", "Token Rate (bytes/second)")
         self.form_layout.addRow( "Token Rate (B/s):", self.token_rate)
-        
-        # Peak Bandwidth
-        self.peak_bandwidth = QSpinBox()
-        self.peak_bandwidth.setRange(0, 0xFFFFFFFF)
-        self.peak_bandwidth.setValue(0)
-        self.peak_bandwidth.setToolTip("Peak Bandwidth (bytes/second)")
-        self.form_layout.addRow( "Peak Bandwidth (B/s):", self.peak_bandwidth)
-        
-        # Latency
-        self.latency = QSpinBox()
-        self.latency.setRange(0, 0xFFFFFFFF)
-        self.latency.setValue(0xFFFFFFFF)
-        self.latency.setToolTip("Latency (microseconds)")
-        self.form_layout.addRow( "Latency (μs):", self.latency)
-        
-        # Delay Variation
-        self.delay_variation = QSpinBox()
-        self.delay_variation.setRange(0, 0xFFFFFFFF)
-        self.delay_variation.setValue(0xFFFFFFFF)
-        self.delay_variation.setToolTip("Delay Variation (microseconds)")
-        self.form_layout.addRow( "Delay Variation (μs):", self.delay_variation)
-        
-    def validate_parameters(self):
-        """ validate the QoS Setup cmd by the hci.cmd.link_policy.QosSetupCmd.validate_parameters()"""
-        connection_handle = self.connection_handle.value()
-        flags = self.flags.value()
-        service_type = self.service_type.currentData()
-        token_rate = self.token_rate.value()
-        peak_bandwidth = self.peak_bandwidth.value()
-        latency = self.latency.value()
-        delay_variation = self.delay_variation.value()
-        
-        try:
-            lp_cmds.QosSetup(
-                connection_handle, flags, service_type, token_rate,
-                peak_bandwidth, latency, delay_variation
-            )._validate_params()
-        except ValueError as e:
-            self.log_error(f"Inavalid parametrs: {e}")
-            return False
-        return True
 
-    def get_data_bytes(self):
-        """ get the QoS Setup command data bytes from the hci.cmd.link_policy.QosSetupCmd.to_bytes()"""
-        connection_handle = self.connection_handle.value()
-        flags = self.flags.value()
-        service_type = self.service_type.currentData()
-        token_rate = self.token_rate.value()
-        peak_bandwidth = self.peak_bandwidth.value()
-        latency = self.latency.value()
-        delay_variation = self.delay_variation.value()
-        
-        return lp_cmds.QosSetup(
-                connection_handle, flags, service_type, token_rate,
-                peak_bandwidth, latency, delay_variation
-            ).to_bytes()
+        self.peak_bandwidth = _u32_field("0", "Peak Bandwidth (bytes/second)")
+        self.form_layout.addRow( "Peak Bandwidth (B/s):", self.peak_bandwidth)
+
+        self.latency = _u32_field("0xFFFFFFFF", "Latency (microseconds)")
+        self.form_layout.addRow( "Latency (μs):", self.latency)
+
+        self.delay_variation = _u32_field("0xFFFFFFFF", "Delay Variation (microseconds)")
+        self.form_layout.addRow( "Delay Variation (μs):", self.delay_variation)
+
+    def validate_parameters(self):
+        """Build the QoS Setup command from the inputs"""
+        self._cmd_instance = lp_cmds.QosSetup(
+            connection_handle=self.connection_handle.value(),
+            flags=self.flags.value(),
+            service_type=self.service_type.currentData(),
+            token_rate=_parse_u32(self.token_rate.text(), "Token Rate"),
+            peak_bandwidth=_parse_u32(self.peak_bandwidth.text(), "Peak Bandwidth"),
+            latency=_parse_u32(self.latency.text(), "Latency"),
+            delay_variation=_parse_u32(self.delay_variation.text(), "Delay Variation"),
+        )
 
 class RoleDiscoveryCommandUI(HCICmdUI):
     """UI for HCI Role Discovery command"""
     OPCODE = create_opcode(OGF.LINK_POLICY, LinkPolicyOCF.ROLE_DISCOVERY)
     NAME = "HCI Role Discovery Command"
-    def __init__(self):
-        super().__init__("HCI Role Discovery Command")
-        
     def setup_ui(self):
         """Add Role Discovery command specific UI components"""
         super().setup_ui()
@@ -295,30 +218,15 @@ class RoleDiscoveryCommandUI(HCICmdUI):
         self.form_layout.addRow( "Connection Handle:", self.connection_handle)
         
     def validate_parameters(self):
-        """ validate the Role Discovery cmd by the hci.cmd.link_policy.RoleDiscoveryCmd.validate_parameters()"""
-        connection_handle = self.connection_handle.value()
-        
-        try:
-            lp_cmds.RoleDiscovery(connection_handle)._validate_params()
-        except ValueError as e:
-            self.log_error(f"Inavalid parametrs: {e}")
-            return False
-        return True
-    
-    def get_data_bytes(self):
-        """ get the Role Discovery command data bytes from the hci.cmd.link_policy.RoleDiscoveryCmd.to_bytes()"""
-        connection_handle = self.connection_handle.value()
-        
-        return lp_cmds.RoleDiscovery(connection_handle).to_bytes()
+        """Build the Role Discovery command from the inputs"""
+        self._cmd_instance = lp_cmds.RoleDiscovery(
+            connection_handle=self.connection_handle.value())
 
 class SwitchRoleCommandUI(HCICmdUI):
     """UI for HCI Switch Role command"""
     OPCODE = create_opcode(OGF.LINK_POLICY, LinkPolicyOCF.SWITCH_ROLE)
     NAME = "HCI Switch Role Command"
     
-    def __init__(self):
-        super().__init__("HCI Switch Role Command")
-        
     def setup_ui(self):
         """Add Switch Role command specific UI components"""
         super().setup_ui()
@@ -335,23 +243,10 @@ class SwitchRoleCommandUI(HCICmdUI):
         self.form_layout.addRow( "Role:", self.role)
         
     def validate_parameters(self):
-        """ validate the Switch Role cmd by the hci.cmd.link_policy.SwitchRoleCmd.validate_parameters()"""
-        bd_addr = self.bd_addr.text().strip()
-        role = self.role.currentData()
-        
-        try:
-            lp_cmds.SwitchRole(bd_addr_str_to_bytes(bd_addr), role)._validate_params()
-        except ValueError as e:
-            self.log_error(f"Inavalid parametrs: {e}")
-            return False
-        return True
-    
-    def get_data_bytes(self):
-        """ get the Switch Role command data bytes from the hci.cmd.link_policy.SwitchRoleCmd.to_bytes()"""
-        bd_addr = self.bd_addr.text().strip()
-        role = self.role.currentData()
-        
-        return lp_cmds.SwitchRole(bd_addr_str_to_bytes(bd_addr), role).to_bytes()
+        """Build the Switch Role command from the inputs"""
+        self._cmd_instance = lp_cmds.SwitchRole(
+            bd_addr=self.bd_addr.text().strip(),
+            role=self.role.currentData())
 
 
 class ReadLinkPolicySettingsCommandUI(HCICmdUI):
@@ -359,9 +254,6 @@ class ReadLinkPolicySettingsCommandUI(HCICmdUI):
     OPCODE = create_opcode(OGF.LINK_POLICY, LinkPolicyOCF.READ_LINK_POLICY_SETTINGS)
     NAME = "HCI Read Link Policy Settings Command"
     
-    def __init__(self):
-        super().__init__("HCI Read Link Policy Settings Command")
-        
     def setup_ui(self):
         """Add Read Link Policy Settings command specific UI components"""
         super().setup_ui()
@@ -373,30 +265,15 @@ class ReadLinkPolicySettingsCommandUI(HCICmdUI):
         self.form_layout.addRow( "Connection Handle:", self.connection_handle)
         
     def validate_parameters(self):
-        """ validate the Read Link Policy Settings cmd by the hci.cmd.link_policy.ReadLinkPolicySettingsCmd.validate_parameters()"""
-        connection_handle = self.connection_handle.value()
-        
-        try:
-            lp_cmds.ReadLinkPolicySettings(connection_handle)._validate_params()
-        except ValueError as e:
-            self.log_error(f"Inavalid parametrs: {e}")
-            return False
-        return True
-    
-    def get_data_bytes(self):
-        """ get the Read Link Policy Settings command data bytes from the hci.cmd.link_policy.ReadLinkPolicySettingsCmd.to_bytes()"""
-        connection_handle = self.connection_handle.value()
-        
-        return lp_cmds.ReadLinkPolicySettings(connection_handle).to_bytes()
+        """Build the Read Link Policy Settings command from the inputs"""
+        self._cmd_instance = lp_cmds.ReadLinkPolicySettings(
+            connection_handle=self.connection_handle.value())
 
 class WriteLinkPolicySettingsCommandUI(HCICmdUI):
     """UI for HCI Write Link Policy Settings command"""
     OPCODE = create_opcode(OGF.LINK_POLICY, LinkPolicyOCF.WRITE_LINK_POLICY_SETTINGS)
     NAME = "HCI Write Link Policy Settings Command"
     
-    def __init__(self):
-        super().__init__("HCI Write Link Policy Settings Command")
-        
     def setup_ui(self):
         """Add Write Link Policy Settings command specific UI components"""
         super().setup_ui()
@@ -425,34 +302,23 @@ class WriteLinkPolicySettingsCommandUI(HCICmdUI):
         
         
     def validate_parameters(self):
-        """ validate the Write Link Policy Settings cmd by the hci.cmd.link_policy.WriteLinkPolicySettingsCmd.validate_parameters()"""
-        connection_handle = self.connection_handle.value()
-        
-        try:
-            lp_cmds.WriteLinkPolicySettings(
-                connection_handle,
-                self.enable_role_switch.isChecked(),
-                self.enable_hold_mode.isChecked(),
-                self.enable_sniff_mode.isChecked(),
-                self.enable_park_mode.isChecked()
-            )._validate_params()
-        except ValueError as e:
-            self.log_error(f"Inavalid parametrs: {e}")
-            return False
-        return True
-    
-    def get_data_bytes(self):
-        """ get the Write Link Policy Settings command data bytes from the hci.cmd.link_policy.WriteLinkPolicySettingsCmd.to_bytes()"""
-        connection_handle = self.connection_handle.value()
-        
-        return lp_cmds.WriteLinkPolicySettings(
-                connection_handle,
-                self.enable_role_switch.isChecked(),
-                self.enable_hold_mode.isChecked(),
-                self.enable_sniff_mode.isChecked(),
-                self.enable_park_mode.isChecked()
-            ).to_bytes()
-    
+        """Build the Write Link Policy Settings command from the checkboxes"""
+        cmd = lp_cmds.WriteLinkPolicySettings
+        settings = 0x0000
+        if self.enable_role_switch.isChecked():
+            settings |= cmd.ENABLE_ROLE_SWITCH
+        if self.enable_hold_mode.isChecked():
+            settings |= cmd.ENABLE_HOLD_MODE
+        if self.enable_sniff_mode.isChecked():
+            settings |= cmd.ENABLE_SNIFF_MODE
+        if self.enable_park_mode.isChecked():
+            settings |= cmd.ENABLE_PARK_STATE
+
+        self._cmd_instance = cmd(
+            connection_handle=self.connection_handle.value(),
+            link_policy_settings=settings)
+
+
 # Register the command UIs
 register_command_ui(HoldModeCommandUI)
 register_command_ui(SniffModeCommandUI)
@@ -462,4 +328,3 @@ register_command_ui(RoleDiscoveryCommandUI)
 register_command_ui(SwitchRoleCommandUI)
 register_command_ui(ReadLinkPolicySettingsCommandUI)
 register_command_ui(WriteLinkPolicySettingsCommandUI)
-        # Get the event code and data from the input fields
