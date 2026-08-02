@@ -8,6 +8,7 @@ from .connection import *
 from .controller_config import *
 from .ext_advertisement import *
 from .ext_scanning import *
+from .filter_accept_list import *
 from .isochronus import *
 from .le_test import *
 from .misc import *
@@ -17,6 +18,7 @@ from .security import *
 from . import channel_sounding
 from . import ext_advertisement
 from . import ext_scanning
+from . import filter_accept_list
 
 
 __all__ = [
@@ -124,4 +126,19 @@ __all__ = [
     'le_read_buffer_size',
     'le_read_local_supported_features',
     'le_read_supported_states',
+    'LeSetHostChannelClassification',
+    'LeReadChannelMap',
+    'le_set_host_channel_classification',
+    'le_read_channel_map',
+
+    # filter accept list
+    'FilterAcceptListAddressType',
+    'LeReadFilterAcceptListSize',
+    'LeClearFilterAcceptList',
+    'LeAddDeviceToFilterAcceptList',
+    'LeRemoveDeviceFromFilterAcceptList',
+    'le_read_filter_accept_list_size',
+    'le_clear_filter_accept_list',
+    'le_add_device_to_filter_accept_list',
+    'le_remove_device_from_filter_accept_list',
 ]
