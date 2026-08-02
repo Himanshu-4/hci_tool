@@ -208,7 +208,117 @@ class LeReadRemoteFeatures(HciCmdBasePacket):
         return cls(struct.unpack_from("<H", data, 0)[0])
 
 
+class LeExtendedCreateConnection(HciCmdBasePacket):
+    """
+    LE Extended Create Connection Command (0x2043).
+
+    The extended form of 0x200D: it can initiate on 1M, 2M and Coded at once,
+    with a separate parameter block per PHY. `phy_params` maps an
+    `InitiatingPhy` to
+    `(scan_interval, scan_window, conn_interval_min, conn_interval_max,
+      conn_latency, supervision_timeout, min_ce_length, max_ce_length)`,
+    and the blocks go out in ascending PHY-bit order.
+
+    Note the 2M bit may be set only alongside 1M or Coded -- there is no
+    2M primary advertising channel to scan, so a 2M-only initiation never
+    finds anything.
+    """
+
+    OPCODE = create_opcode(OGF.LE, LEControllerOCF.EXTENDED_CREATE_CONNECTION)
+    NAME = "LE_Extended_Create_Connection"
+
+    #: Bits in the `Initiating_PHYs` field.
+    PHY_1M = 0x01
+    PHY_2M = 0x02
+    PHY_CODED = 0x04
+
+    _PHY_ORDER = (PHY_1M, PHY_2M, PHY_CODED)
+
+    #: The per-PHY block used when the caller does not supply one.
+    DEFAULT_PHY_PARAMS = (0x0060, 0x0030, 0x0018, 0x0028, 0x0000, 0x01F4,
+                          0x0000, 0x0000)
+
+    def __init__(self,
+                 peer_address: Union[bytes, str] = b"\x00" * 6,
+                 peer_address_type: int = 0x00,
+                 own_address_type: int = 0x00,
+                 initiator_filter_policy: int = 0x00,
+                 phy_params: dict = None):
+        if phy_params is None:
+            phy_params = {self.PHY_1M: self.DEFAULT_PHY_PARAMS}
+        super().__init__(
+            initiator_filter_policy=initiator_filter_policy,
+            own_address_type=own_address_type,
+            peer_address_type=peer_address_type,
+            peer_address=_coerce_addr(peer_address),
+            phy_params={int(k): tuple(v) for k, v in phy_params.items()},
+        )
+
+    def _validate_params(self) -> None:
+        p = self.params
+        if not p['phy_params']:
+            raise ValueError("at least one initiating PHY is required")
+        for phy, block in p['phy_params'].items():
+            if phy not in self._PHY_ORDER:
+                raise ValueError(f"Invalid initiating PHY: 0x{phy:02X}")
+            if len(block) != 8:
+                raise ValueError(
+                    f"PHY 0x{phy:02X} needs 8 parameters, got {len(block)}")
+            (scan_itv, scan_win, itv_min, itv_max, latency, timeout, _, _) = block
+            if scan_win > scan_itv:
+                raise ValueError(f"PHY 0x{phy:02X}: scan_window must be "
+                                 "<= scan_interval")
+            if itv_min > itv_max:
+                raise ValueError(f"PHY 0x{phy:02X}: conn_interval_min must be "
+                                 "<= conn_interval_max")
+            if not (0x000A <= timeout <= 0x0C80):
+                raise ValueError(f"PHY 0x{phy:02X}: supervision_timeout "
+                                 f"0x{timeout:04X} out of range (0x000A..0x0C80)")
+            if not (0x0000 <= latency <= 0x01F3):
+                raise ValueError(f"PHY 0x{phy:02X}: conn_latency {latency} "
+                                 "out of range (0..499)")
+        if set(p['phy_params']) == {self.PHY_2M}:
+            raise ValueError("LE 2M alone cannot initiate: there is no 2M "
+                             "primary advertising channel to scan")
+
+    def _serialize_params(self) -> bytes:
+        p = self.params
+        bitmap = 0
+        for phy in self._PHY_ORDER:
+            if phy in p['phy_params']:
+                bitmap |= phy
+
+        out = bytearray([p['initiator_filter_policy'], p['own_address_type'],
+                         p['peer_address_type']])
+        out += bytes(reversed(p['peer_address']))
+        out.append(bitmap)
+        for phy in self._PHY_ORDER:
+            block = p['phy_params'].get(phy)
+            if block is not None:
+                out += struct.pack("<8H", *block)
+        return bytes(out)
+
+    @classmethod
+    def from_bytes(cls, data: bytes) -> "LeExtendedCreateConnection":
+        if len(data) < 10:
+            raise ValueError(f"Invalid data length: {len(data)}, expected >= 10")
+        policy, own_type, peer_type = data[0], data[1], data[2]
+        peer = bytes(reversed(data[3:9]))
+        bitmap = data[9]
+        phys = [phy for phy in cls._PHY_ORDER if bitmap & phy]
+        needed = 10 + len(phys) * 16
+        if len(data) < needed:
+            raise ValueError(f"Invalid data length: {len(data)}, expected {needed}")
+        phy_params = {phy: struct.unpack_from("<8H", data, 10 + i * 16)
+                      for i, phy in enumerate(phys)}
+        return cls(peer, peer_type, own_type, policy, phy_params)
+
+
 # ------------------------------------------------------------ helper builders
+
+def le_extended_create_connection(peer_address, **kwargs) -> LeExtendedCreateConnection:
+    return LeExtendedCreateConnection(peer_address, **kwargs)
+
 
 def le_create_connection(peer_address, **kwargs) -> LeCreateConnection:
     return LeCreateConnection(peer_address, **kwargs)
@@ -230,6 +340,7 @@ register_command(LeCreateConnection)
 register_command(LeCreateConnectionCancel)
 register_command(LeConnectionUpdate)
 register_command(LeReadRemoteFeatures)
+register_command(LeExtendedCreateConnection)
 
 
 __all__ = [
@@ -237,8 +348,10 @@ __all__ = [
     'LeCreateConnectionCancel',
     'LeConnectionUpdate',
     'LeReadRemoteFeatures',
+    'LeExtendedCreateConnection',
     'le_create_connection',
     'le_create_connection_cancel',
     'le_connection_update',
     'le_read_remote_features',
+    'le_extended_create_connection',
 ]

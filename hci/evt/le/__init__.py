@@ -24,6 +24,30 @@ from .poc_le_events import (
     LePhyUpdateCompleteEvent,
 )
 
+from .ext_events import (
+    LeExtendedAdvertisingReportEvent,
+    LePeriodicAdvertisingSyncEstablishedEvent,
+    LePeriodicAdvertisingReportEvent,
+    LePeriodicAdvertisingSyncLostEvent,
+    LeScanTimeoutEvent,
+    LeAdvertisingSetTerminatedEvent,
+    LeScanRequestReceivedEvent,
+    LeChannelSelectionAlgorithmEvent,
+    ext_event_type_str,
+    phy_name,
+)
+
+from .cs_events import (
+    LeCsReadRemoteSupportedCapabilitiesCompleteEvent,
+    LeCsReadRemoteFaeTableCompleteEvent,
+    LeCsSecurityEnableCompleteEvent,
+    LeCsConfigCompleteEvent,
+    LeCsProcedureEnableCompleteEvent,
+    LeCsSubeventResultEvent,
+    LeCsSubeventResultContinueEvent,
+    LeCsTestEndCompleteEvent,
+)
+
 from .adv_data import (
     AdFlags,
     AdType,
@@ -53,4 +77,26 @@ __all__ = [
     'le_advertising_report',
     'le_connection_update_complete',
     'le_read_remote_features_complete',
+
+    # extended / periodic advertising and scanning
+    'LeExtendedAdvertisingReportEvent',
+    'LePeriodicAdvertisingSyncEstablishedEvent',
+    'LePeriodicAdvertisingReportEvent',
+    'LePeriodicAdvertisingSyncLostEvent',
+    'LeScanTimeoutEvent',
+    'LeAdvertisingSetTerminatedEvent',
+    'LeScanRequestReceivedEvent',
+    'LeChannelSelectionAlgorithmEvent',
+    'ext_event_type_str',
+    'phy_name',
+
+    # channel sounding
+    'LeCsReadRemoteSupportedCapabilitiesCompleteEvent',
+    'LeCsReadRemoteFaeTableCompleteEvent',
+    'LeCsSecurityEnableCompleteEvent',
+    'LeCsConfigCompleteEvent',
+    'LeCsProcedureEnableCompleteEvent',
+    'LeCsSubeventResultEvent',
+    'LeCsSubeventResultContinueEvent',
+    'LeCsTestEndCompleteEvent',
 ]

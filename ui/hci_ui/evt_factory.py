@@ -144,16 +144,16 @@ class HCIEventFactory:
 
     #MARK: logging
     def _log_rx(self, event) -> None:
-        """Every received event, decoded, in the log window."""
+        """Every received event, decoded, in the log window -- yellow."""
         try:
-            LogWindow.info(f"{self.title} < {event}")
+            LogWindow.hci_event(f"{self.title} < {event}")
         except Exception:
             pass
 
     def _log_tx(self, command) -> None:
         """Every command the session sends, decoded, in the log window."""
         try:
-            LogWindow.info(f"{self.title} > {command}")
+            LogWindow.hci_command(f"{self.title} > {command}")
         except Exception:
             pass
 

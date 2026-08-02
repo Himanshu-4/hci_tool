@@ -6,11 +6,17 @@ from .advertisement import *
 from .channel_sounding import *
 from .connection import *
 from .controller_config import *
+from .ext_advertisement import *
+from .ext_scanning import *
 from .isochronus import *
 from .le_test import *
 from .misc import *
 from .scanning import *
 from .security import *
+
+from . import channel_sounding
+from . import ext_advertisement
+from . import ext_scanning
 
 
 __all__ = [
@@ -49,10 +55,65 @@ __all__ = [
     'LeCreateConnectionCancel',
     'LeConnectionUpdate',
     'LeReadRemoteFeatures',
+    'LeExtendedCreateConnection',
     'le_create_connection',
     'le_create_connection_cancel',
     'le_connection_update',
     'le_read_remote_features',
+    'le_extended_create_connection',
+
+    # extended / periodic advertising
+    'AdvEventProperties',
+    'PrimaryPhy',
+    'SecondaryPhy',
+    'DataOperation',
+    'FragmentPreference',
+    'LEGACY_ADV_IND',
+    'LEGACY_ADV_DIRECT_IND',
+    'LEGACY_ADV_SCAN_IND',
+    'LEGACY_ADV_NONCONN_IND',
+    'LeSetAdvertisingSetRandomAddress',
+    'LeSetExtendedAdvertisingParameters',
+    'LeSetExtendedAdvertisingData',
+    'LeSetExtendedScanResponseData',
+    'LeSetExtendedAdvertisingEnable',
+    'LeReadMaximumAdvertisingDataLength',
+    'LeReadNumberOfSupportedAdvertisingSets',
+    'LeRemoveAdvertisingSet',
+    'LeClearAdvertisingSets',
+    'LeSetPeriodicAdvertisingParameters',
+    'LeSetPeriodicAdvertisingData',
+    'LeSetPeriodicAdvertisingEnable',
+
+    # extended scanning / periodic sync
+    'ScanPhy',
+    'PeriodicSyncOptions',
+    'LeSetExtendedScanParameters',
+    'LeSetExtendedScanEnable',
+    'LePeriodicAdvertisingCreateSync',
+    'LePeriodicAdvertisingCreateSyncCancel',
+    'LePeriodicAdvertisingTerminateSync',
+    'LeSetPeriodicAdvertisingReceiveEnable',
+
+    # channel sounding
+    'CsRole',
+    'CsRoleMask',
+    'CsSyncPhy',
+    'CsMainMode',
+    'CsSubMode',
+    'CsRttType',
+    'LeCsReadLocalSupportedCapabilities',
+    'LeCsReadRemoteSupportedCapabilities',
+    'LeCsSecurityEnable',
+    'LeCsSetDefaultSettings',
+    'LeCsReadRemoteFaeTable',
+    'LeCsCreateConfig',
+    'LeCsRemoveConfig',
+    'LeCsSetChannelClassification',
+    'LeCsSetProcedureParameters',
+    'LeCsProcedureEnable',
+    'LeCsTest',
+    'LeCsTestEnd',
 
     # misc
     'LeSetEventMask',

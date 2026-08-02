@@ -497,13 +497,20 @@ class HciSession:
             self.local_name = extra.split(b"\x00", 1)[0].decode("utf-8", "replace")
             self._emit(EVT_STATE, "local_name", self.local_name)
 
-        elif opcode == 0x200A:                              # LE_Set_Advertise_Enable
+        elif opcode in (0x200A, 0x2039):    # LE_Set_(Extended_)Advertise_Enable
             if event.params.get("status") in (0x00, None):
                 self._set_state("advertising", self._pending_flag("advertising"))
 
-        elif opcode == 0x200C:                              # LE_Set_Scan_Enable
+        elif opcode in (0x200C, 0x2042):    # LE_Set_(Extended_)Scan_Enable
             if event.params.get("status") in (0x00, None):
                 self._set_state("scanning", self._pending_flag("scanning"))
+
+    #: Opcodes that turn advertising/scanning on or off, and the params key
+    #: holding the intent, legacy first then extended.
+    _ENABLE_OPCODES = {
+        "advertising": ((0x200A, "enable"), (0x2039, "enable")),
+        "scanning": ((0x200C, "scan_enable"), (0x2042, "enable")),
+    }
 
     def _pending_flag(self, which: str) -> bool:
         """
@@ -512,20 +519,32 @@ class HciSession:
         The Command Complete carries only a status, so the intent has to come
         from the command we sent.
         """
-        opcode = 0x200A if which == "advertising" else 0x200C
-        key = "enable" if which == "advertising" else "scan_enable"
         with self._lock:
             for token in self._outstanding:
-                if token.opcode == opcode:
-                    return bool(token.command.params.get(key, 0))
+                for opcode, key in self._ENABLE_OPCODES[which]:
+                    if token.opcode == opcode:
+                        return bool(token.command.params.get(key, 0))
         return not getattr(self, f"_{which}")
 
     def _on_le_meta(self, event) -> None:
         sub = getattr(event, "SUB_EVENT_CODE", None)
 
-        if sub == LeMetaEventSubCode.ADVERTISING_REPORT:
+        if sub in (LeMetaEventSubCode.ADVERTISING_REPORT,
+                   LeMetaEventSubCode.EXTENDED_ADVERTISING_REPORT):
+            # Extended reports carry the same 'address'/'rssi'/'adv_data' keys,
+            # so scan consumers do not care which flavour arrived.
             for report in getattr(event, "reports", []):
                 self._emit(EVT_ADV_REPORT, report)
+
+        elif sub == LeMetaEventSubCode.SCAN_TIMEOUT:
+            # An extended scan with a duration ends itself; nothing else tells
+            # the host that scanning stopped.
+            self._set_state("scanning", False)
+
+        elif sub == LeMetaEventSubCode.ADVERTISING_SET_TERMINATED:
+            # The set stopped -- either it hit its limit or it was consumed by
+            # an incoming connection (which arrives as its own event).
+            self._set_state("advertising", False)
 
         elif sub in (LeMetaEventSubCode.CONNECTION_COMPLETE,
                      LeMetaEventSubCode.ENHANCED_CONNECTION_COMPLETE):

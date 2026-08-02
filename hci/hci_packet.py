@@ -188,13 +188,24 @@ class HciAclDataPacket(HciPacket):
             raise ValueError(f"Invalid data length: expected {data_length} bytes, got {len(data) - 5}")
         
         acl_data = data[5:5+data_length]
-        
+
         return cls(
             connection_handle=connection_handle,
             pb_flag=pb_flag,
             bc_flag=bc_flag,
             data=acl_data
         )
+
+    def __str__(self) -> str:
+        """
+        Readable one-liner.
+
+        Concrete because `HciPacket.__str__` is abstract: without it the class
+        cannot be instantiated at all, which is not obvious from the traceback.
+        """
+        return (f"ACL Data: Handle=0x{self.params['connection_handle']:04X}, "
+                f"PB={self.params['pb_flag']}, BC={self.params['bc_flag']}, "
+                f"{len(self.params['data'])} bytes")
 
 #MARK: HciScoPacket
 class HciSynchronousDataPacket(HciPacket):

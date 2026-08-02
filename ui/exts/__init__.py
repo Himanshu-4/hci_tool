@@ -9,6 +9,7 @@ from .firmware_download import *
 from .hci_window import *
 from .hid_test import *
 from .le_iso_test import *
+from .le_screen import *
 from .log_window import *
 from .log_window_async import *
 from .quick_connect import *
@@ -24,6 +25,7 @@ __all__ = [
     'hci_window',
     'hid_test',
     'le_iso_test',
+    'le_screen',
     'log_window', # deprecated
     'log_window_async', # deprecated
     'quick_connect',

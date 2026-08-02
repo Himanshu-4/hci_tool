@@ -22,6 +22,11 @@ class LogWindow(QWidget):
         'ERROR': "red",
         'CRITICAL': "orange",
         'EXCEPTION': "purple",
+        # Traffic with the controller. EVENT is everything it sent us -- yellow,
+        # but a shade darker than WARNING so the two stay apart and it still
+        # reads on the light background.
+        'EVENT': "goldenrod",
+        'COMMAND': "teal",
         'NOTSET': "white"
     }
 
@@ -232,6 +237,28 @@ class LogWindow(QWidget):
         if not LogWindow.is_inited():
             return
         cls.get_instance().append_log(message, "EXCEPTION")
+
+    @classmethod
+    def hci_event(cls, message: str):
+        """
+        Something the controller sent us -- always yellow.
+
+        Kept distinct from info() so a flood of events can be picked out of the
+        log at a glance without reading any of it.
+
+        NOT named `event`: LogWindow is a QWidget, and `QWidget.event()` is Qt's
+        event dispatcher -- shadowing it breaks every widget in the window.
+        """
+        if not LogWindow.is_inited():
+            return
+        cls.get_instance().append_log(message, "EVENT")
+
+    @classmethod
+    def hci_command(cls, message: str):
+        """Something we sent the controller."""
+        if not LogWindow.is_inited():
+            return
+        cls.get_instance().append_log(message, "COMMAND")
         
 
 ### Static Methods
