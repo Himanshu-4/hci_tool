@@ -19,6 +19,7 @@ from . import channel_sounding
 from . import ext_advertisement
 from . import ext_scanning
 from . import filter_accept_list
+from . import isochronus
 
 
 __all__ = [
@@ -141,4 +142,50 @@ __all__ = [
     'le_clear_filter_accept_list',
     'le_add_device_to_filter_accept_list',
     'le_remove_device_from_filter_accept_list',
+
+    # isochronous: CIG/CIS, BIG/BIS, ISO data paths and test modes
+    'IsoPacking',
+    'IsoFraming',
+    'IsoPhy',
+    'ClockAccuracy',
+    'DataPathDirection',
+    'DataPathDirectionMask',
+    'DataPathId',
+    'CodingFormat',
+    'IsoPayloadType',
+    'HostFeatureBit',
+    'LeReadIsoTxSync',
+    'LeSetCigParameters',
+    'LeSetCigParametersTest',
+    'LeCreateCis',
+    'LeRemoveCig',
+    'LeAcceptCisRequest',
+    'LeRejectCisRequest',
+    'LeCreateBig',
+    'LeCreateBigTest',
+    'LeTerminateBig',
+    'LeBigCreateSync',
+    'LeBigTerminateSync',
+    'LeRequestPeerSca',
+    'LeSetupIsoDataPath',
+    'LeRemoveIsoDataPath',
+    'LeIsoTransmitTest',
+    'LeIsoReceiveTest',
+    'LeIsoReadTestCounters',
+    'LeIsoTestEnd',
+    'LeSetHostFeature',
+    'LeReadIsoLinkQuality',
+    'le_set_cig_parameters',
+    'le_create_cis',
+    'le_remove_cig',
+    'le_create_big',
+    'le_terminate_big',
+    'le_big_create_sync',
+    'le_big_terminate_sync',
+    'le_setup_iso_data_path',
+    'le_remove_iso_data_path',
+    'le_iso_transmit_test',
+    'le_iso_receive_test',
+    'le_iso_test_end',
+    'le_set_host_feature',
 ]
