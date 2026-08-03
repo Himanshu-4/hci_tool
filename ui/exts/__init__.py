@@ -8,6 +8,7 @@ from .test_window_base import *
 from .a2dp_test import *
 from .config_chip import *
 from .diagnostic import *
+from .fw_formats import *
 from .firmware_download import *
 from .hci_window import *
 from .hid_test import *
@@ -27,7 +28,8 @@ __all__ = [
     'test_window_base',
     'config_chip',
     'diagnostic',
-    'firmware_download',    
+    'firmware_download',
+    'fw_formats',
     'hci_window',
     'hid_test',
     'le_iso_test',
