@@ -2,6 +2,9 @@
 UI extensions package.
 """
 
+from .audio_offload import *
+from .l2cap_util import *
+from .test_window_base import *
 from .a2dp_test import *
 from .config_chip import *
 from .diagnostic import *
@@ -19,6 +22,9 @@ from .util_screen import *
 
 __all__ = [
     'a2dp_test',
+    'audio_offload',
+    'l2cap_util',
+    'test_window_base',
     'config_chip',
     'diagnostic',
     'firmware_download',    
